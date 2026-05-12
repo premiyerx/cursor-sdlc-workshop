@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI LinkedIn Post Generator - Exec Summary</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --bg-soft: #121212;
+      --panel: #151515;
+      --border: #232323;
+      --text: #f5f5f5;
+      --muted: #9a9a9a;
+      --accent: #3edc81;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: linear-gradient(180deg, #050505 0%, #0a0a0a 100%);
+      color: var(--text);
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 40px 24px 56px;
+    }
+    .header {
+      margin-bottom: 20px;
+    }
+    .title {
+      margin: 0;
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+    .subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 24px 0;
+    }
+    .tab {
+      border: 1px solid var(--border);
+      background: var(--bg-soft);
+      color: var(--muted);
+      padding: 10px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .tab.active {
+      color: var(--accent);
+      border-color: rgba(62, 220, 129, 0.35);
+      background: rgba(62, 220, 129, 0.08);
+    }
+    .slide {
+      display: none;
+      border: 1px solid var(--border);
+      background: rgba(18, 18, 18, 0.92);
+      border-radius: 20px;
+      padding: 28px;
+    }
+    .slide.active { display: block; }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 24px;
+      color: var(--accent);
+    }
+    h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+    p {
+      margin: 0 0 14px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .muted { color: var(--muted); }
+    .stats, .cards {
+      display: grid;
+      gap: 14px;
+      margin: 18px 0 22px;
+    }
+    .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stat, .card {
+      border: 1px solid var(--border);
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 16px;
+    }
+    .stat-value {
+      font-size: 30px;
+      font-weight: 800;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .stat-label {
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .pill {
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid rgba(62, 220, 129, 0.25);
+      color: var(--accent);
+      background: rgba(62, 220, 129, 0.08);
+      white-space: nowrap;
+    }
+    .list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--text);
+      line-height: 1.8;
+    }
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 22px 0;
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    @media (max-width: 800px) {
+      .stats, .cards { grid-template-columns: 1fr; }
+      .title { font-size: 30px; }
+      .slide { padding: 20px; }
+      .footer { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h1 class="title">AI LinkedIn Post Generator</h1>
+      <p class="subtitle">Executive Summary · What We Built and Why</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-slide="0">1. Overview</button>
+      <button class="tab" data-slide="1">2. What We Built</button>
+      <button class="tab" data-slide="2">3. Why It Matters</button>
+    </div>
+
+    <section class="slide active" data-slide="0">
+      <h2>What started as an MVP is now a real content engine</h2>
+      <p>We started with a simple idea: help Prem create strong LinkedIn posts faster. Over time, this became a much more complete product that not only writes content, but also improves its quality, presentation, and credibility before it reaches LinkedIn.</p>
+      <p class="muted">The app now handles topic selection, AI-assisted writing, visual formatting, carousel creation, timing guidance, reminders, citations, and fact-checking in one place.</p>
+
+      <div class="stats">
+        <div class="stat"><div class="stat-value">9</div><div class="stat-label">Post Templates</div></div>
+        <div class="stat"><div class="stat-value">4</div><div class="stat-label">Content Pillars</div></div>
+        <div class="stat"><div class="stat-value">95+</div><div class="stat-label">Score Target</div></div>
+        <div class="stat"><div class="stat-value">3</div><div class="stat-label">Output Formats</div></div>
+      </div>
+
+      <h3>The business problem</h3>
+      <p>Good LinkedIn content is hard to do consistently. It takes time to think of a topic, write a strong hook, structure the post for mobile readers, add supporting data, create a graphic, and publish at the right time. Most people do not have time to do all of that every day.</p>
+
+      <h3>The solution</h3>
+      <p>This app turns that whole process into a guided flow. It gives you a clean interface, recommends what to post, generates high-quality text and visuals, and packages everything so you can publish faster with more confidence.</p>
+    </section>
+
+    <section class="slide" data-slide="1">
+      <h2>What we built</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="card-head"><strong>One-click post generation</strong><span class="pill">Live</span></div>
+          <p>Pick a topic, choose a format, and generate a polished post in seconds with a hook, body, CTA, hashtags, and a first comment.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><strong>AI-powered writing</strong><span class="pill">Live</span></div>
+          <p>Optional OpenAI support generates original posts in Prem’s voice using current news, market context, and proven creator-style structures.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><strong>Algorithm scoring</strong><span class="pill">Live</span></div>
+          <p>Each post is scored for hook quality, readability, structure, credibility, CTA quality, and other signals tied to LinkedIn performance.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><strong>Carousel PDF generator</strong><span class="pill">Live</span></div>
+          <p>The app converts posts into clean LinkedIn document carousels with a cover, content slides, one dedicated sources page, and a branded closing slide.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><strong>Fact-check gate</strong><span class="pill">New</span></div>
+          <p>Before posting, the app now scans every number and claim, flags anything unverified or stale, and requires confirmation before it moves forward.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><strong>Data registry</strong><span class="pill">New</span></div>
+          <p>All important stats are stored in one place with source information and verification dates so outdated numbers can be caught and corrected quickly.</p>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3>Design and usability improvements</h3>
+      <p>We also redesigned the experience to feel more premium and intuitive. The flow is faster, the buttons are clearer, the dark visual design is more polished, and the app works as a desktop and mobile installable PWA.</p>
+    </section>
+
+    <section class="slide" data-slide="2">
+      <h2>Why this matters</h2>
+      <p>The biggest shift was moving from “generate something” to “generate something that can actually perform.” We researched what the best LinkedIn creators do, then built those patterns into the engine.</p>
+
+      <h3>We followed creators, not celebrities</h3>
+      <p>We studied major LinkedIn names and found an important difference: some people get reach because they are famous, while others earn it through writing skill and consistency. Since Prem is building reach through content quality, we modeled the app after successful creators like Justin Welsh, Jasmin Alic, and Lara Acosta instead of celebrity CEOs.</p>
+
+      <h3>What changed in the writing engine</h3>
+      <ul class="list">
+        <li>Short, stronger opening hooks designed to stop scrolling.</li>
+        <li>Cleaner formatting with line breaks, bullets, arrows, and light emoji use.</li>
+        <li>Clearer calls to action that invite comments instead of sounding promotional.</li>
+        <li>First-comment generation to help boost engagement after posting.</li>
+        <li>Better use of carousels and visuals because those formats often outperform plain text.</li>
+      </ul>
+
+      <div class="divider"></div>
+
+      <h3>Bottom line</h3>
+      <p>This is no longer just an MVP. It is now a practical, polished content system designed to save time, improve quality, reduce errors, and increase the odds that each post performs well on LinkedIn.</p>
+      <p class="muted">In plain English: the app now helps Prem create smarter posts, faster, with better design, stronger writing, and much better protection against sharing inaccurate information publicly.</p>
+    </section>
+
+    <div class="footer">
+      <span>Prem Iyer · AI Software Transformation · April 2026</span>
+      <span>Open locally from the workspace or in a browser</span>
+    </div>
+  </div>
+
+  <script>
+    const tabs = [...document.querySelectorAll('.tab')];
+    const slides = [...document.querySelectorAll('.slide')];
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const id = tab.getAttribute('data-slide');
+        tabs.forEach((t) => t.classList.toggle('active', t === tab));
+        slides.forEach((s) => s.classList.toggle('active', s.getAttribute('data-slide') === id));
+      });
+    });
+  </script>
+</body>
+</html>
