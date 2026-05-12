@@ -8,13 +8,19 @@ const SEARCH_QUERIES = {
 }
 
 const CACHE_KEY = 'lidp_realtime_cache'
+/** Within a calendar day, refresh at most every 4h so we pick up intraday news without hammering APIs. */
 const CACHE_TTL = 4 * 60 * 60 * 1000
+
+function calendarDayUtc() {
+  return new Date().toISOString().slice(0, 10)
+}
 
 function getCachedData(topicId) {
   try {
     const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
     const entry = cache[topicId]
-    if (entry && Date.now() - entry.ts < CACHE_TTL) {
+    const today = calendarDayUtc()
+    if (entry && entry.day === today && Date.now() - entry.ts < CACHE_TTL) {
       return entry.data
     }
   } catch { /* ignore */ }
@@ -24,7 +30,7 @@ function getCachedData(topicId) {
 function setCachedData(topicId, data) {
   try {
     const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
-    cache[topicId] = { data, ts: Date.now() }
+    cache[topicId] = { data, ts: Date.now(), day: calendarDayUtc() }
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache))
   } catch { /* ignore */ }
 }
@@ -183,6 +189,9 @@ export function getRealtimeSprinkle(topicId) {
   const freshData = generateFreshDataPoints(topicId)
   if (!freshData.length) return ''
   const minuteBucket = Math.floor(Date.now() / 60_000)
-  const idx = (fnv1a(`${topicId}:${minuteBucket}`) % freshData.length + freshData.length) % freshData.length
+  const dayStr = new Date().toDateString()
+  const idx =
+    (fnv1a(`${topicId}:${dayStr}:${minuteBucket}`) % freshData.length + freshData.length) %
+    freshData.length
   return freshData[idx]
 }

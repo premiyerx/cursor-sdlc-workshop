@@ -8,8 +8,8 @@ import {
   formatWeekdayPostingMainLine,
 } from './data/algorithmRules'
 import { findCitations } from './data/citations'
-import { getRealtimeSprinkle } from './utils/realtimeData'
-import { pickTemplateIndex, recordGeneratedHook } from './utils/generationVariety'
+import { getRealtimeSprinkle, fetchRealtimeContext } from './utils/realtimeData'
+import { pickTemplateIndex, recordGeneratedHook, headlinePromptOffset } from './utils/generationVariety'
 import VoiceProfile from './components/VoiceProfile'
 import AIGenerator from './components/AIGenerator'
 import PostDisplay from './components/PostDisplay'
@@ -39,6 +39,7 @@ export default function App() {
   const [format, setFormat] = useState('image')
   const [generatedPost, setGeneratedPost] = useState(null)
   const [liveText, setLiveText] = useState('')
+  const [generateBusy, setGenerateBusy] = useState(false)
 
   const topic = TOPICS.find((t) => t.id === selectedTopic)
 
@@ -63,17 +64,33 @@ export default function App() {
     return `${text}\n\n—\nSources: ${cites.join(' · ')}`
   }, [])
 
-  const handleGenerate = useCallback(() => {
+  const handleGenerate = useCallback(async () => {
     if (!topic) return
-    const templates = topic.templates
-    const idx = pickTemplateIndex(selectedTopic, templates.length)
-    const pick = templates[idx]
-    setGeneratedPost(pick)
-    recordGeneratedHook(pick.hook)
-    const freshDataPoint = getRealtimeSprinkle(selectedTopic)
-    const freshLine = freshDataPoint ? `\n\n📊 Fresh data: ${freshDataPoint}` : ''
-    const raw = `${pick.hook}\n\n${pick.body}${freshLine}\n\n${pick.cta}\n\n${pick.hashtags}`
-    setLiveText(appendCitations(raw))
+    setGenerateBusy(true)
+    try {
+      const templates = topic.templates
+      const idx = pickTemplateIndex(selectedTopic, templates.length)
+      const pick = templates[idx]
+      setGeneratedPost(pick)
+      recordGeneratedHook(pick.hook)
+      const freshDataPoint = getRealtimeSprinkle(selectedTopic)
+      const freshLine = freshDataPoint ? `\n\n📊 Fresh data: ${freshDataPoint}` : ''
+      let newsLine = ''
+      try {
+        const rt = await fetchRealtimeContext(selectedTopic)
+        if (rt.headlines?.length) {
+          const o = headlinePromptOffset(rt.headlines.length, selectedTopic)
+          const h = rt.headlines[o % rt.headlines.length]
+          newsLine = `\n\n📰 Trending signal (rewrite in your voice; do not paste verbatim): “${h.title}” — ${h.source}${h.date ? `, ${h.date}` : ''}`
+        }
+      } catch {
+        /* offline / CORS — template still varies by lens + template rotation */
+      }
+      const raw = `${pick.hook}\n\n${pick.body}${freshLine}${newsLine}\n\n${pick.cta}\n\n${pick.hashtags}`
+      setLiveText(appendCitations(raw))
+    } finally {
+      setGenerateBusy(false)
+    }
   }, [topic, selectedTopic, appendCitations])
 
   const handleTopicSelect = useCallback((id) => {
@@ -197,8 +214,12 @@ export default function App() {
                   </div>
                 </div>
 
-                <button className="command-generate" onClick={handleGenerate} disabled={!selectedTopic}>
-                  {generatedPost ? '↻ Regenerate' : 'Generate'}
+                <button
+                  className="command-generate"
+                  onClick={() => void handleGenerate()}
+                  disabled={!selectedTopic || generateBusy}
+                >
+                  {generateBusy ? 'Fetching context…' : generatedPost ? '↻ Regenerate' : 'Generate'}
                 </button>
               </div>
             </section>

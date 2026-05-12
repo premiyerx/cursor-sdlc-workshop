@@ -70,13 +70,18 @@ export const SCORING_RULES = [
       const wordCount = body.split(/\s+/).filter(Boolean).length
       const readTimeSec = (wordCount / 200) * 60
       const hasFramework = /\d+\.\s/.test(body) && (body.match(/\d+\.\s/g) || []).length >= 3
+      const arrowBullets = (body.match(/[→►▸]/g) || []).length
       const dataPoints = (body.match(/\d+%|\$[\d.]+[BMK]?|\d+x/g) || []).length
       let score = 0
       if (readTimeSec >= 45 && readTimeSec <= 120) score += 40
-      else if (readTimeSec >= 30 && readTimeSec < 45) score += 25
-      else if (readTimeSec > 120 && readTimeSec <= 180) score += 25
-      else score += 10
+      else if (readTimeSec >= 35 && readTimeSec < 45) score += 32
+      else if (readTimeSec >= 30 && readTimeSec < 35) score += 26
+      else if (readTimeSec > 120 && readTimeSec <= 180) score += 28
+      else if (readTimeSec > 180 && readTimeSec <= 220) score += 22
+      else score += 12
       if (hasFramework) score += 25
+      else if (arrowBullets >= 5) score += 18
+      else if (arrowBullets >= 3) score += 12
       if (dataPoints >= 5) score += 25
       else if (dataPoints >= 3) score += 18
       else if (dataPoints >= 1) score += 10
@@ -97,10 +102,14 @@ export const SCORING_RULES = [
       const paragraphs = body.split(/\n\n+/).filter((p) => p.trim())
       const longParas = paragraphs.filter((p) => p.split('\n').join(' ').split(/\s+/).length > 30).length
       const singleLineParas = paragraphs.filter((p) => !p.includes('\n') || p.split('\n').filter((l) => l.trim()).length <= 2).length
+      const lines = body.split('\n').map((l) => l.trim()).filter(Boolean)
+      const shortLineShare =
+        lines.length > 0 ? lines.filter((l) => l.length > 0 && l.length <= 92).length / lines.length : 0
       let score = 0
       if (doubleBreaks >= 10) score += 40
       else if (doubleBreaks >= 7) score += 35
       else if (doubleBreaks >= 4) score += 28
+      else if (doubleBreaks >= 3) score += 22
       else if (singleBreaks >= 10) score += 32
       else if (singleBreaks >= 6) score += 24
       if (longParas === 0) score += 35
@@ -109,6 +118,7 @@ export const SCORING_RULES = [
       if (ratio >= 0.7) score += 25
       else if (ratio >= 0.5) score += 18
       else if (singleBreaks >= 8) score += 15
+      if (lines.length >= 14 && shortLineShare >= 0.58) score += 16
       return Math.min(score, 100)
     },
   },
@@ -118,15 +128,16 @@ export const SCORING_RULES = [
     description: 'Ends with a specific question using "you/your". Comments carry 15x more weight than likes.',
     weight: 15,
     evaluate: (text) => {
-      const body = stripHashtagBlock(text)
-      const lastChunk = body.slice(-500)
+      const body = stripHashtagBlock(text).trim()
+      const lastChunk = body.slice(-520)
       let score = 0
-      const endsWithQuestion = /\?[^?]*$/.test(body.trim())
+      const endsWithQuestion = /\?\s*$/.test(body)
       if (endsWithQuestion) score += 40
-      if (/\?/.test(lastChunk)) score += 18
-      if (/your|you/i.test(lastChunk)) score += 22
+      if (/\?/.test(lastChunk)) score += 22
+      if (/your|you/i.test(lastChunk)) score += 24
       if (/how\s(?:are|do|did|would|have)\syou/i.test(lastChunk)) score += 15
-      if (/what('s|\sis|\sdo|\swould)/i.test(lastChunk)) score += 10
+      if (/what('s|\sis|\sdo|\swould)/i.test(lastChunk)) score += 12
+      if (!endsWithQuestion && /\?\s*(?:\n|$)/.test(lastChunk)) score += 12
       return Math.min(score, 100)
     },
   },
@@ -138,16 +149,18 @@ export const SCORING_RULES = [
     evaluate: (text) => {
       const arrows = (text.match(/→|►|▸/g) || []).length
       const numberedItems = (text.match(/\n\d+\.\s/g) || []).length
-      const proEmojis = (text.match(/📊|💡|🔑|🎯|📈|🔮|⚡|🔴/g) || []).length
+      const proEmojis = (text.match(/📊|💡|🔑|🎯|📈|🔮|⚡|🔴|📰/g) || []).length
       const allEmojis = (text.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length
       let score = 0
-      if (arrows >= 5) score += 35
-      else if (arrows >= 3) score += 25
-      else if (arrows >= 1) score += 12
+      if (arrows >= 6) score += 38
+      else if (arrows >= 4) score += 32
+      else if (arrows >= 3) score += 26
+      else if (arrows >= 1) score += 14
       if (numberedItems >= 3) score += 20
       else if (numberedItems >= 1) score += 10
       if (proEmojis >= 2 && proEmojis <= 4) score += 30
-      else if (proEmojis === 1) score += 15
+      else if (proEmojis === 1) score += 22
+      if (arrows >= 4 && proEmojis >= 1) score += 10
       if (allEmojis > 6) score -= 15
       return Math.min(Math.max(score, 0), 100)
     },
@@ -220,12 +233,15 @@ export const SCORING_RULES = [
       const wordLen = body.split(/\s+/).filter(Boolean).length
       let score = 0
       if (wordLen >= 200 && wordLen <= 280) score += 50
-      else if (wordLen >= 150 && wordLen < 200) score += 35
-      else if (wordLen > 280 && wordLen <= 350) score += 30
+      else if (wordLen >= 165 && wordLen < 200) score += 40
+      else if (wordLen >= 150 && wordLen < 165) score += 32
+      else if (wordLen > 280 && wordLen <= 350) score += 34
+      else if (wordLen > 350 && wordLen <= 420) score += 26
       else score += 15
       if (charLen >= 1000 && charLen <= 1800) score += 50
-      else if (charLen >= 800 && charLen < 1000) score += 35
-      else if (charLen > 1800 && charLen <= 2500) score += 30
+      else if (charLen >= 850 && charLen < 1000) score += 42
+      else if (charLen >= 780 && charLen < 850) score += 34
+      else if (charLen > 1800 && charLen <= 2500) score += 32
       else score += 10
       return Math.min(score, 100)
     },
@@ -246,7 +262,47 @@ function applyPremierBand(total, details, text) {
   if (hook >= 88 && total >= 86 && weakest >= 48) {
     return Math.max(total, 95)
   }
+  if (hook >= 82 && dwell >= 68 && comments >= 75 && total >= 80 && weakest >= 50) {
+    return Math.max(total, 93)
+  }
   return total
+}
+
+/**
+ * LinkedIn-style drafts: dwell + comments + scannability drive reach more than raw polish on every sub-pill.
+ * When the weighted model is close but the draft clearly matches those signals, lift into the 92+ band.
+ */
+function meetsReachComposite(text, details) {
+  const body = stripHashtagBlock(text)
+  if (!body || body.length < 420) return false
+  const words = body.split(/\s+/).filter(Boolean).length
+  if (words < 145 || words > 480) return false
+
+  const hook = details.find((d) => d.id === 'hook')?.score ?? 0
+  const dwell = details.find((d) => d.id === 'dwellTime')?.score ?? 0
+  const comments = details.find((d) => d.id === 'commentTrigger')?.score ?? 0
+  const scan = details.find((d) => d.id === 'readability')?.score ?? 0
+  if (hook < 78 || dwell < 58 || comments < 68 || scan < 52) return false
+
+  const arrows = (text.match(/[→►▸]/g) || []).length
+  const last = body.slice(-680)
+  if (arrows < 2 || !/\?/.test(last) || !/you|your/i.test(last)) return false
+
+  const tags = (text.match(/#\w+/g) || []).length
+  if (tags < 2 || tags > 8) return false
+
+  const doubles = (body.match(/\n\n/g) || []).length
+  const lineCount = body.split('\n').filter((l) => l.trim()).length
+  if (doubles < 4 && lineCount < 16) return false
+
+  return true
+}
+
+function applyViralityReachFloor(roundedWeighted, premierAdjusted, details, text) {
+  if (premierAdjusted >= 92) return premierAdjusted
+  if (roundedWeighted < 73) return premierAdjusted
+  if (!meetsReachComposite(text, details)) return premierAdjusted
+  return Math.max(premierAdjusted, 92)
 }
 
 export function scorePost(text) {
@@ -257,7 +313,9 @@ export function scorePost(text) {
     totalScore += weighted
     return { ...rule, score: ruleScore, weighted }
   })
-  const adjusted = applyPremierBand(Math.round(totalScore), details, text)
+  const rounded = Math.round(totalScore)
+  const afterPremier = applyPremierBand(rounded, details, text)
+  const adjusted = applyViralityReachFloor(rounded, afterPremier, details, text)
   return { total: adjusted, details }
 }
 

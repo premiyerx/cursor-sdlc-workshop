@@ -27,7 +27,7 @@ function ScoreGauge({ score }) {
         <text x="60" y="72" textAnchor="middle" fill="#6a6a8a" fontSize="10">/100</text>
       </svg>
       <span className="gauge-label">Algorithm Score</span>
-      <span className="gauge-target">Premier band: 95+</span>
+      <span className="gauge-target">Reach model: 92+ (dwell + comments weighted)</span>
     </div>
   )
 }
