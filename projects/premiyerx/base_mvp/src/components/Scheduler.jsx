@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getSchedule, addScheduledPost, removeScheduledPost, markScheduledAsPublished, savePost } from '../utils/storage'
-import { scorePost, POSTING_TIMEZONE } from '../data/algorithmRules'
+import { scorePost } from '../data/algorithmRules'
 
 export default function Scheduler({ currentPost, currentTopic, postText }) {
   const [schedule, setSchedule] = useState(getSchedule)
@@ -126,7 +126,7 @@ export default function Scheduler({ currentPost, currentTopic, postText }) {
             </button>
           </div>
           <p className="schedule-hint">
-            Times are in your browser's local timezone. Optimal posting times are in {POSTING_TIMEZONE}.
+            Reminder times use your browser&apos;s local clock and timezone.
           </p>
           <button className="notify-btn" onClick={requestNotifications}>
             Enable Browser Notifications

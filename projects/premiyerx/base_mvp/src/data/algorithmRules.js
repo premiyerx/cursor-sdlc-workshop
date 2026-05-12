@@ -319,38 +319,6 @@ export function scorePost(text) {
   return { total: adjusted, details }
 }
 
-export const POSTING_TIMEZONE = 'ET'
-
-export const BEST_POSTING_TIMES = [
-  { day: 'Tuesday', times: ['7:30 AM', '10:00 AM', '12:00 PM'], quality: 'Best' },
-  { day: 'Wednesday', times: ['7:30 AM', '10:00 AM', '12:00 PM'], quality: 'Best' },
-  { day: 'Thursday', times: ['7:30 AM', '10:00 AM'], quality: 'Best' },
-  { day: 'Monday', times: ['8:00 AM', '11:00 AM'], quality: 'Good' },
-  { day: 'Friday', times: ['8:00 AM'], quality: 'OK' },
-  { day: 'Saturday', times: [], quality: 'Avoid' },
-  { day: 'Sunday', times: [], quality: 'Avoid' },
-]
-
-/** Tooltip / aria: explains weekday-vs-weekday chart (not “best day ever,” not personalized). */
-export const POSTING_WEEKDAY_MODEL_TITLE =
-  'Rates this calendar weekday against Monday–Sunday using a simple B2B LinkedIn pattern built into this app. It is not “the single best day of the year,” and it is not personalized to your followers or analytics.'
-
-/** Short subline under the main weekday label (hero, briefing, etc.). */
-export const WEEKDAY_MODEL_SUBLINE =
-  'Compared to Mon–Sun in this app’s weekday chart — not “the best calendar day ever,” and not based on your personal analytics.'
-
-/**
- * Main headline: calendar weekday + tier (pairs with color / “Best” badge elsewhere).
- */
-export function formatWeekdayPostingMainLine(dayName, quality) {
-  const d = dayName || 'Today'
-  const q = quality || 'OK'
-  if (q === 'Avoid') {
-    return `${d} — weaker for typical B2B LinkedIn (weekends in this model)`
-  }
-  return `${d} — ${q} for typical B2B LinkedIn`
-}
-
 export function getOptimalHashtags(topicId, count = 5) {
   const broad = HASHTAG_POOLS[topicId]?.broad || ['#AI', '#Technology']
   const mid = HASHTAG_POOLS[topicId]?.mid || ['#AITransformation', '#EnterpriseAI']

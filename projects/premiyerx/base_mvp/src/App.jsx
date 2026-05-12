@@ -1,12 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
 import TOPICS from './data/postTemplates'
-import {
-  BEST_POSTING_TIMES,
-  POSTING_TIMEZONE,
-  POSTING_WEEKDAY_MODEL_TITLE,
-  WEEKDAY_MODEL_SUBLINE,
-  formatWeekdayPostingMainLine,
-} from './data/algorithmRules'
 import { findCitations } from './data/citations'
 import { getRealtimeSprinkle, fetchRealtimeContext } from './utils/realtimeData'
 import { pickTemplateIndex, recordGeneratedHook, headlinePromptOffset } from './utils/generationVariety'
@@ -52,7 +45,6 @@ export default function App() {
       dateStr: d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       greeting: hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening',
       angle: DAILY_ANGLES[dayName],
-      timing: BEST_POSTING_TIMES.find((t) => t.day === dayName),
     }
   }, [])
 
@@ -141,27 +133,6 @@ export default function App() {
                 <div className="hero-welcome">
                   <h2 className="hero-hello">{today.greeting}, Prem</h2>
                   <p className="hero-date">{today.dateStr}</p>
-                </div>
-                <div className="hero-meta">
-                  {today.timing && (
-                    <div
-                      className={`hero-quality ${(today.timing.quality || 'OK').toLowerCase()}`}
-                      title={POSTING_WEEKDAY_MODEL_TITLE}
-                    >
-                      <span className="hero-quality-main">
-                        {formatWeekdayPostingMainLine(today.dayName, today.timing.quality)}
-                      </span>
-                      <span className="hero-quality-sub">{WEEKDAY_MODEL_SUBLINE}</span>
-                    </div>
-                  )}
-                  {today.timing?.times?.length > 0 && (
-                    <div className="hero-times">
-                      {today.timing.times.map((t) => (
-                        <span key={t} className="hero-time-pill">{t}</span>
-                      ))}
-                      <span className="hero-tz-label">{POSTING_TIMEZONE}</span>
-                    </div>
-                  )}
                 </div>
               </div>
 

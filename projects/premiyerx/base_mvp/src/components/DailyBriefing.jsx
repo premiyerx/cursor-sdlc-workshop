@@ -1,11 +1,5 @@
 import { useMemo } from 'react'
 import TOPICS from '../data/postTemplates'
-import {
-  BEST_POSTING_TIMES,
-  POSTING_WEEKDAY_MODEL_TITLE,
-  WEEKDAY_MODEL_SUBLINE,
-  formatWeekdayPostingMainLine,
-} from '../data/algorithmRules'
 
 const DAILY_ANGLES = {
   Monday: {
@@ -56,7 +50,6 @@ export default function DailyBriefing({ onSelectTopic }) {
   }, [])
 
   const briefing = DAILY_ANGLES[today.dayName]
-  const timing = BEST_POSTING_TIMES.find((t) => t.day === today.dayName)
   const suggestedTopic = TOPICS.find((t) => t.id === briefing.suggested)
 
   const greeting =
@@ -68,15 +61,6 @@ export default function DailyBriefing({ onSelectTopic }) {
         <div>
           <h2 className="briefing-greeting">{greeting}, Prem</h2>
           <p className="briefing-date">{today.dateStr} — {today.dayName}</p>
-        </div>
-        <div
-          className={`briefing-quality ${(timing?.quality || 'OK').toLowerCase()}`}
-          title={POSTING_WEEKDAY_MODEL_TITLE}
-        >
-          <span className="briefing-quality-main">
-            {formatWeekdayPostingMainLine(today.dayName, timing?.quality)}
-          </span>
-          <span className="briefing-quality-sub">{WEEKDAY_MODEL_SUBLINE}</span>
         </div>
       </div>
 
@@ -99,17 +83,6 @@ export default function DailyBriefing({ onSelectTopic }) {
             Use this topic
           </button>
         </div>
-
-        {timing && timing.times.length > 0 && (
-          <div className="briefing-timing">
-            <span className="briefing-label">Optimal Posting Windows</span>
-            <div className="timing-slots">
-              {timing.times.map((t) => (
-                <span key={t} className="timing-slot large">{t}</span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </section>
   )

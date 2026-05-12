@@ -1,11 +1,5 @@
 import { useMemo } from 'react'
-import {
-  scorePost,
-  BEST_POSTING_TIMES,
-  HASHTAG_SUGGESTIONS,
-  POSTING_WEEKDAY_MODEL_TITLE,
-  WEEKDAY_MODEL_SUBLINE,
-} from '../data/algorithmRules'
+import { scorePost, HASHTAG_SUGGESTIONS } from '../data/algorithmRules'
 
 function ScoreGauge({ score }) {
   const circumference = 2 * Math.PI * 54
@@ -35,8 +29,6 @@ function ScoreGauge({ score }) {
 export default function AlgorithmScorer({ postText, topicId }) {
   const result = useMemo(() => scorePost(postText), [postText])
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' })
-  const todayTiming = BEST_POSTING_TIMES.find((t) => t.day === today)
   const suggestions = HASHTAG_SUGGESTIONS[topicId] || []
 
   return (
@@ -71,25 +63,6 @@ export default function AlgorithmScorer({ postText, topicId }) {
       </div>
 
       <div className="scorer-extras">
-        {todayTiming && (
-          <div className="timing-card" title={POSTING_WEEKDAY_MODEL_TITLE}>
-            <span className="timing-label">
-              Suggested post times for {todayTiming.day}
-            </span>
-            <span className="timing-weekday-hint">{WEEKDAY_MODEL_SUBLINE}</span>
-            {todayTiming.times.length > 0 ? (
-              <div className="timing-slots">
-                {todayTiming.times.map((t) => (
-                  <span key={t} className="timing-slot">{t}</span>
-                ))}
-                <span className={`timing-quality ${todayTiming.quality.toLowerCase()}`}>{todayTiming.quality}</span>
-              </div>
-            ) : (
-              <span className="timing-avoid">Weekend — lower engagement expected in this weekday model</span>
-            )}
-          </div>
-        )}
-
         {suggestions.length > 0 && (
           <div className="hashtag-suggestions">
             <span className="timing-label">Suggested Hashtags</span>
