@@ -2421,6 +2421,14 @@ body {
   letter-spacing: 0.5px;
 }
 
+.footer-build {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-family: 'SF Mono', 'Fira Code', ui-monospace, monospace;
+  opacity: 0.85;
+  margin-top: 0.35rem;
+}
+
 /* ── Fact Check Gate ── */
 .fact-check-gate {
   background: linear-gradient(135deg, rgba(255, 180, 0, 0.06) 0%, rgba(255, 80, 0, 0.03) 100%);

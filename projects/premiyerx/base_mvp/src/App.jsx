@@ -249,6 +249,9 @@ export default function App() {
         <p className="footer-title">AI LinkedIn Post Generator</p>
         <p className="footer-subtitle-sm">Optimized for LinkedIn Algorithms</p>
         <p className="footer-copy">© Prem Iyer 2026</p>
+        <p className="footer-build" title="Vercel injects VERCEL_GIT_COMMIT_SHA at build time when this app is the deployed root">
+          Deploy: {__DEPLOY_SHA__}
+        </p>
       </footer>
     </div>
   )
