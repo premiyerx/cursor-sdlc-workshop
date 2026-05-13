@@ -408,6 +408,93 @@ body {
   color: var(--text-secondary);
 }
 
+.voice-corpus-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-bottom: 0.75rem;
+}
+
+.voice-corpus-hint a { color: var(--accent); }
+
+.voice-corpus-hint--ok {
+  color: var(--green);
+  border: 1px solid var(--green-border);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(62, 220, 129, 0.06);
+}
+
+.voice-section--corpus .voice-corpus-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.voice-section--corpus .voice-corpus-toggle h4 {
+  margin-bottom: 0;
+  text-align: left;
+}
+
+.voice-corpus-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.voice-corpus-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+
+.voice-corpus-save {
+  padding: 0.35rem 0.85rem;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.voice-corpus-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.voice-corpus-input--inline {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
 /* ============ COMMAND BAR ============ */
 .command-bar {
   background: linear-gradient(160deg, var(--bg-secondary) 0%, #050505 100%);

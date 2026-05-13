@@ -1,4 +1,6 @@
 const STORAGE_KEY = 'lidp_active_voice'
+const CORPUS_KEY = 'lidp_voice_corpus'
+const CORPUS_DATE_KEY = 'lidp_voice_corpus_updated'
 
 function createVoiceProfile(config) {
   return {
@@ -7,10 +9,23 @@ function createVoiceProfile(config) {
   }
 }
 
+function buildVoiceCorpusSuffix() {
+  try {
+    const raw = localStorage.getItem(CORPUS_KEY)?.trim()
+    const updated = localStorage.getItem(CORPUS_DATE_KEY) || 'unknown date'
+    if (!raw || raw.length < 80) return ''
+    const clipped = raw.length > 14000 ? `${raw.slice(0, 14000)}\n\n[…truncated]` : raw
+    return `\n\nAUTHOR VOICE ANCHORS — pasted from your real LinkedIn writing (updated ${updated}). Match cadence, POV, and rhetorical habits; do not copy sentences verbatim:\n${clipped}`
+  } catch {
+    return ''
+  }
+}
+
 function buildPromptInstructions(profile) {
   const bg = profile.background
   const tone = profile.toneAttributes
   const style = profile.styleGuide
+  const li = profile.linkedinAnchors || {}
 
   return `You are writing a LinkedIn post as ${profile.name}.
 
@@ -18,12 +33,17 @@ NOVELTY (non-negotiable for every generation):
 - Each output must read as bespoke: new hook DNA, new metaphor family, new framework labels, and a different "so what" than your last answer for this pillar.
 - Never recycle boilerplate openers ("In today's...", "Let's dive..."). Prefer time-stamped, operator-specific, or counterintuitive entry points.
 - If you have seen similar posts on LinkedIn, deliberately zig where they zag—while staying truthful and sourced.
+- Ground the post in THIS WEEK's signals from the user's research block when provided — not generic evergreen AI commentary.
+
+PUBLIC PROFILE SNAPSHOT (verify volatile facts externally; use for voice and career arc only):
+- LinkedIn: ${li.profileUrl || 'https://www.linkedin.com/in/premiyer/'}
+- ${li.snapshot || ''}
 
 VOICE RULES:
 - Write from the perspective of: ${bg.currentRole}
 - Years of experience: ${bg.yearsExperience}
 - Key credibility signals: ${bg.notableAchievement}
-- Investment/advisory context: ${[...(bg.investments || []).slice(0, 3), ...(bg.advisoryRoles || [])].join(', ')}
+- Investment/advisory context: ${[...(bg.investments || []).slice(0, 8), ...(bg.advisoryRoles || [])].join(', ')}
 - Education: ${bg.education}
 - Lead with data and specific outcomes — never vague claims
 - Speak to ${tone.audienceAwareness}
@@ -46,7 +66,7 @@ ALGORITHM OPTIMIZATION (follow all):
 5. COMMENT TRIGGER: End with a SPECIFIC question using "you/your" that invites sharing personal experience. Comments are weighted 15x more than likes
 6. PAS: Use Problem → Agitate → Solution when appropriate
 7. HASHTAGS: 3-5 total. Mix 1 broad + 2 mid + 1-2 niche. Place at end
-8. FIRST COMMENT: Generate a P.S. with additional insight + follow-up question. Must be 15+ words. Design it to spark threaded replies
+8. FIRST_COMMENT: Generate a P.S. with additional insight + follow-up question. Must be 15+ words. Design it to spark threaded replies
 9. DATA ACCURACY: Every stat must have an inline source citation. Never fabricate numbers
 
 CAROUSEL CAPTION (if generating for carousel):
@@ -59,19 +79,29 @@ CAROUSEL CAPTION (if generating for carousel):
 
 const PREM_IYER = createVoiceProfile({
   name: 'Prem Iyer',
-  headline: 'SVP, Strategic Pursuits at Palo Alto Networks | GTM Advisor at Rubrik (NYSE:RBRK) | Revenue Architect | Large Deals | CxO Engagement',
-  connections: 6075,
-  followers: 9939,
+  headline:
+    'SVP, Strategic Pursuits at Palo Alto Networks | GTM Advisor at Rubrik (NYSE:RBRK) | Revenue Architect | Large Deals | CxO Engagement',
+  linkedinUrl: 'https://www.linkedin.com/in/premiyer/',
+  connections: 10000,
+  followers: 10097,
+
+  linkedinAnchors: {
+    profileUrl: 'https://www.linkedin.com/in/premiyer/',
+    snapshot:
+      'Enterprise BD + ecosystem leader: GSIs, hyperscalers, VARs, distributors, and service providers. Cyber services → enterprise sales → global channel leadership (RedSeal, Trusteer/IBM, ThousandEyes/Cisco). Co-founded Rekonnex (Booth/Polsky GNVC). Palo Alto Networks since 2017 (Sr Director BD → SVP Strategic Pursuits from Aug 2024). Briefs boards/CxOs on cyber risk and mitigation. Active investor (e.g., OpenAI, Groq, Exowatt, Console, Upscale AI, Aten Security, Opt Health) and LP (MVP Ventures, Stage 2 Capital). Public speaking on cybersecurity + AI markets (e.g., industry keynotes).',
+  },
 
   background: {
     currentRole: 'SVP, Strategic Pursuits at Palo Alto Networks',
-    yearsExperience: 29,
-    notableAchievement: 'Instrumental in driving Palo Alto Networks market cap from $20B to $140B',
+    yearsExperience: 30,
+    notableAchievement:
+      'Instrumental in driving Palo Alto Networks market cap from $20B to $140B; focuses on large strategic pursuits and CxO engagement',
     education: 'University of Chicago Booth School of Business',
-    entrepreneurship: 'CEO/Co-Founder at Rekonnex — Won Chicago Booth/Polsky Center Global New Venture Challenge',
+    entrepreneurship:
+      'CEO/Co-Founder at Rekonnex — Won Chicago Booth/Polsky Center Global New Venture Challenge',
     investments: ['OpenAI', 'Groq', 'Exowatt', 'Console', 'Upscale AI', 'Aten Security', 'Opt Health'],
     lpPositions: ['MVP Ventures', 'Stage 2 Capital'],
-    advisoryRoles: ['Rubrik (GTM Advisor)'],
+    advisoryRoles: ['Rubrik (Advisor / GTM Advisor)'],
   },
 
   domains: [
@@ -85,17 +115,21 @@ const PREM_IYER = createVoiceProfile({
   ],
 
   toneAttributes: {
-    authority: 'Executive-level — speaks from decades of enterprise experience and board-level conversations',
-    dataOrientation: 'Leads with specific numbers and outcomes (e.g., "540% of quota in two quarters", "grew revenue 400% in Year 1", "$20B to $140B market cap")',
-    perspective: 'Investor + operator hybrid — sees both the builder\'s view and the capital allocator\'s view',
-    audienceAwareness: 'CIOs, VPs of Engineering, DevOps/DevSecOps leaders, and board members — as peers, not from above',
+    authority:
+      'Executive-level — speaks from decades of enterprise experience, partner ecosystems, and board-level cyber conversations',
+    dataOrientation:
+      'Leads with specific numbers and outcomes (e.g., "540% of quota in two quarters", "grew revenue 400% in Year 1", "$20B to $140B market cap context")',
+    perspective: 'Investor + operator hybrid — builder and capital allocator lenses',
+    audienceAwareness: 'CIOs, CTOs, CDOs, VPs of Engineering, DevOps/DevSecOps leaders, and board members — as peers, not from above',
     storytelling: 'Uses concrete anecdotes from real conversations ("I talked to 30 CIOs last quarter")',
     urgency: 'Creates healthy urgency without fearmongering — frames decisions as windows of opportunity',
-    credibility: 'References direct experience at Palo Alto Networks, Cisco/ThousandEyes, IBM/Trusteer, and startup world',
+    credibility:
+      'References direct experience at Palo Alto Networks, Cisco/ThousandEyes, IBM/Trusteer, RedSeal, and founder journey',
   },
 
   styleGuide: {
-    hookPattern: 'Punchy, curiosity-driven openers. A surprising stat, contrarian take, or "Here\'s what nobody talks about" framing.',
+    hookPattern:
+      'Punchy, curiosity-driven openers. A surprising stat, contrarian take, or "Here\'s what nobody talks about" framing.',
     paragraphLength: 'Short — 1-3 sentences max. Heavy use of line breaks for scanability.',
     formatting: 'Uses → arrows for lists, strategic bold for emphasis, numbered lists for frameworks.',
     tone: 'Confident but approachable. Not salesy — more "here\'s what I\'m seeing from the inside."',
@@ -108,26 +142,50 @@ const PREM_IYER = createVoiceProfile({
   engagementPatterns: {
     topicsEngaged: [
       'Palo Alto Networks ecosystem & partner programs',
-      'Cybersecurity industry developments (Unit 42 reports, CVEs)',
-      'Cursor and AI dev tool leadership hires',
-      'CIO/tech leadership forums and events',
-      'Entrepreneurship and coaching/mentorship',
-      'Diversity in tech and cybersecurity',
-      'AI infrastructure investments (Groq, OpenAI)',
+      'Cybersecurity industry developments (Unit 42, CVEs, enterprise risk)',
+      'AI dev tools, agents, and inference infrastructure',
+      'CIO/CTO/CDO forums and executive decision-making',
+      'Venture + GTM angles on AI and security platforms',
+      'Entrepreneurship, coaching, and diversity in tech',
     ],
-    interactionStyle: 'Amplifies peers and industry voices via likes/reshares. Engages with content from CISOs, CIOs, and tech founders.',
+    interactionStyle: 'Amplifies peers; engages CISOs, CIOs, founders, and investor communities.',
   },
 })
 
-export function getActiveProfile() {
+export function getVoiceCorpusMeta() {
+  try {
+    return {
+      text: localStorage.getItem(CORPUS_KEY) || '',
+      updated: localStorage.getItem(CORPUS_DATE_KEY) || '',
+    }
+  } catch {
+    return { text: '', updated: '' }
+  }
+}
+
+export function saveVoiceCorpus(text) {
+  const trimmed = (text || '').trim()
+  localStorage.setItem(CORPUS_KEY, trimmed)
+  localStorage.setItem(CORPUS_DATE_KEY, new Date().toISOString().slice(0, 10))
+}
+
+export function getVoiceProfileForDisplay() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      return createVoiceProfile(parsed)
-    }
+    if (stored) return createVoiceProfile(JSON.parse(stored))
   } catch { /* fallback */ }
   return PREM_IYER
+}
+
+export function getActiveProfile() {
+  let profile = PREM_IYER
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) profile = createVoiceProfile(JSON.parse(stored))
+  } catch { /* fallback */ }
+  const suffix = buildVoiceCorpusSuffix()
+  if (!suffix) return profile
+  return { ...profile, promptInstructions: profile.promptInstructions + suffix }
 }
 
 export function saveCustomProfile(profileData) {

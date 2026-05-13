@@ -69,7 +69,10 @@ export default function App() {
       const freshLine = freshDataPoint ? `\n\n📊 Fresh data: ${freshDataPoint}` : ''
       let newsLine = ''
       try {
-        const rt = await fetchRealtimeContext(selectedTopic)
+        const rt = await fetchRealtimeContext(selectedTopic, {
+          forceRefresh: true,
+          topicLabel: topic?.label || '',
+        })
         if (rt.headlines?.length) {
           const o = headlinePromptOffset(rt.headlines.length, selectedTopic)
           const h = rt.headlines[o % rt.headlines.length]

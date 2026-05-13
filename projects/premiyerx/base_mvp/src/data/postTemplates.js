@@ -1,3 +1,4 @@
+/** When adding a topic, add matching research queries in `src/data/topicIntel.js`. */
 const TOPICS = [
   {
     id: 'cursor',

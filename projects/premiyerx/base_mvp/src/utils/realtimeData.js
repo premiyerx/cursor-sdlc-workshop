@@ -1,15 +1,25 @@
 import { fnv1a, headlinePromptOffset } from './generationVariety'
-
-const SEARCH_QUERIES = {
-  cursor: 'Cursor AI code editor OR "AI coding tool" OR "AI dev tools" funding launch',
-  investment: 'AI developer tools funding OR "AI SDLC" venture capital OR "software development AI" investment',
-  cio: 'CIO AI strategy OR "VP Engineering" AI adoption OR DevOps AI transformation 2025 2026',
-  roi: 'AI developer productivity ROI OR "AI coding" cost savings OR "AI software development" revenue',
-}
+import { researchForTopic } from '../data/topicIntel'
 
 const CACHE_KEY = 'lidp_realtime_cache'
-/** Within a calendar day, refresh at most every 4h so we pick up intraday news without hammering APIs. */
+/** Soft TTL when not forcing refresh — still bypassed on every Generate via forceRefresh. */
 const CACHE_TTL = 4 * 60 * 60 * 1000
+
+const GNEWS_KEY_STORAGE = 'lidp_gnews_api_key'
+
+export function getGnewsApiKey() {
+  try {
+    const k = localStorage.getItem(GNEWS_KEY_STORAGE)?.trim()
+    if (k) return k
+  } catch { /* ignore */ }
+  const env = typeof import.meta !== 'undefined' && import.meta.env?.VITE_GNEWS_API_KEY
+  return (env && String(env).trim()) || 'demo'
+}
+
+export function saveGnewsApiKey(key) {
+  if (key?.trim()) localStorage.setItem(GNEWS_KEY_STORAGE, key.trim())
+  else localStorage.removeItem(GNEWS_KEY_STORAGE)
+}
 
 function calendarDayUtc() {
   return new Date().toISOString().slice(0, 10)
@@ -35,49 +45,107 @@ function setCachedData(topicId, data) {
   } catch { /* ignore */ }
 }
 
-export async function fetchRealtimeContext(topicId) {
-  const cached = getCachedData(topicId)
-  if (cached) return cached
-
-  const query = SEARCH_QUERIES[topicId] || SEARCH_QUERIES.cursor
-
-  const results = { headlines: [], freshData: [], fetchedAt: new Date().toISOString() }
-
+/** Drop cached research so the next fetch hits the network (optional: one topic or entire cache). */
+export function invalidateRealtimeCache(topicId = null) {
   try {
-    const gNewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=5&sortby=publishedAt&apikey=demo`
-    const res = await fetch(gNewsUrl)
-    if (res.ok) {
-      const data = await res.json()
-      if (data.articles) {
-        results.headlines = data.articles.slice(0, 5).map((a) => ({
-          title: a.title,
-          source: a.source?.name || 'Unknown',
-          date: a.publishedAt?.split('T')[0] || '',
-          url: a.url,
-        }))
-      }
+    if (topicId == null) {
+      localStorage.removeItem(CACHE_KEY)
+      return
     }
-  } catch { /* continue without news */ }
+    const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
+    delete cache[topicId]
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache))
+  } catch { /* ignore */ }
+}
 
-  if (results.headlines.length === 0) {
-    try {
-      const hnUrl = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=5`
-      const res = await fetch(hnUrl)
-      if (res.ok) {
-        const data = await res.json()
-        if (data.hits) {
-          results.headlines = data.hits.slice(0, 5).map((h) => ({
-            title: h.title,
-            source: 'Hacker News',
-            date: h.created_at?.split('T')[0] || '',
-            url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
-            points: h.points,
-          }))
-        }
-      }
-    } catch { /* continue */ }
+function headlineKey(h) {
+  return (h.title || '').toLowerCase().trim().slice(0, 140)
+}
+
+async function fetchHackerNewsStories(query, hitsPerPage = 10) {
+  const url = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=${hitsPerPage}`
+  const res = await fetch(url)
+  if (!res.ok) return []
+  const data = await res.json()
+  if (!data.hits) return []
+  return data.hits.map((h) => ({
+    title: h.title,
+    source: 'Hacker News',
+    date: h.created_at?.split('T')[0] || '',
+    url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+    points: h.points,
+    objectID: String(h.objectID),
+  }))
+}
+
+async function fetchGNewsHeadlines(query) {
+  const apiKey = getGnewsApiKey()
+  const gNewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=8&sortby=publishedAt&apikey=${encodeURIComponent(apiKey)}`
+  const res = await fetch(gNewsUrl)
+  if (!res.ok) return []
+  const data = await res.json()
+  if (!data.articles) return []
+  return data.articles.map((a) => ({
+    title: a.title,
+    source: a.source?.name || 'News',
+    date: a.publishedAt?.split('T')[0] || '',
+    url: a.url,
+  }))
+}
+
+function mergeHeadlines(groups) {
+  const map = new Map()
+  for (const list of groups) {
+    for (const h of list) {
+      const k = headlineKey(h)
+      if (!k) continue
+      if (!map.has(k)) map.set(k, h)
+    }
+  }
+  const merged = [...map.values()]
+  merged.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  return merged.slice(0, 22)
+}
+
+/**
+ * Pulls multi-source headlines for a topic (parallel HN queries + optional GNews).
+ * @param {string} topicId
+ * @param {{ forceRefresh?: boolean, topicLabel?: string }} [options]
+ */
+export async function fetchRealtimeContext(topicId, options = {}) {
+  const { forceRefresh = false, topicLabel = '' } = options
+
+  if (!forceRefresh) {
+    const cached = getCachedData(topicId)
+    if (cached) return cached
   }
 
+  const { hnQueries, gnewsQuery } = researchForTopic(topicId, topicLabel)
+
+  const results = { headlines: [], freshData: [], fetchedAt: new Date().toISOString(), sourcesTried: [] }
+
+  const hnLists = await Promise.all(
+    hnQueries.map(async (q) => {
+      try {
+        const rows = await fetchHackerNewsStories(q, 10)
+        results.sourcesTried.push(`HN:${q.slice(0, 48)}… (${rows.length})`)
+        return rows
+      } catch {
+        results.sourcesTried.push(`HN:${q.slice(0, 24)}… (error)`)
+        return []
+      }
+    })
+  )
+
+  let gNewsList = []
+  try {
+    gNewsList = await fetchGNewsHeadlines(gnewsQuery)
+    results.sourcesTried.push(`GNews (${gNewsList.length})`)
+  } catch {
+    results.sourcesTried.push('GNews (error)')
+  }
+
+  results.headlines = mergeHeadlines([...hnLists, gNewsList])
   results.freshData = generateFreshDataPoints(topicId)
 
   setCachedData(topicId, results)
@@ -89,7 +157,9 @@ const VERIFIED_DATA_KEY = 'lidp_verified_data'
 function getVerifiedOverrides() {
   try {
     return JSON.parse(localStorage.getItem(VERIFIED_DATA_KEY) || '{}')
-  } catch { return {} }
+  } catch {
+    return {}
+  }
 }
 
 export function saveVerifiedOverrides(overrides) {
@@ -130,26 +200,10 @@ function generateFreshDataPoints(topicId) {
   const data = getEditableDataPoints()
 
   const dataByTopic = {
-    cursor: [
-      data.cursor_users,
-      data.cursor_fortune500,
-      data.ai_tools_market,
-    ],
-    investment: [
-      data.investment_total,
-      data.investment_nrr,
-      data.cursor_valuation,
-    ],
-    cio: [
-      data.cio_priority,
-      data.cio_budget,
-      data.cio_talent,
-    ],
-    roi: [
-      data.roi_speed,
-      data.roi_savings,
-      data.roi_payback,
-    ],
+    cursor: [data.cursor_users, data.cursor_fortune500, data.ai_tools_market],
+    investment: [data.investment_total, data.investment_nrr, data.cursor_valuation],
+    cio: [data.cio_priority, data.cio_budget, data.cio_talent],
+    roi: [data.roi_speed, data.roi_savings, data.roi_payback],
   }
 
   return dataByTopic[topicId] || dataByTopic.cursor
@@ -158,29 +212,36 @@ function generateFreshDataPoints(topicId) {
 export function formatRealtimeForPrompt(realtimeData, topicId = '') {
   if (!realtimeData) return ''
 
-  let context = '\n\nREAL-TIME CONTEXT (use this to make the post timely and fresh):\n'
+  let context = '\n\nREAL-TIME RESEARCH (headlines are leads only — verify claims; do not copy titles):\n'
 
-  if (realtimeData.headlines.length > 0) {
+  if (realtimeData.headlines?.length > 0) {
     let headlines = [...realtimeData.headlines]
     if (topicId && headlines.length > 1) {
       const o = headlinePromptOffset(headlines.length, topicId)
       headlines = [...headlines.slice(o), ...headlines.slice(0, o)]
     }
-    context += '\nRecent headlines (order rotates each run — mine different angles, do not copy titles):\n'
-    for (const h of headlines.slice(0, 5)) {
-      context += `→ "${h.title}" — ${h.source}, ${h.date}\n`
+    context += '\nRecent headlines & threads (mine 2–4 distinct angles; CIO/CTO/CDO-relevant where applicable):\n'
+    for (const h of headlines.slice(0, 12)) {
+      const pts = h.points != null ? ` · ${h.points} pts` : ''
+      context += `→ "${h.title}" — ${h.source}, ${h.date}${pts}\n`
     }
+  } else {
+    context +=
+      '\n(No live headlines returned — still use verified registry stats below and hedged language where needed.)\n'
   }
 
-  if (realtimeData.freshData.length > 0) {
-    context += '\nCurrent market data:\n'
+  if (realtimeData.freshData?.length > 0) {
+    context += '\nVerified / registry stats (still require inline citation when used):\n'
     for (const d of realtimeData.freshData) {
       context += `→ ${d}\n`
     }
   }
 
   context +=
-    '\nIMPORTANT: Reference at least 1-2 of these current data points or news items in the post to make it feel timely. Cite the source when using data. Prefer an angle you have not used in prior outputs this session.'
+    '\nFRESHNESS CONTRACT:\n' +
+    '- Tie the hook to something in the last ~14 days from the headlines above OR a defensible industry shift (say "recent reporting suggests…" if not primary-sourced).\n' +
+    '- Name-check at most one vendor/product from headlines if it helps specificity — never invent funding rounds, dates, or customer names.\n' +
+    '- Prefer a different narrative frame than generic "AI is changing everything" posts.\n'
 
   return context
 }

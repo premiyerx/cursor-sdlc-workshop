@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import TOPICS from '../data/postTemplates'
-import VOICE_PROFILE from '../data/voiceProfile'
+import { getActiveProfile } from '../data/voiceProfile'
 import { fetchRealtimeContext, formatRealtimeForPrompt } from '../utils/realtimeData'
 import { buildVarietyEnvelope, recordGeneratedHook } from '../utils/generationVariety'
 
@@ -35,11 +35,14 @@ export default function AIGenerator({ topicId, onGenerated }) {
     setLoading(true)
     setError(null)
 
-    const systemPrompt = VOICE_PROFILE.promptInstructions
+    const systemPrompt = getActiveProfile().promptInstructions
 
     let realtimeContext = ''
     try {
-      const realtimeData = await fetchRealtimeContext(topicId)
+      const realtimeData = await fetchRealtimeContext(topicId, {
+        forceRefresh: true,
+        topicLabel: topic?.label || '',
+      })
       realtimeContext = formatRealtimeForPrompt(realtimeData, topicId)
     } catch { /* continue without realtime data */ }
 
@@ -54,8 +57,8 @@ ${customAngle ? `Specific angle or news to cover: ${customAngle}` : ''}
 ${varietyBlock}
 CONTEXT:
 - Content pillar: "${topic.label}" — ${topic.description}
-- Target audience: CIOs, VPs of Engineering, DevOps/DevSecOps leaders, board members
-- The post MUST feel timely and reference current events/data from this week/month
+- Target audience: CIOs, CTOs, CDOs, VPs of Engineering, DevOps/DevSecOps leaders, board members
+- The post MUST feel timely: ground the narrative in the research headlines below (this fetch is refreshed every time you generate).
 ${realtimeContext}
 
 DATA ACCURACY (non-negotiable):
@@ -186,7 +189,10 @@ FIRST_COMMENT:
 
       {expanded && (
         <div className="ai-body">
-          <p className="ai-subtitle">Uses your voice profile + OpenAI GPT-4o to generate original posts. Keys stay in this browser only.</p>
+          <p className="ai-subtitle">
+            Uses your voice profile (including optional pasted posts) + OpenAI GPT-4o. Each run fetches fresh headlines
+            (Hacker News + optional GNews — set key under Your LinkedIn Writing Style). Keys stay in this browser only.
+          </p>
 
           <div className="ai-key-row">
             <input
