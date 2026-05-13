@@ -146,6 +146,7 @@ export default function VoiceProfile() {
                     LinkedIn data export
                   </a>
                   , paste here, and save. The app cannot log into LinkedIn on your behalf from the browser. The model uses this for phrasing and POV — not as a fact source about third parties.
+                </p>
                 <textarea
                   className="voice-corpus-textarea"
                   placeholder="Paste recent LinkedIn posts here (combined is fine)…"
