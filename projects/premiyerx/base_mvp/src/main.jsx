@@ -9,8 +9,12 @@ createRoot(document.getElementById('root')).render(
   </StrictMode>,
 )
 
+/** Unregister old service workers so phones/browsers cannot stay stuck on an outdated bundle. */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {})
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+      .catch(() => {})
   })
 }

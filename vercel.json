@@ -1,0 +1,5 @@
+{
+  "installCommand": "cd projects/premiyerx/base_mvp && npm install",
+  "buildCommand": "cd projects/premiyerx/base_mvp && npm run build",
+  "outputDirectory": "projects/premiyerx/base_mvp/dist"
+}
