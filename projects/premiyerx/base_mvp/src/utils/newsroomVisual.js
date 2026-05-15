@@ -84,26 +84,28 @@ function buildPrompt({ model, topicLabel, refreshSeed, postTheme, recipe, tier =
 
   if (tier === 'compact') {
     return [
-      `Create a premium LinkedIn landscape infographic (wide 16:9).`,
-      `Layout: ${layout.name} — ${layout.brief}.`,
-      `Colors: ${palette}. Style: ${mood}.`,
-      `Topic: ${topicLabel}. Theme: ${theme}.`,
-      statsLine ? `Verified metrics only: ${statsLine}.` : 'No numbers — abstract shapes only.',
-      `Use donut charts, icon rows, comparison panels, callout cards.`,
-      `Avoid simple 3-bar charts. Dark editorial design.`,
-      `Small footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
+      `Design a multi-section LinkedIn infographic, landscape 1536x1024, like a premium Visme or Piktochart template.`,
+      `SECTION 1 — headline band with topic: ${topicLabel || theme}.`,
+      `SECTION 2 — ${layout.name}: ${layout.brief}.`,
+      `SECTION 3 — data viz: 2 donut charts OR ring charts showing ${statsLine || 'abstract KPI icons'}.`,
+      `SECTION 4 — icon row with 4-6 flat icons illustrating the story.`,
+      `SECTION 5 — insight callout box with one short takeaway.`,
+      `Colors: ${palette}. Mood: ${mood}. Dark background, crisp white type, green accent #3EDC81.`,
+      `FORBIDDEN: simple 3-bar chart, stock photo people, walls of text, invented numbers.`,
+      `Footer strip: Prem Iyer · AI Software Transformation · ${variationId}.`,
     ].join('\n')
   }
 
   return [
-    `Create a stunning premium LinkedIn landscape infographic, wide 16:9 format.`,
-    `Layout: ${layout.name} — ${layout.brief}.`,
-    `Palette: ${palette}. Visual mood: ${mood}.`,
-    `Topic: ${topicLabel}. Story theme: ${theme}.`,
-    statsLine ? `Include ONLY these verified numbers: ${statsLine}.` : 'No numeric text — use abstract icons and shapes.',
-    `Composition: donut charts, icon grids, pictographs, modular sections, comparison panels.`,
-    `Forbidden: plain vertical bar chart, people photos, invented statistics, long paragraphs.`,
-    `Quality: high-end Visme/Piktochart data storytelling. Crisp typography, generous whitespace.`,
+    `Design a publication-quality multi-panel LinkedIn infographic, landscape 16:9, Visme/Piktochart executive style.`,
+    `Panel A — bold headline about ${topicLabel}. Theme: ${theme}.`,
+    `Panel B — ${layout.name} layout: ${layout.brief}.`,
+    `Panel C — mixed visualization: donut chart + pictograph + comparison mini-cards.`,
+    `Panel D — icon grid (6 icons) mapping trends to business impact.`,
+    `Panel E — highlighted stat callouts: ${statsLine || 'use abstract KPI shapes only'}.`,
+    `Palette: ${palette}. Mood: ${mood}. Premium dark UI, green #3EDC81 accents, generous whitespace.`,
+    `Must look like a designed marketing asset — NOT a basic bar chart or PowerPoint slide.`,
+    `No people photos. No invented statistics. Short labels only.`,
     `Footer: Prem Iyer · AI Software Transformation · variation ${variationId}.`,
   ].join('\n')
 }

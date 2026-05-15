@@ -4,7 +4,8 @@ import { findCitations } from '../data/citations'
 import { buildHeadlineInfographicModel, assembleVerifiedStats } from '../utils/verifiedInfographic'
 import TOPICS from '../data/postTemplates'
 import { createCompanionGraphic } from '../utils/companionGraphic'
-import { hasOpenAiKey } from '../utils/aiPostGenerator'
+import { hasOpenAiKey, getOpenAiKey } from '../utils/aiPostGenerator'
+import { getOpenAiKeyStatus } from '../utils/openaiKey'
 import HeadlineInfographic from './HeadlineInfographic'
 import ProgressRing from './ProgressRing'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
@@ -396,7 +397,9 @@ export default function DynamicGraphic({
         topicLabel: topic?.label || '',
         realtimeData,
         seed: refreshSeed,
-        preferNewsroom: hasOpenAiKey(),
+        apiKey: getOpenAiKey(),
+        preferNewsroom: true,
+        forceNewsroom: hasOpenAiKey(),
         bumpSeed: true,
         onProgress: reportGraphicProgress,
       })
@@ -411,7 +414,7 @@ export default function DynamicGraphic({
         flashErr(graphic.error || 'Could not create your picture.')
       } else {
         finishGraphicProgress('Basic chart ready')
-        flashOk('Basic chart ready — add your OpenAI key in Settings for premium pictures.')
+        flashOk('Basic chart only — save your OpenAI key in Settings, then tap New graphic angle again.')
       }
     } catch {
       flashErr('Could not refresh — try again.')
@@ -570,10 +573,15 @@ export default function DynamicGraphic({
     ai: 'AI banner',
   }[imageMode] || 'Graphic'
 
+  const keyStatus = getOpenAiKeyStatus()
+
   const showGraphicPreview =
     !isGraphicLoading &&
     imageMode !== 'failed' &&
-    (newsroomImage || imageMode === 'headline' || imageMode === 'generated' || photo || aiImage)
+    (newsroomImage ||
+      ((imageMode === 'headline' || imageMode === 'generated') && !keyStatus.saved) ||
+      photo ||
+      aiImage)
 
   return (
     <section className="image-display fade-in-up">
@@ -581,6 +589,11 @@ export default function DynamicGraphic({
       <p className="section-subtitle graphic-section-subtitle">
         Premium LinkedIn infographics — created automatically from your post
       </p>
+      {keyStatus.saved ? (
+        <p className="graphic-key-status graphic-key-status--ok">{keyStatus.label} · AI infographics enabled</p>
+      ) : (
+        <p className="graphic-key-status graphic-key-status--warn">No OpenAI key detected — save one in Settings for premium pictures</p>
+      )}
 
       <div className="smart-visual-row">
         <button

@@ -982,6 +982,21 @@ body {
   max-width: 340px;
 }
 
+.graphic-key-status {
+  margin: -0.35rem 0 0.65rem;
+  font-size: 0.72rem;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.graphic-key-status--ok {
+  color: var(--accent, #3edc81);
+}
+
+.graphic-key-status--warn {
+  color: #e8a090;
+}
+
 .graphic-error-detail {
   margin: 0;
   font-size: 0.68rem;

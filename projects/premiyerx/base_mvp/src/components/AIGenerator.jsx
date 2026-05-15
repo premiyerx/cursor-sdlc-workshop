@@ -1,18 +1,12 @@
 import { useState, useCallback } from 'react'
 import { hasOpenAiKey } from '../utils/aiPostGenerator'
+import { saveOpenAiKey, getOpenAiKeyStatus } from '../utils/openaiKey'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
 import CollapsibleSection from './CollapsibleSection'
 
-function saveOpenAiKey(key) {
-  try {
-    const trimmed = key?.trim() || ''
-    if (trimmed) localStorage.setItem('openai_key', trimmed)
-    else localStorage.removeItem('openai_key')
-    return { ok: true, cleared: !trimmed }
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Could not save OpenAI key.' }
-  }
+function saveOpenAiKeyToDevice(key) {
+  return saveOpenAiKey(key)
 }
 
 function saveUnsplashKeyStorage(key) {
@@ -44,7 +38,7 @@ export default function AIGenerator({ customAngle, onCustomAngleChange }) {
       flashKeyErr('Paste your OpenAI key first.')
       return
     }
-    const result = saveOpenAiKey(trimmed)
+    const result = saveOpenAiKeyToDevice(trimmed)
     if (!result.ok) {
       flashKeyErr(result.error || 'Could not save OpenAI key.')
       return
@@ -70,14 +64,15 @@ export default function AIGenerator({ customAngle, onCustomAngleChange }) {
     flashKeyOk(result.cleared ? 'Unsplash key removed.' : 'Unsplash key saved.')
   }, [unsplashDraft, hasUnsplash, flashKeyOk, flashKeyErr])
 
-  const statusBadge = hasOpenAiKey() ? 'Ready' : 'Needs OpenAI key'
+  const keyStatus = getOpenAiKeyStatus()
+  const statusBadge = keyStatus.saved ? `Key saved •••${keyStatus.lastFour}` : 'Needs OpenAI key'
 
   return (
     <CollapsibleSection
       className="ai-settings-wrap"
       title="Settings"
       badge={statusBadge}
-      hint={hasKey ? 'Keys saved on this device' : 'Add OpenAI key for fresh posts'}
+      hint={keyStatus.saved ? keyStatus.label : 'Add OpenAI key for AI posts and premium infographics'}
       defaultOpen={!hasKey}
     >
       <div className="ai-settings">
@@ -104,7 +99,9 @@ export default function AIGenerator({ customAngle, onCustomAngleChange }) {
         />
 
         <p className="ai-settings-note">
-          Tap <strong>Generate fresh post</strong> above. GNews key lives under Your LinkedIn Writing Style.
+          {keyStatus.saved
+            ? `Your key is saved on this device (${keyStatus.label}). Premium infographics use this key automatically.`
+            : 'Paste your OpenAI key above and tap Save — required for AI posts and premium infographics.'}
         </p>
 
         <button

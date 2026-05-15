@@ -4,7 +4,7 @@ import { findCitations } from './data/citations'
 import { getRealtimeSprinkle, fetchRealtimeContext, invalidateRealtimeCache } from './utils/realtimeData'
 import { weaveNewsIntoTemplate, getResearchSummary } from './utils/newsCraft'
 import { pickTemplateIndex, recordGeneratedHook } from './utils/generationVariety'
-import { hasOpenAiKey, generateAIPost } from './utils/aiPostGenerator'
+import { hasOpenAiKey, getOpenAiKey, generateAIPost } from './utils/aiPostGenerator'
 import { createCompanionGraphic } from './utils/companionGraphic'
 import { bumpRefreshSeed } from './utils/freshnessRotation'
 import VoiceProfile from './components/VoiceProfile'
@@ -118,6 +118,7 @@ export default function App() {
           topicLabel: topic.label,
           realtimeData,
           seed,
+          apiKey: getOpenAiKey(),
           preferNewsroom: true,
           bumpSeed: false,
           onProgress: reportGraphicProgress,
@@ -130,7 +131,7 @@ export default function App() {
         } else if (!graphic.ok) {
           flashGenerateErr(`Your post is ready. ${graphic.error || 'The picture could not be created.'}`, 15000)
         } else {
-          flashGenerateOk('Post ready. Add your OpenAI key in Settings for premium infographics.')
+          flashGenerateOk('Post ready. Open Settings and save your OpenAI key for premium infographics.')
         }
         return
       }
@@ -180,7 +181,8 @@ export default function App() {
         topicId: selectedTopic,
         topicLabel: topic.label,
         realtimeData: rt,
-        preferNewsroom: false,
+        apiKey: getOpenAiKey(),
+        preferNewsroom: hasOpenAiKey(),
         bumpSeed: true,
         onProgress: reportGraphicProgress,
       })

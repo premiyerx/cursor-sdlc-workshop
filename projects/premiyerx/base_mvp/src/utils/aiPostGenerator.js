@@ -4,10 +4,9 @@ import { fetchRealtimeContext, formatRealtimeForPrompt, invalidateRealtimeCache 
 import { buildVarietyEnvelope, recordGeneratedHook } from './generationVariety'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { bumpRefreshSeed } from './freshnessRotation'
+import { getOpenAiKey, hasOpenAiKey } from './openaiKey'
 
-export function hasOpenAiKey() {
-  return !!(localStorage.getItem('openai_key') || '').trim()
-}
+export { hasOpenAiKey, getOpenAiKey }
 
 function parseAIOutput(raw) {
   const hookMatch = raw.match(/HOOK:\s*\n([\s\S]*?)(?=\nBODY:)/i)

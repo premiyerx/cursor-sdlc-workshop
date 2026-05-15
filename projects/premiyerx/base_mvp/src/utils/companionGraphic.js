@@ -2,11 +2,11 @@ import { fetchRealtimeContext, invalidateRealtimeCache } from './realtimeData'
 import { bumpRefreshSeed } from './freshnessRotation'
 import { buildHeadlineInfographicModel } from './verifiedInfographic'
 import { generateNewsroomImage } from './newsroomVisual'
-import { hasOpenAiKey } from './aiPostGenerator'
+import { getOpenAiKey, hasOpenAiKey } from './openaiKey'
 
 /**
- * Build the companion graphic. When OpenAI key is present, ONLY returns an AI image
- * or a clear failure — no silent bar-chart fallback.
+ * Build the companion graphic.
+ * If an OpenAI key is saved, ONLY returns an AI image or a clear failure — never a basic bar chart.
  */
 export async function createCompanionGraphic({
   postText,
@@ -14,12 +14,14 @@ export async function createCompanionGraphic({
   topicLabel = '',
   realtimeData: existingRt = null,
   seed: existingSeed = null,
+  apiKey: providedKey = '',
   preferNewsroom = true,
   forceNewsroom = false,
   bumpSeed = false,
   onProgress,
 }) {
   const report = (pct, stage) => onProgress?.(pct, stage)
+  const apiKey = (providedKey || getOpenAiKey()).trim()
 
   let seed = existingSeed
   if (bumpSeed || seed == null) {
@@ -54,7 +56,7 @@ export async function createCompanionGraphic({
     refreshSeed: seed,
   })
 
-  const tryAiImage = hasOpenAiKey() && (preferNewsroom || forceNewsroom)
+  const tryAiImage = !!apiKey && (preferNewsroom || forceNewsroom || hasOpenAiKey())
 
   if (tryAiImage) {
     report(45, 'Planning infographic layout…')
@@ -64,6 +66,7 @@ export async function createCompanionGraphic({
       topicLabel: topicLabel || model.topicLabel,
       refreshSeed: seed,
       postTheme,
+      apiKey,
       onProgress: (pct, stage) => report(Math.min(95, pct), stage),
     })
 
@@ -98,7 +101,7 @@ export async function createCompanionGraphic({
     }
   }
 
-  report(85, 'Building simple chart (add OpenAI key for premium pictures)…')
+  report(85, 'Building simple chart…')
   report(100, 'Basic chart ready')
   const lead = model.leadHeadline?.title?.slice(0, 48) || 'updated'
   return {
@@ -109,7 +112,7 @@ export async function createCompanionGraphic({
     realtimeData: rt,
     seed,
     model,
-    hint: `Basic chart · "${lead}…" · add OpenAI key for premium infographics`,
+    hint: `Basic chart only — open Settings, paste your OpenAI key, tap Save, then tap New graphic angle.`,
     error: null,
   }
 }
