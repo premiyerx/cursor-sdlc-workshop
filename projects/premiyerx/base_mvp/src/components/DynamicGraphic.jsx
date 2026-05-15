@@ -8,6 +8,7 @@ import { bumpRefreshSeed } from '../utils/freshnessRotation'
 import { generateNewsroomImage } from '../utils/newsroomVisual'
 import { hasOpenAiKey } from '../utils/aiPostGenerator'
 import HeadlineInfographic from './HeadlineInfographic'
+import ProgressRing from './ProgressRing'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
 
@@ -287,7 +288,26 @@ export default function DynamicGraphic({ postText, topicId }) {
   const [newsroomImage, setNewsroomImage] = useState(null)
   const [newsroomStyle, setNewsroomStyle] = useState('')
   const [showOtherStyles, setShowOtherStyles] = useState(false)
+  const [graphicProgress, setGraphicProgress] = useState(0)
+  const [graphicStage, setGraphicStage] = useState('')
   const { msg: graphicMsg, flashOk, flashErr } = useFlashFeedback()
+
+  const isGraphicLoading = smartBusy || newsLoading
+
+  const reportGraphicProgress = useCallback((pct, stage) => {
+    setGraphicProgress((prev) => Math.max(prev, pct))
+    if (stage) setGraphicStage(stage)
+  }, [])
+
+  const resetGraphicProgress = useCallback(() => {
+    setGraphicProgress(0)
+    setGraphicStage('')
+  }, [])
+
+  const finishGraphicProgress = useCallback((stage = 'Graphic ready') => {
+    setGraphicProgress(100)
+    setGraphicStage(stage)
+  }, [])
 
   const topic = TOPICS.find((t) => t.id === topicId)
 
@@ -310,6 +330,7 @@ export default function DynamicGraphic({ postText, topicId }) {
   const refreshHeadlines = useCallback(async (forceRefresh = true, bumpSeed = false) => {
     if (!topicId) return null
     setNewsLoading(true)
+    reportGraphicProgress(12, 'Loading today\'s headlines…')
     try {
       if (forceRefresh) invalidateRealtimeCache(topicId)
       let seed = refreshSeed
@@ -322,13 +343,14 @@ export default function DynamicGraphic({ postText, topicId }) {
         topicLabel: topic?.label || '',
       })
       setRealtimeData(rt)
+      reportGraphicProgress(32, 'Headlines ready')
       return { rt, seed }
     } catch {
       return null
     } finally {
       setNewsLoading(false)
     }
-  }, [topicId, topic?.label, refreshSeed])
+  }, [topicId, topic?.label, refreshSeed, reportGraphicProgress])
 
   const applyGraphic = useCallback(async ({
     seed,
@@ -343,6 +365,8 @@ export default function DynamicGraphic({ postText, topicId }) {
       const activeSeed = seed ?? refreshSeed
       const activeRt = rt ?? realtimeData
 
+      reportGraphicProgress(40, 'Matching verified stats…')
+
       const model = buildHeadlineInfographicModel({
         postText,
         topicId,
@@ -354,7 +378,9 @@ export default function DynamicGraphic({ postText, topicId }) {
       const shouldTryNewsroom = hasOpenAiKey() && (forceNewsroom || preferNewsroom)
 
       if (shouldTryNewsroom) {
+        reportGraphicProgress(48, 'Preparing newsroom visual…')
         const postTheme = model.implications?.[0] || model.hook
+        reportGraphicProgress(55, 'Generating newsroom graphic…')
         const img = await generateNewsroomImage({
           model,
           topicLabel: topic?.label || model.topicLabel,
@@ -362,6 +388,7 @@ export default function DynamicGraphic({ postText, topicId }) {
           postTheme,
         })
         if (img.ok) {
+          finishGraphicProgress('Newsroom graphic ready')
           setNewsroomImage(img.url)
           setNewsroomStyle(img.styleName)
           setPhoto(null)
@@ -382,10 +409,12 @@ export default function DynamicGraphic({ postText, topicId }) {
         flashErr('Save your OpenAI key in Settings to create newsroom graphics.')
       }
 
+      reportGraphicProgress(72, 'Building verified SVG…')
       setNewsroomImage(null)
       setImageMode('headline')
       const lead = model.leadHeadline?.title?.slice(0, 48) || 'updated'
       setSmartHint(`Verified SVG · "${lead}…" · layout ${model.layoutVariant + 1}/4`)
+      finishGraphicProgress('SVG graphic ready')
       if (isRefresh && !shouldTryNewsroom) {
         flashOk(`New headline + stats rotation (${model.verifiedCount} verified).`)
       } else if (isRefresh) {
@@ -397,7 +426,7 @@ export default function DynamicGraphic({ postText, topicId }) {
     } finally {
       setSmartBusy(false)
     }
-  }, [postText, topicId, topic?.label, realtimeData, refreshSeed, flashOk, flashErr])
+  }, [postText, topicId, topic?.label, realtimeData, refreshSeed, flashOk, flashErr, reportGraphicProgress, finishGraphicProgress])
 
   useEffect(() => {
     setPhoto(null)
@@ -407,6 +436,7 @@ export default function DynamicGraphic({ postText, topicId }) {
     setSmartHint('')
     setLayoutSalt('')
     setRealtimeData(null)
+    resetGraphicProgress()
     if (!postText || !topicId) return
 
     let cancelled = false
@@ -415,8 +445,10 @@ export default function DynamicGraphic({ postText, topicId }) {
       const seed = bumpRefreshSeed(topicId)
       setRefreshSeed(seed)
       setNewsLoading(true)
+      reportGraphicProgress(8, 'Starting graphic…')
       try {
         invalidateRealtimeCache(topicId)
+        reportGraphicProgress(12, 'Loading today\'s headlines…')
         const rt = await fetchRealtimeContext(topicId, {
           forceRefresh: true,
           topicLabel: topic?.label || '',
@@ -424,6 +456,7 @@ export default function DynamicGraphic({ postText, topicId }) {
         if (cancelled) return
         setRealtimeData(rt)
         setNewsLoading(false)
+        reportGraphicProgress(32, 'Headlines ready')
         await applyGraphic({
           seed,
           rt,
@@ -442,6 +475,8 @@ export default function DynamicGraphic({ postText, topicId }) {
   }, [postText, topicId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const runSmartVisual = useCallback(async () => {
+    resetGraphicProgress()
+    reportGraphicProgress(5, 'Refreshing graphic…')
     const result = await refreshHeadlines(true, true)
     await applyGraphic({
       seed: result?.seed ?? refreshSeed,
@@ -449,13 +484,15 @@ export default function DynamicGraphic({ postText, topicId }) {
       preferNewsroom: hasOpenAiKey(),
       isRefresh: true,
     })
-  }, [refreshHeadlines, applyGraphic, refreshSeed, realtimeData])
+  }, [refreshHeadlines, applyGraphic, refreshSeed, realtimeData, resetGraphicProgress, reportGraphicProgress])
 
   async function handleNewsroomClick() {
     if (newsroomImage) {
       switchVisualMode('newsroom', `${newsroomStyle} editorial graphic.`, 'Showing newsroom visual.')
       return
     }
+    resetGraphicProgress()
+    reportGraphicProgress(40, 'Preparing newsroom visual…')
     await applyGraphic({
       seed: refreshSeed,
       rt: realtimeData,
@@ -569,11 +606,18 @@ export default function DynamicGraphic({ postText, topicId }) {
       <div className="smart-visual-row">
         <button
           type="button"
-          className="smart-visual-btn"
+          className={`smart-visual-btn ${isGraphicLoading ? 'is-loading' : ''}`}
           onClick={() => void runSmartVisual()}
-          disabled={smartBusy || newsLoading}
+          disabled={isGraphicLoading}
         >
-          {smartBusy || newsLoading ? 'Creating graphic…' : '↻ Refresh graphic'}
+          {isGraphicLoading ? (
+            <>
+              <ProgressRing progress={graphicProgress} size={22} strokeWidth={3} className="smart-visual-btn-ring" />
+              <span>Creating graphic</span>
+            </>
+          ) : (
+            '↻ Refresh graphic'
+          )}
         </button>
         <span className="smart-visual-mode">{modeLabel}</span>
       </div>
@@ -639,13 +683,14 @@ export default function DynamicGraphic({ postText, topicId }) {
           </button>
         </div>
       )}
-      {(smartBusy || newsLoading) && imageMode !== 'newsroom' && !newsroomImage && (
-        <p className="smart-visual-hint smart-visual-loading">
-          {newsLoading ? 'Loading today\'s headlines…' : 'Creating your graphic — usually 10–20 seconds with OpenAI.'}
-        </p>
+      {isGraphicLoading && imageMode !== 'newsroom' && !newsroomImage && (
+        <div className="graphic-progress-panel">
+          <ProgressRing progress={graphicProgress} size={72} strokeWidth={5} />
+          <p className="graphic-progress-stage">{graphicStage || 'Creating your graphic…'}</p>
+        </div>
       )}
-      {smartHint && !smartBusy && !newsLoading && <p className="smart-visual-hint">{smartHint}</p>}
-      {!smartHint && !smartBusy && !newsLoading && headlineModel.hasNews && (
+      {smartHint && !isGraphicLoading && <p className="smart-visual-hint">{smartHint}</p>}
+      {!smartHint && !isGraphicLoading && headlineModel.hasNews && (
         <p className="smart-visual-hint">
           {headlineModel.verifiedCount} verified stat{headlineModel.verifiedCount === 1 ? '' : 's'} · lead story from {headlineModel.leadHeadline?.source}
         </p>
