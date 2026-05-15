@@ -2,6 +2,9 @@ import { useRef, useMemo, useState, useEffect, useCallback } from 'react'
 import { parsePostContent, pickLayout, simpleHash } from '../utils/postParser'
 import { findCitations } from '../data/citations'
 import TOPICS from '../data/postTemplates'
+import { fetchRealtimeContext } from '../utils/realtimeData'
+import { buildHeadlineInfographicModel, assembleVerifiedStats } from '../utils/verifiedInfographic'
+import HeadlineInfographic from './HeadlineInfographic'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
 
@@ -251,10 +254,12 @@ async function tryUnsplashPhoto(parsed, topic) {
   }
 }
 
-async function tryDalleBanner(parsed, topic) {
+async function tryDalleBanner(parsed, topic, topicId, postText) {
   const apiKey = (localStorage.getItem('openai_key') || '').trim()
   if (!apiKey) return null
-  const prompt = `Professional LinkedIn landscape banner 1200x627 for enterprise audience. Topic: ${parsed.hook.slice(0, 120)}. Key metrics: ${parsed.stats.map((s) => s.value).join(', ')}. Style: near-black background, matte green #3EDC81 accents, minimal charts, no long sentences, no watermarks except subtle corner. Photoreal or clean 3D, high-end annual report aesthetic.`
+  const verified = assembleVerifiedStats(postText, topicId, 3)
+  const metrics = verified.map((s) => `${s.value} (${s.source})`).join(', ')
+  const prompt = `Professional LinkedIn landscape banner 1200x627 for enterprise audience. Topic: ${parsed.hook.slice(0, 120)}. Verified metrics only: ${metrics || 'no numeric claims'}. Style: near-black background, matte green #3EDC81 accents, minimal charts, no invented numbers, no long sentences. Photoreal or clean 3D, high-end annual report aesthetic.`
   const res = await fetch('https://api.openai.com/v1/images/generations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -269,10 +274,12 @@ export default function DynamicGraphic({ postText, topicId }) {
   const canvasRef = useRef(null)
   const [photo, setPhoto] = useState(null)
   const [aiImage, setAiImage] = useState(null)
-  const [imageMode, setImageMode] = useState('generated')
+  const [imageMode, setImageMode] = useState('headline')
   const [smartBusy, setSmartBusy] = useState(false)
   const [smartHint, setSmartHint] = useState('')
   const [layoutSalt, setLayoutSalt] = useState('')
+  const [realtimeData, setRealtimeData] = useState(null)
+  const [newsLoading, setNewsLoading] = useState(false)
   const { msg: graphicMsg, flashOk, flashErr } = useFlashFeedback()
 
   const topic = TOPICS.find((t) => t.id === topicId)
@@ -281,65 +288,85 @@ export default function DynamicGraphic({ postText, topicId }) {
   const layout = useMemo(() => pickLayout(postText, topicId, layoutSalt), [postText, topicId, layoutSalt])
   const palette = useMemo(() => getPalette(postText), [postText])
 
+  const headlineModel = useMemo(
+    () =>
+      buildHeadlineInfographicModel({
+        postText,
+        topicId,
+        topicLabel: topic?.label,
+        realtimeData,
+      }),
+    [postText, topicId, topic?.label, realtimeData],
+  )
+
+  const refreshHeadlines = useCallback(async (forceRefresh = true) => {
+    if (!topicId) return null
+    setNewsLoading(true)
+    try {
+      const rt = await fetchRealtimeContext(topicId, {
+        forceRefresh,
+        topicLabel: topic?.label || '',
+      })
+      setRealtimeData(rt)
+      return rt
+    } catch {
+      return null
+    } finally {
+      setNewsLoading(false)
+    }
+  }, [topicId, topic?.label])
+
   useEffect(() => {
     setPhoto(null)
     setAiImage(null)
-    setImageMode('generated')
+    setImageMode('headline')
     setSmartHint('')
     setLayoutSalt('')
-  }, [postText])
+    setRealtimeData(null)
+    if (postText && topicId) {
+      void refreshHeadlines(true)
+    }
+  }, [postText, topicId, refreshHeadlines])
 
   const runSmartVisual = useCallback(async () => {
     setSmartBusy(true)
     setSmartHint('')
     try {
-      const stock = await tryUnsplashPhoto(parsed, topic)
-      if (stock) {
-        setPhoto(stock)
-        setAiImage(null)
-        setImageMode('photo')
-        setSmartHint('Matched a stock photo from Unsplash.')
-        flashOk('Stock photo ready — switch modes or download below.')
-        setSmartBusy(false)
-        return
-      }
-
-      const dalle = await tryDalleBanner(parsed, topic)
-      if (dalle) {
-        setAiImage(dalle)
-        setPhoto(null)
-        setImageMode('ai')
-        setSmartHint('Generated a custom banner with DALL·E 3.')
-        flashOk('AI banner ready — download or switch to infographic.')
-        setSmartBusy(false)
-        return
-      }
-
+      const rt = await refreshHeadlines(true)
       setPhoto(null)
       setAiImage(null)
-      setImageMode('generated')
-      setLayoutSalt(String(Date.now()))
-      const hasKey = !!unsplashAccessKey()
-      const hasOpenAI = !!(localStorage.getItem('openai_key') || '').trim()
-      if (!hasKey && !hasOpenAI) {
-        setSmartHint('Using your data-driven infographic. Optional: add Unsplash + OpenAI keys in AI settings for stock photos or AI renders.')
-        flashOk('Infographic refreshed from your post text.')
-      } else if (hasKey && !hasOpenAI) {
-        setSmartHint('Unsplash had no match — refreshed your infographic layout.')
-        flashOk('No stock match — showing refreshed infographic.')
+      setImageMode('headline')
+
+      const model = buildHeadlineInfographicModel({
+        postText,
+        topicId,
+        topicLabel: topic?.label,
+        realtimeData: rt,
+      })
+
+      if (model.hasNews && model.verifiedCount > 0) {
+        setSmartHint(
+          `Headline infographic: "${model.leadHeadline?.title?.slice(0, 55)}…" + ${model.verifiedCount} registry-verified stats.`,
+        )
+        flashOk(`News infographic ready — ${model.verifiedCount} verified stat${model.verifiedCount === 1 ? '' : 's'} from your data registry.`)
+      } else if (model.hasNews) {
+        setSmartHint('Headlines loaded — add registry-backed stats in your post for numeric cards.')
+        flashOk('Headline infographic updated — news context only (no unverified numbers shown).')
+      } else if (model.verifiedCount > 0) {
+        setSmartHint('Registry-verified stats shown — connect GNews for live headline callouts.')
+        flashOk(`Infographic built from ${model.verifiedCount} verified registry stats.`)
       } else {
-        setSmartHint('Stock + AI unavailable — refreshed your infographic layout.')
-        flashOk('Showing refreshed infographic.')
+        setSmartHint('Generate a post with cited stats, or add data points in the Data Registry tab.')
+        flashErr('No verified stats found — infographic shows structure only.')
       }
     } catch {
-      setImageMode('generated')
-      setLayoutSalt(String(Date.now()))
-      setSmartHint('Showing infographic from your post.')
-      flashErr('Visual search failed — showing infographic instead.')
+      setImageMode('headline')
+      setSmartHint('Could not refresh headlines — showing last verified data.')
+      flashErr('Headline refresh failed — try again.')
     } finally {
       setSmartBusy(false)
     }
-  }, [parsed, topic, flashOk, flashErr])
+  }, [refreshHeadlines, postText, topicId, topic?.label, flashOk, flashErr])
 
   function handleDownload() {
     if (imageMode === 'photo' && photo) {
@@ -388,6 +415,40 @@ export default function DynamicGraphic({ postText, topicId }) {
     flashOk(okMessage)
   }
 
+  async function loadStockPhoto() {
+    setSmartBusy(true)
+    try {
+      const stock = await tryUnsplashPhoto(parsed, topic)
+      if (stock) {
+        setPhoto(stock)
+        setImageMode('photo')
+        setSmartHint('Stock photo from Unsplash.')
+        flashOk('Stock photo ready.')
+      } else {
+        flashErr('No stock photo match — try the news infographic instead.')
+      }
+    } finally {
+      setSmartBusy(false)
+    }
+  }
+
+  async function loadAiBanner() {
+    setSmartBusy(true)
+    try {
+      const dalle = await tryDalleBanner(parsed, topic, topicId, postText)
+      if (dalle) {
+        setAiImage(dalle)
+        setImageMode('ai')
+        setSmartHint('AI banner — decorative only; numbers may be inaccurate.')
+        flashOk('AI banner ready (use News infographic for verified data).')
+      } else {
+        flashErr('AI banner unavailable — check OpenAI key or use news infographic.')
+      }
+    } finally {
+      setSmartBusy(false)
+    }
+  }
+
   if (!postText) return null
 
   const hasFallbackContent = parsed.stats.length > 0 || parsed.arrowLines.length > 0
@@ -396,45 +457,83 @@ export default function DynamicGraphic({ postText, topicId }) {
     <section className="image-display fade-in-up">
       <h2 className="section-title">Companion Graphic</h2>
       <p className="section-subtitle">
-        Unique to this post · 1200 × 627 · optimized for LinkedIn
+        News + registry-verified stats · 1200 × 627 · LinkedIn optimized
       </p>
 
       <div className="smart-visual-row">
         <button
           type="button"
           className="smart-visual-btn"
-          onClick={runSmartVisual}
-          disabled={smartBusy}
+          onClick={() => void runSmartVisual()}
+          disabled={smartBusy || newsLoading}
         >
-          {smartBusy ? 'Finding best visual…' : 'Get best visual'}
+          {smartBusy || newsLoading ? 'Refreshing news…' : 'Refresh news infographic'}
+        </button>
+        <button
+          type="button"
+          className={`smart-visual-secondary ${imageMode === 'headline' ? 'active' : ''}`}
+          onClick={() =>
+            switchVisualMode(
+              'headline',
+              'Headlines from GNews + stats verified against your data registry.',
+              'Showing news infographic with verified data.',
+            )
+          }
+        >
+          News infographic
         </button>
         <button
           type="button"
           className={`smart-visual-secondary ${imageMode === 'generated' ? 'active' : ''}`}
-          onClick={() => switchVisualMode('generated', 'Infographic from your post text.', 'Showing data-driven infographic.')}
+          onClick={() => {
+            setLayoutSalt(String(Date.now()))
+            switchVisualMode('generated', 'Classic layout from post text.', 'Showing classic infographic.')
+          }}
         >
-          Infographic
+          Classic
         </button>
-        {photo && (
-          <button
-            type="button"
-            className={`smart-visual-secondary ${imageMode === 'photo' ? 'active' : ''}`}
-            onClick={() => switchVisualMode('photo', 'Stock photo from Unsplash.', 'Showing stock photo.')}
-          >
-            Stock photo
-          </button>
-        )}
-        {aiImage && (
-          <button
-            type="button"
-            className={`smart-visual-secondary ${imageMode === 'ai' ? 'active' : ''}`}
-            onClick={() => switchVisualMode('ai', 'AI-generated banner.', 'Showing AI banner.')}
-          >
-            AI banner
-          </button>
-        )}
+        <button
+          type="button"
+          className="smart-visual-secondary"
+          onClick={() => void loadStockPhoto()}
+          disabled={smartBusy}
+        >
+          Stock photo
+        </button>
+        <button
+          type="button"
+          className="smart-visual-secondary"
+          onClick={() => void loadAiBanner()}
+          disabled={smartBusy}
+        >
+          AI banner
+        </button>
       </div>
       {smartHint && <p className="smart-visual-hint">{smartHint}</p>}
+      {!smartHint && headlineModel.hasNews && (
+        <p className="smart-visual-hint">
+          {headlineModel.verifiedCount} verified stat{headlineModel.verifiedCount === 1 ? '' : 's'} · lead story from {headlineModel.leadHeadline?.source}
+        </p>
+      )}
+
+      {imageMode === 'headline' && (
+        <div className="image-wrapper image-wrapper-graphic" ref={canvasRef}>
+          <svg viewBox="0 0 1200 627" xmlns="http://www.w3.org/2000/svg">
+            <rect width="1200" height="627" fill="#0a0a0a" />
+            <HeadlineInfographic model={headlineModel} palette={palette} />
+            <rect x="0" y="600" width="1200" height="27" fill="#0f0f0f" />
+            <text x="100" y="618" fill={palette.accent} fontSize="11" fontWeight="600" fontFamily="Inter, sans-serif">
+              Prem Iyer
+            </text>
+            <text x="190" y="618" fill="#333" fontSize="10" fontFamily="Inter, sans-serif">
+              ·  AI Software Transformation
+            </text>
+            <text x="1100" y="618" textAnchor="end" fill="#222" fontSize="10" fontFamily="Inter, sans-serif">
+              {topic?.label || 'LinkedIn Post'}
+            </text>
+          </svg>
+        </div>
+      )}
 
       {imageMode === 'generated' && (
         <div className="image-wrapper image-wrapper-graphic" ref={canvasRef}>
