@@ -6,6 +6,7 @@ import { fetchRealtimeContext, invalidateRealtimeCache } from '../utils/realtime
 import { buildHeadlineInfographicModel, assembleVerifiedStats } from '../utils/verifiedInfographic'
 import { bumpRefreshSeed } from '../utils/freshnessRotation'
 import { generateNewsroomImage } from '../utils/newsroomVisual'
+import { hasOpenAiKey } from '../utils/aiPostGenerator'
 import HeadlineInfographic from './HeadlineInfographic'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
@@ -285,6 +286,7 @@ export default function DynamicGraphic({ postText, topicId }) {
   const [refreshSeed, setRefreshSeed] = useState(0)
   const [newsroomImage, setNewsroomImage] = useState(null)
   const [newsroomStyle, setNewsroomStyle] = useState('')
+  const [showOtherStyles, setShowOtherStyles] = useState(false)
   const { msg: graphicMsg, flashOk, flashErr } = useFlashFeedback()
 
   const topic = TOPICS.find((t) => t.id === topicId)
@@ -328,44 +330,35 @@ export default function DynamicGraphic({ postText, topicId }) {
     }
   }, [topicId, topic?.label, refreshSeed])
 
-  useEffect(() => {
-    setPhoto(null)
-    setAiImage(null)
-    setNewsroomImage(null)
-    setImageMode('headline')
-    setSmartHint('')
-    setLayoutSalt('')
-    setRealtimeData(null)
-    if (postText && topicId) {
-      const seed = bumpRefreshSeed(topicId)
-      setRefreshSeed(seed)
-      void refreshHeadlines(true, false)
-    }
-  }, [postText, topicId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const runSmartVisual = useCallback(async () => {
+  const applyGraphic = useCallback(async ({
+    seed,
+    rt,
+    preferNewsroom = false,
+    forceNewsroom = false,
+    isRefresh = false,
+  }) => {
     setSmartBusy(true)
     setSmartHint('')
     try {
-      const result = await refreshHeadlines(true, true)
-      const seed = result?.seed ?? refreshSeed
-      const rt = result?.rt ?? realtimeData
+      const activeSeed = seed ?? refreshSeed
+      const activeRt = rt ?? realtimeData
 
       const model = buildHeadlineInfographicModel({
         postText,
         topicId,
         topicLabel: topic?.label,
-        realtimeData: rt,
-        refreshSeed: seed,
+        realtimeData: activeRt,
+        refreshSeed: activeSeed,
       })
 
-      const hasOpenAI = !!(localStorage.getItem('openai_key') || '').trim()
-      if (hasOpenAI) {
+      const shouldTryNewsroom = hasOpenAiKey() && (forceNewsroom || preferNewsroom)
+
+      if (shouldTryNewsroom) {
         const postTheme = model.implications?.[0] || model.hook
         const img = await generateNewsroomImage({
           model,
           topicLabel: topic?.label || model.topicLabel,
-          refreshSeed: seed,
+          refreshSeed: activeSeed,
           postTheme,
         })
         if (img.ok) {
@@ -374,24 +367,102 @@ export default function DynamicGraphic({ postText, topicId }) {
           setPhoto(null)
           setAiImage(null)
           setImageMode('newsroom')
-          setSmartHint(`${img.styleName} editorial · ${model.verifiedCount} verified stats · new angle.`)
-          flashOk(`Fresh ${img.styleName} graphic — visual corollary to your post.`)
+          setSmartHint(`${img.styleName} editorial · ${model.verifiedCount} verified stats.`)
+          flashOk(
+            isRefresh
+              ? `Fresh ${img.styleName} graphic — new angle on your post.`
+              : `${img.styleName} newsroom graphic ready for your post.`,
+          )
           return
         }
+
+        const errText = img.error || 'Could not create newsroom graphic.'
+        flashErr(forceNewsroom ? errText : `${errText} Showing verified SVG instead.`)
+      } else if (forceNewsroom) {
+        flashErr('Save your OpenAI key in Settings to create newsroom graphics.')
       }
 
       setNewsroomImage(null)
       setImageMode('headline')
       const lead = model.leadHeadline?.title?.slice(0, 48) || 'updated'
-      setSmartHint(`Editorial SVG refreshed · "${lead}…" · layout ${model.layoutVariant + 1}/4`)
-      flashOk(`New headline + stats rotation (${model.verifiedCount} verified).`)
+      setSmartHint(`Verified SVG · "${lead}…" · layout ${model.layoutVariant + 1}/4`)
+      if (isRefresh && !shouldTryNewsroom) {
+        flashOk(`New headline + stats rotation (${model.verifiedCount} verified).`)
+      } else if (isRefresh) {
+        flashOk(`SVG refreshed (${model.verifiedCount} verified stats).`)
+      }
     } catch {
       setImageMode('headline')
-      flashErr('Refresh failed — try again.')
+      flashErr('Graphic failed — try Refresh again.')
     } finally {
       setSmartBusy(false)
     }
-  }, [refreshHeadlines, postText, topicId, topic?.label, realtimeData, refreshSeed, flashOk, flashErr])
+  }, [postText, topicId, topic?.label, realtimeData, refreshSeed, flashOk, flashErr])
+
+  useEffect(() => {
+    setPhoto(null)
+    setAiImage(null)
+    setNewsroomImage(null)
+    setImageMode('headline')
+    setSmartHint('')
+    setLayoutSalt('')
+    setRealtimeData(null)
+    if (!postText || !topicId) return
+
+    let cancelled = false
+
+    ;(async () => {
+      const seed = bumpRefreshSeed(topicId)
+      setRefreshSeed(seed)
+      setNewsLoading(true)
+      try {
+        invalidateRealtimeCache(topicId)
+        const rt = await fetchRealtimeContext(topicId, {
+          forceRefresh: true,
+          topicLabel: topic?.label || '',
+        })
+        if (cancelled) return
+        setRealtimeData(rt)
+        setNewsLoading(false)
+        await applyGraphic({
+          seed,
+          rt,
+          preferNewsroom: hasOpenAiKey(),
+          isRefresh: false,
+        })
+      } catch {
+        if (!cancelled) {
+          setNewsLoading(false)
+          flashErr('Could not load headlines for your graphic.')
+        }
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [postText, topicId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const runSmartVisual = useCallback(async () => {
+    const result = await refreshHeadlines(true, true)
+    await applyGraphic({
+      seed: result?.seed ?? refreshSeed,
+      rt: result?.rt ?? realtimeData,
+      preferNewsroom: hasOpenAiKey(),
+      isRefresh: true,
+    })
+  }, [refreshHeadlines, applyGraphic, refreshSeed, realtimeData])
+
+  async function handleNewsroomClick() {
+    if (newsroomImage) {
+      switchVisualMode('newsroom', `${newsroomStyle} editorial graphic.`, 'Showing newsroom visual.')
+      return
+    }
+    await applyGraphic({
+      seed: refreshSeed,
+      rt: realtimeData,
+      forceNewsroom: true,
+      isRefresh: false,
+    })
+  }
 
   function handleDownload() {
     if (imageMode === 'newsroom' && newsroomImage) {
@@ -483,12 +554,17 @@ export default function DynamicGraphic({ postText, topicId }) {
 
   const hasFallbackContent = parsed.stats.length > 0 || parsed.arrowLines.length > 0
 
+  const modeLabel = {
+    newsroom: 'Newsroom',
+    headline: 'News infographic',
+    generated: 'Classic',
+    photo: 'Stock photo',
+    ai: 'AI banner',
+  }[imageMode] || 'News infographic'
+
   return (
     <section className="image-display fade-in-up">
-      <h2 className="section-title">Companion Graphic</h2>
-      <p className="section-subtitle">
-        Newsroom editorial graphics · verified data only · 1200 × 627
-      </p>
+      <h2 className="section-title">Post Graphic</h2>
 
       <div className="smart-visual-row">
         <button
@@ -497,63 +573,79 @@ export default function DynamicGraphic({ postText, topicId }) {
           onClick={() => void runSmartVisual()}
           disabled={smartBusy || newsLoading}
         >
-          {smartBusy || newsLoading ? 'Refreshing news…' : 'Refresh news infographic'}
+          {smartBusy || newsLoading ? 'Creating graphic…' : '↻ Refresh graphic'}
         </button>
-        <button
-          type="button"
-          className={`smart-visual-secondary ${imageMode === 'newsroom' ? 'active' : ''}`}
-          onClick={() => {
-            if (newsroomImage) {
-              switchVisualMode('newsroom', `${newsroomStyle} editorial graphic.`, 'Showing newsroom visual.')
-            } else {
-              flashErr('Tap Refresh first to generate a newsroom graphic (needs OpenAI key).')
-            }
-          }}
-        >
-          Newsroom
-        </button>
-        <button
-          type="button"
-          className={`smart-visual-secondary ${imageMode === 'headline' ? 'active' : ''}`}
-          onClick={() =>
-            switchVisualMode(
-              'headline',
-              'Headlines from GNews + stats verified against your data registry.',
-              'Showing news infographic with verified data.',
-            )
-          }
-        >
-          News infographic
-        </button>
-        <button
-          type="button"
-          className={`smart-visual-secondary ${imageMode === 'generated' ? 'active' : ''}`}
-          onClick={() => {
-            setLayoutSalt(String(Date.now()))
-            switchVisualMode('generated', 'Classic layout from post text.', 'Showing classic infographic.')
-          }}
-        >
-          Classic
-        </button>
-        <button
-          type="button"
-          className="smart-visual-secondary"
-          onClick={() => void loadStockPhoto()}
-          disabled={smartBusy}
-        >
-          Stock photo
-        </button>
-        <button
-          type="button"
-          className="smart-visual-secondary"
-          onClick={() => void loadAiBanner()}
-          disabled={smartBusy}
-        >
-          AI banner
-        </button>
+        <span className="smart-visual-mode">{modeLabel}</span>
       </div>
-      {smartHint && <p className="smart-visual-hint">{smartHint}</p>}
-      {!smartHint && headlineModel.hasNews && (
+
+      <button
+        type="button"
+        className="smart-visual-more-toggle"
+        onClick={() => setShowOtherStyles((v) => !v)}
+      >
+        {showOtherStyles ? '▾ Hide other styles' : '▸ Other styles'}
+      </button>
+
+      {showOtherStyles && (
+        <div className="smart-visual-alt-row">
+          <button
+            type="button"
+            className={`smart-visual-secondary ${imageMode === 'headline' ? 'active' : ''}`}
+            onClick={() =>
+              switchVisualMode(
+                'headline',
+                'Headlines from GNews + stats verified against your data registry.',
+                'Showing news infographic.',
+              )
+            }
+          >
+            News infographic
+          </button>
+          {hasOpenAiKey() && (
+            <button
+              type="button"
+              className={`smart-visual-secondary ${imageMode === 'newsroom' ? 'active' : ''}`}
+              onClick={() => void handleNewsroomClick()}
+              disabled={smartBusy}
+            >
+              {smartBusy && !newsroomImage ? 'Creating…' : 'Newsroom'}
+            </button>
+          )}
+          <button
+            type="button"
+            className={`smart-visual-secondary ${imageMode === 'generated' ? 'active' : ''}`}
+            onClick={() => {
+              setLayoutSalt(String(Date.now()))
+              switchVisualMode('generated', 'Classic layout from post text.', 'Showing classic infographic.')
+            }}
+          >
+            Classic
+          </button>
+          <button
+            type="button"
+            className="smart-visual-secondary"
+            onClick={() => void loadStockPhoto()}
+            disabled={smartBusy}
+          >
+            Stock photo
+          </button>
+          <button
+            type="button"
+            className="smart-visual-secondary"
+            onClick={() => void loadAiBanner()}
+            disabled={smartBusy}
+          >
+            AI banner
+          </button>
+        </div>
+      )}
+      {(smartBusy || newsLoading) && imageMode !== 'newsroom' && !newsroomImage && (
+        <p className="smart-visual-hint smart-visual-loading">
+          {newsLoading ? 'Loading today\'s headlines…' : 'Creating your graphic — usually 10–20 seconds with OpenAI.'}
+        </p>
+      )}
+      {smartHint && !smartBusy && !newsLoading && <p className="smart-visual-hint">{smartHint}</p>}
+      {!smartHint && !smartBusy && !newsLoading && headlineModel.hasNews && (
         <p className="smart-visual-hint">
           {headlineModel.verifiedCount} verified stat{headlineModel.verifiedCount === 1 ? '' : 's'} · lead story from {headlineModel.leadHeadline?.source}
         </p>

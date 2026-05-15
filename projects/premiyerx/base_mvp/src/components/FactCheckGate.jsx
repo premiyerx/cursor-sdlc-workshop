@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react'
 import { extractClaimsFromText, verifyDataPoint } from '../utils/dataRegistry'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
+import CollapsibleSection from './CollapsibleSection'
 
 const STATUS_META = {
   verified: { label: 'Verified', icon: '✅', cls: 'fc-verified' },
-  stale: { label: 'Stale — re-verify', icon: '⚠️', cls: 'fc-stale' },
-  unverified: { label: 'Never verified', icon: '🔴', cls: 'fc-unverified' },
-  unknown: { label: 'Not in registry', icon: '❓', cls: 'fc-unknown' },
+  stale: { label: 'Stale', icon: '⚠️', cls: 'fc-stale' },
+  unverified: { label: 'Unverified', icon: '🔴', cls: 'fc-unverified' },
+  unknown: { label: 'Unknown', icon: '❓', cls: 'fc-unknown' },
 }
 
 export default function FactCheckGate({ postText, onApprove }) {
@@ -18,9 +19,11 @@ export default function FactCheckGate({ postText, onApprove }) {
 
   if (dismissed || claims.length === 0) return null
 
-  const allGood = claims.every(
-    (c) => c.status === 'verified' || approvals[c.text]
-  )
+  const problemCount = claims.filter(
+    (c) => c.status !== 'verified' && !approvals[c.text],
+  ).length
+
+  const allGood = claims.every((c) => c.status === 'verified' || approvals[c.text])
 
   function handleApprove(claimText, registryId) {
     if (registryId) verifyDataPoint(registryId)
@@ -43,76 +46,63 @@ export default function FactCheckGate({ postText, onApprove }) {
     if (onApprove) onApprove()
   }
 
-  const problemCount = claims.filter(
-    (c) => c.status !== 'verified' && !approvals[c.text]
-  ).length
+  const badge = problemCount > 0 ? `${problemCount} to review` : 'All clear'
+  const hint = problemCount > 0 ? 'Review before you publish' : 'Optional — already verified'
 
   return (
-    <section className="fact-check-gate fade-in-up">
-      <div className="fc-header">
-        <div className="fc-title-row">
-          <h3 className="fc-title">Fact Check</h3>
-          {problemCount > 0 ? (
-            <span className="fc-badge fc-badge-warn">{problemCount} need review</span>
-          ) : (
-            <span className="fc-badge fc-badge-ok">All verified</span>
+    <CollapsibleSection
+      className="fact-check-wrap"
+      title="Fact check"
+      badge={badge}
+      hint={hint}
+      defaultOpen={false}
+    >
+      <div className="fact-check-gate">
+        <div className="fc-claims">
+          {claims.map((claim, i) => {
+            const approved = approvals[claim.text]
+            const meta = STATUS_META[approved ? 'verified' : claim.status]
+            return (
+              <div key={i} className={`fc-claim ${meta.cls} ${approved ? 'fc-approved' : ''}`}>
+                <div className="fc-claim-content">
+                  <span className="fc-claim-icon">{meta.icon}</span>
+                  <div className="fc-claim-detail">
+                    <span className="fc-claim-text">"{claim.text}"</span>
+                    {claim.registryMatch ? (
+                      <span className="fc-claim-source">Source: {claim.registryMatch.source}</span>
+                    ) : (
+                      <span className="fc-claim-source fc-no-source">Not in registry — verify manually</span>
+                    )}
+                  </div>
+                </div>
+                {!approved && (
+                  <button
+                    type="button"
+                    className="fc-approve-btn"
+                    onClick={() => handleApprove(claim.text, claim.registryMatch?.id)}
+                  >
+                    Confirm ✓
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="fc-gate-actions">
+          {problemCount > 0 && (
+            <button type="button" className="fc-approve-all-btn" onClick={handleApproveAll}>
+              Confirm all
+            </button>
+          )}
+          {allGood && (
+            <button type="button" className="fc-publish-btn" onClick={handlePublishApproval}>
+              Done — continue
+            </button>
           )}
         </div>
-        <p className="fc-subtitle">
-          Every data claim in your post is shown below. Confirm accuracy before publishing.
-        </p>
+        <ActionFeedback msg={fcMsg} />
       </div>
-
-      <div className="fc-claims">
-        {claims.map((claim, i) => {
-          const approved = approvals[claim.text]
-          const meta = STATUS_META[approved ? 'verified' : claim.status]
-          return (
-            <div key={i} className={`fc-claim ${meta.cls} ${approved ? 'fc-approved' : ''}`}>
-              <div className="fc-claim-content">
-                <span className="fc-claim-icon">{meta.icon}</span>
-                <div className="fc-claim-detail">
-                  <span className="fc-claim-text">"{claim.text}"</span>
-                  {claim.registryMatch ? (
-                    <span className="fc-claim-source">
-                      Source: {claim.registryMatch.source}
-                      {claim.registryMatch.verifiedAt && (
-                        <> · Last verified: {new Date(claim.registryMatch.verifiedAt).toLocaleDateString()}</>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="fc-claim-source fc-no-source">
-                      No matching source in registry — verify manually
-                    </span>
-                  )}
-                </div>
-              </div>
-              {!approved && (
-                <button
-                  className="fc-approve-btn"
-                  onClick={() => handleApprove(claim.text, claim.registryMatch?.id)}
-                >
-                  Confirm ✓
-                </button>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="fc-gate-actions">
-        {problemCount > 0 && (
-          <button className="fc-approve-all-btn" onClick={handleApproveAll}>
-            Confirm All as Accurate
-          </button>
-        )}
-        {allGood && (
-          <button className="fc-publish-btn" onClick={handlePublishApproval}>
-            All Data Verified — Continue
-          </button>
-        )}
-      </div>
-      <ActionFeedback msg={fcMsg} />
-    </section>
+    </CollapsibleSection>
   )
 }

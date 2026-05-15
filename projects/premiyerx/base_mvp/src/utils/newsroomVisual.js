@@ -68,31 +68,48 @@ export function buildNewsroomDallePrompt({ model, topicLabel, refreshSeed, postT
 
 export async function generateNewsroomImage({ model, topicLabel, refreshSeed, postTheme, apiKey }) {
   const key = (apiKey || localStorage.getItem('openai_key') || '').trim()
-  if (!key) return { ok: false, error: 'OpenAI key required for newsroom visual.' }
+  if (!key) return { ok: false, error: 'OpenAI key not saved on this device. Open Settings and paste your key.' }
 
   const prompt = buildNewsroomDallePrompt({ model, topicLabel, refreshSeed, postTheme })
-  const res = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: 'dall-e-3',
-      prompt,
-      n: 1,
-      size: '1792x1024',
-      quality: 'hd',
-      style: 'natural',
-    }),
-  })
+  const style = pickEditorialStyle(refreshSeed)
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    return { ok: false, error: err.error?.message || `Image API error ${res.status}` }
+  async function requestImage(quality) {
+    const res = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt,
+        n: 1,
+        size: '1792x1024',
+        quality,
+        style: 'natural',
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      const message = err.error?.message || `Image API error ${res.status}`
+      return { ok: false, error: message, status: res.status }
+    }
+    const data = await res.json()
+    const url = data.data?.[0]?.url
+    if (!url) return { ok: false, error: 'No image returned from OpenAI.' }
+    return { ok: true, url }
   }
 
-  const data = await res.json()
-  const url = data.data?.[0]?.url
-  if (!url) return { ok: false, error: 'No image returned.' }
+  let result = await requestImage('standard')
+  if (!result.ok && result.status >= 500) {
+    result = await requestImage('standard')
+  }
 
-  const style = pickEditorialStyle(refreshSeed)
-  return { ok: true, url, styleName: style.name, styleId: style.id }
+  if (!result.ok) {
+    const hint = /billing|quota|credit|payment|insufficient/i.test(result.error || '')
+      ? ' Check billing at platform.openai.com/account/billing.'
+      : /invalid.*api.*key|incorrect api key/i.test(result.error || '')
+        ? ' Re-save your key in Settings.'
+        : ''
+    return { ok: false, error: `${result.error || 'Generation failed'}.${hint}` }
+  }
+
+  return { ok: true, url: result.url, styleName: style.name, styleId: style.id }
 }

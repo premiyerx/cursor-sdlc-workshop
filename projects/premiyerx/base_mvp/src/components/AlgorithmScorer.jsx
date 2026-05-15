@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { scorePost, HASHTAG_SUGGESTIONS } from '../data/algorithmRules'
 import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
+import CollapsibleSection from './CollapsibleSection'
 
 function ScoreGauge({ score }) {
   const circumference = 2 * Math.PI * 54
@@ -24,7 +25,7 @@ function ScoreGauge({ score }) {
         <text x="60" y="72" textAnchor="middle" fill="#6a6a8a" fontSize="10">/100</text>
       </svg>
       <span className="gauge-label">Algorithm Score</span>
-      <span className="gauge-target">Reach model: 92+ (dwell + comments weighted)</span>
+      <span className="gauge-target">Target: 92+ for reach</span>
     </div>
   )
 }
@@ -32,60 +33,64 @@ function ScoreGauge({ score }) {
 export default function AlgorithmScorer({ postText, topicId }) {
   const result = useMemo(() => scorePost(postText), [postText])
   const { msg: tagMsg, flashOk, flashErr } = useFlashFeedback()
-
   const suggestions = HASHTAG_SUGGESTIONS[topicId] || []
+  const scoreLabel = result.total >= 92 ? 'Strong' : result.total >= 80 ? 'Good' : 'Tune'
 
   async function handleCopyTag(tag) {
-    const result = await copyToClipboard(tag)
-    if (!result.ok) {
-      flashErr(result.error || 'Could not copy hashtag.')
+    const res = await copyToClipboard(tag)
+    if (!res.ok) {
+      flashErr(res.error || 'Could not copy hashtag.')
       return
     }
     flashOk(`${tag} copied.`)
   }
 
   return (
-    <section className="algorithm-scorer">
-      <h2 className="section-title">Algorithm Optimizer</h2>
+    <CollapsibleSection
+      className="algorithm-scorer-wrap"
+      title="Algorithm score"
+      badge={`${result.total} · ${scoreLabel}`}
+      hint="Tap to see breakdown"
+      defaultOpen={false}
+    >
+      <div className="algorithm-scorer">
+        <div className="scorer-layout">
+          <ScoreGauge score={result.total} />
 
-      <div className="scorer-layout">
-        <ScoreGauge score={result.total} />
-
-        <div className="score-breakdown">
-          {result.details.map((rule) => (
-            <div key={rule.id} className="score-row">
-              <div className="score-row-header">
-                <span className="score-rule-name">{rule.label}</span>
-                <span className={`score-pill ${rule.score >= 95 ? 'premier' : rule.score >= 70 ? 'good' : rule.score >= 40 ? 'mid' : 'low'}`}>
-                  {rule.score}
-                </span>
+          <div className="score-breakdown">
+            {result.details.map((rule) => (
+              <div key={rule.id} className="score-row">
+                <div className="score-row-header">
+                  <span className="score-rule-name">{rule.label}</span>
+                  <span className={`score-pill ${rule.score >= 95 ? 'premier' : rule.score >= 70 ? 'good' : rule.score >= 40 ? 'mid' : 'low'}`}>
+                    {rule.score}
+                  </span>
+                </div>
+                <div className="score-bar-track">
+                  <div
+                    className="score-bar-fill"
+                    style={{
+                      width: `${rule.score}%`,
+                      background: rule.score >= 95 ? '#3EDC81' : rule.score >= 70 ? '#00b894' : rule.score >= 40 ? '#fdcb6e' : '#e17055',
+                    }}
+                  />
+                </div>
               </div>
-              <div className="score-bar-track">
-                <div
-                  className="score-bar-fill"
-                  style={{
-                    width: `${rule.score}%`,
-                    background: rule.score >= 95 ? '#3EDC81' : rule.score >= 70 ? '#00b894' : rule.score >= 40 ? '#fdcb6e' : '#e17055',
-                  }}
-                />
-              </div>
-              <span className="score-hint">{rule.description}</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="scorer-extras">
         {suggestions.length > 0 && (
           <div className="hashtag-suggestions">
-            <span className="timing-label">Suggested Hashtags</span>
+            <span className="timing-label">Hashtags</span>
             <div className="hashtag-list">
               {suggestions.map((tag) => (
                 <button
                   key={tag}
+                  type="button"
                   className="hashtag-chip"
                   onClick={() => void handleCopyTag(tag)}
-                  title="Click to copy"
+                  title="Copy"
                 >
                   {tag}
                 </button>
@@ -95,6 +100,6 @@ export default function AlgorithmScorer({ postText, topicId }) {
           </div>
         )}
       </div>
-    </section>
+    </CollapsibleSection>
   )
 }

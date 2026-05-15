@@ -38,6 +38,7 @@ export default function App() {
   const [generatedPost, setGeneratedPost] = useState(null)
   const [liveText, setLiveText] = useState('')
   const [generateBusy, setGenerateBusy] = useState(false)
+  const [customAngle, setCustomAngle] = useState('')
   const { msg: generateMsg, flashOk: flashGenerateOk, flashErr: flashGenerateErr } = useFlashFeedback()
 
   const topic = TOPICS.find((t) => t.id === selectedTopic)
@@ -70,7 +71,7 @@ export default function App() {
       invalidateRealtimeCache(selectedTopic)
 
       if (hasOpenAiKey()) {
-        const { post } = await generateAIPost(selectedTopic)
+        const { post } = await generateAIPost(selectedTopic, { customAngle })
         setGeneratedPost(post)
         const raw = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
         setLiveText(appendCitations(raw))
@@ -114,19 +115,13 @@ export default function App() {
     } finally {
       setGenerateBusy(false)
     }
-  }, [topic, selectedTopic, appendCitations, flashGenerateOk, flashGenerateErr])
+  }, [topic, selectedTopic, customAngle, appendCitations, flashGenerateOk, flashGenerateErr])
 
   const handleTopicSelect = useCallback((id) => {
     setSelectedTopic(id)
     setGeneratedPost(null)
     setLiveText('')
   }, [])
-
-  const handleAIGenerated = useCallback((post) => {
-    setGeneratedPost(post)
-    const raw = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
-    setLiveText(appendCitations(raw))
-  }, [appendCitations])
 
   const handlePostEdit = useCallback((text) => {
     setLiveText(text)
@@ -233,9 +228,8 @@ export default function App() {
               <ActionFeedback msg={generateMsg} className="command-generate-feedback" />
             </section>
 
-            {/* STEP 2b: Advanced generation (progressive disclosure) */}
             {selectedTopic && (
-              <AIGenerator topicId={selectedTopic} onGenerated={handleAIGenerated} />
+              <AIGenerator customAngle={customAngle} onCustomAngleChange={setCustomAngle} />
             )}
 
             {/* STEP 3: Output — the payoff */}
