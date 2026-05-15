@@ -1,6 +1,6 @@
 /**
  * Premium LinkedIn infographic image generation via OpenAI.
- * Tries multiple models, sizes, and prompt lengths. Surfaces real API errors.
+ * Uses server proxy first, then direct API. Model-specific request bodies.
  */
 import { mulberry32 } from './generationVariety'
 import { pickFromPool } from './freshnessRotation'
@@ -14,23 +14,32 @@ const LAYOUT_TEMPLATES = [
 ]
 
 const COLOR_PALETTES = [
-  'black background, white type, green accents',
+  'black background, white type, green #3EDC81 accents',
   'charcoal background, off-white type, green and gold accents',
   'navy background, white headlines, green and blue accents',
+  'deep purple background, white type, teal accents',
+  'dark slate background, cream type, emerald accents',
+]
+
+const VISUAL_MOODS = [
+  'editorial annual-report aesthetic',
+  'modern SaaS product marketing style',
+  'McKinsey-style data storytelling',
+  'bold tech keynote slide quality',
+  'premium financial infographic polish',
 ]
 
 export function pickInfographicRecipe(refreshSeed, attempt = 0) {
   const rng = mulberry32((refreshSeed ^ (attempt * 0x9e3779b9)) >>> 0)
   const layout = LAYOUT_TEMPLATES[Math.floor(rng() * LAYOUT_TEMPLATES.length) % LAYOUT_TEMPLATES.length]
   const palette = pickFromPool(COLOR_PALETTES, refreshSeed + attempt, 'palette')
-  return { layout, palette }
+  const mood = pickFromPool(VISUAL_MOODS, refreshSeed + attempt * 3, 'mood')
+  return { layout, palette, mood }
 }
 
 export function humanizeImageError(raw = '') {
   const msg = String(raw || '').trim()
-  if (!msg) {
-    return 'OpenAI did not return a reason. Tap New graphic angle to try again.'
-  }
+  if (!msg) return 'OpenAI did not return a reason. Tap New graphic angle to try again.'
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
     return `Connection problem reaching OpenAI. Check signal or Wi‑Fi, then try again. (${msg})`
   }
@@ -53,88 +62,127 @@ export function humanizeImageError(raw = '') {
 }
 
 function buildPrompt({ model, topicLabel, refreshSeed, postTheme, recipe, tier = 'full' }) {
-  const { layout, palette } = recipe || pickInfographicRecipe(refreshSeed)
+  const { layout, palette, mood } = recipe || pickInfographicRecipe(refreshSeed)
   const stats = (model?.verifiedStats || []).slice(0, 3)
   const statsLine = stats.map((s) => s.value).join(', ')
   const theme = (postTheme || model?.hook || topicLabel || 'technology leadership').slice(0, 60)
-  const variationId = `v${((refreshSeed >>> 0) + (tier === 'minimal' ? 99 : 0)).toString(16).slice(0, 6)}`
+  const variationId = `v${((refreshSeed >>> 0) + (tier === 'minimal' ? 99 : tier === 'compact' ? 55 : 0)).toString(16).slice(0, 6)}`
 
   if (tier === 'minimal') {
     return [
-      `Professional LinkedIn infographic, landscape 16:9.`,
-      `Dark ${palette}. ${layout.brief}.`,
+      `Professional LinkedIn landscape infographic, 16:9 wide format.`,
+      `Dark ${palette}. ${layout.brief}. Mood: ${mood}.`,
       `Topic: ${topicLabel || theme}.`,
-      statsLine ? `Show these numbers only: ${statsLine}.` : 'Use abstract icons, no numbers.',
-      `Donut charts, icons, callout cards. No plain bar chart.`,
-      `Footer: Prem Iyer. Variation ${variationId}.`,
+      statsLine ? `Numbers to show: ${statsLine}.` : 'Abstract icons only, no numbers.',
+      `Donut charts, icon cards, modular sections. No plain bar chart.`,
+      `Footer text: Prem Iyer. Unique variation ${variationId}.`,
     ].join(' ')
   }
 
   if (tier === 'compact') {
     return [
-      `Premium LinkedIn landscape infographic.`,
-      `Layout: ${layout.name} (${layout.brief}). Colors: ${palette}.`,
+      `Create a premium LinkedIn landscape infographic (wide 16:9).`,
+      `Layout: ${layout.name} — ${layout.brief}.`,
+      `Colors: ${palette}. Style: ${mood}.`,
       `Topic: ${topicLabel}. Theme: ${theme}.`,
-      statsLine ? `Verified metrics only: ${statsLine}.` : 'Abstract shapes only, no invented numbers.',
-      `Donut charts, icon rows, comparison panels. No boring 3-bar chart.`,
-      `Dark editorial design. Small footer: Prem Iyer · AI Software Transformation.`,
-    ].join(' ')
+      statsLine ? `Verified metrics only: ${statsLine}.` : 'No numbers — abstract shapes only.',
+      `Use donut charts, icon rows, comparison panels, callout cards.`,
+      `Avoid simple 3-bar charts. Dark editorial design.`,
+      `Small footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
+    ].join('\n')
   }
 
   return [
-    `Create a premium LinkedIn landscape infographic, wide 16:9 format.`,
-    `Layout style: ${layout.name} — ${layout.brief}.`,
-    `Color palette: ${palette}.`,
-    `Topic: ${topicLabel}. Visual theme: ${theme}.`,
-    statsLine ? `Include ONLY these verified numbers: ${statsLine}.` : 'No numbers — use abstract icons and shapes only.',
-    `Use donut charts, icon rows, pictographs, modular sections.`,
-    `Do not use a simple vertical bar chart. No people photos. No invented statistics.`,
-    `High-end data storytelling infographic quality. Footer: Prem Iyer · AI Software Transformation. Variation ${variationId}.`,
+    `Create a stunning premium LinkedIn landscape infographic, wide 16:9 format.`,
+    `Layout: ${layout.name} — ${layout.brief}.`,
+    `Palette: ${palette}. Visual mood: ${mood}.`,
+    `Topic: ${topicLabel}. Story theme: ${theme}.`,
+    statsLine ? `Include ONLY these verified numbers: ${statsLine}.` : 'No numeric text — use abstract icons and shapes.',
+    `Composition: donut charts, icon grids, pictographs, modular sections, comparison panels.`,
+    `Forbidden: plain vertical bar chart, people photos, invented statistics, long paragraphs.`,
+    `Quality: high-end Visme/Piktochart data storytelling. Crisp typography, generous whitespace.`,
+    `Footer: Prem Iyer · AI Software Transformation · variation ${variationId}.`,
   ].join('\n')
 }
 
-async function requestImage({ apiKey, prompt, model, size, quality, style }) {
-  try {
-    const body = {
+function buildOpenAiBody({ model, prompt, size, quality, style }) {
+  if (model.startsWith('gpt-image')) {
+    return {
       model,
-      prompt: prompt.slice(0, 4000),
+      prompt: prompt.slice(0, 32000),
       n: 1,
       size,
-      response_format: 'b64_json',
+      quality: quality || 'medium',
+      output_format: 'png',
+      moderation: 'low',
     }
-    if (model === 'dall-e-3') {
-      body.quality = quality || 'standard'
-      if (style) body.style = style
-    }
+  }
+  const body = {
+    model: 'dall-e-3',
+    prompt: prompt.slice(0, 4000),
+    n: 1,
+    size,
+    quality: quality || 'standard',
+    response_format: 'b64_json',
+  }
+  if (style) body.style = style
+  return body
+}
 
-    const res = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
-    })
+async function requestImageDirect({ apiKey, prompt, model, size, quality, style }) {
+  const body = buildOpenAiBody({ model, prompt, size, quality, style })
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    return { ok: false, error: data.error?.message || `Image API HTTP ${res.status}`, status: res.status, model }
+  }
+  const b64 = data.data?.[0]?.b64_json
+  if (!b64) return { ok: false, error: 'OpenAI returned no image data.', status: 500, model }
+  return { ok: true, url: `data:image/png;base64,${b64}`, model, via: 'direct' }
+}
 
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      const message = data.error?.message || `Image API HTTP ${res.status}`
-      return { ok: false, error: message, status: res.status, model }
-    }
-
-    const b64 = data.data?.[0]?.b64_json
-    if (!b64) {
-      return { ok: false, error: 'OpenAI returned no image data.', status: 500, model }
-    }
-
+async function requestImageProxy({ apiKey, prompt, model, size, quality, style }) {
+  const res = await fetch('/api/generate-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apiKey, prompt, model, size, quality, style }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!data.ok) {
     return {
-      ok: true,
-      url: `data:image/png;base64,${b64}`,
+      ok: false,
+      error: data.error || `Proxy HTTP ${res.status}`,
+      status: data.status || res.status,
       model,
     }
+  }
+  return { ok: true, url: `data:image/png;base64,${data.b64}`, model: data.model || model, via: 'proxy' }
+}
+
+async function requestImage(opts) {
+  let proxyFail = null
+  try {
+    const proxy = await requestImageProxy(opts)
+    if (proxy.ok) return proxy
+    proxyFail = proxy
+  } catch (err) {
+    proxyFail = { ok: false, error: err?.message || 'Proxy unavailable', status: 0, model: opts.model }
+  }
+
+  try {
+    const direct = await requestImageDirect(opts)
+    if (direct.ok) return direct
+    return direct.error ? direct : proxyFail || direct
   } catch (err) {
     return {
       ok: false,
-      error: err?.message || 'Network error calling OpenAI.',
+      error: err?.message || proxyFail?.error || 'Network error calling OpenAI.',
       status: 0,
-      model,
+      model: opts.model,
     }
   }
 }
@@ -142,6 +190,15 @@ async function requestImage({ apiKey, prompt, model, size, quality, style }) {
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+const ATTEMPT_PLAN = [
+  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'medium', style: null, tier: 'compact', attempt: 0 },
+  { model: 'gpt-image-1', size: '1536x1024', quality: 'medium', style: null, tier: 'compact', attempt: 1 },
+  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'low', style: null, tier: 'minimal', attempt: 2 },
+  { model: 'dall-e-3', size: '1792x1024', quality: 'standard', style: 'vivid', tier: 'compact', attempt: 3 },
+  { model: 'dall-e-3', size: '1792x1024', quality: 'standard', style: 'natural', tier: 'minimal', attempt: 4 },
+  { model: 'dall-e-3', size: '1024x1024', quality: 'standard', style: 'vivid', tier: 'minimal', attempt: 5 },
+]
 
 /**
  * Try several models, sizes, and prompt tiers until one succeeds.
@@ -154,30 +211,21 @@ export async function generateNewsroomImage({
   apiKey,
   onProgress,
 }) {
-  const key = (apiKey || localStorage.getItem('openai_key') || '').trim()
+  const key = (apiKey || (typeof localStorage !== 'undefined' ? localStorage.getItem('openai_key') : '') || '').trim()
   if (!key) {
     return { ok: false, error: 'Add your OpenAI key in Settings first.' }
   }
 
-  const attempts = [
-    { model: 'dall-e-3', size: '1024x1024', quality: 'standard', style: 'vivid', tier: 'minimal', attempt: 0 },
-    { model: 'dall-e-3', size: '1792x1024', quality: 'standard', style: 'vivid', tier: 'compact', attempt: 1 },
-    { model: 'dall-e-3', size: '1792x1024', quality: 'standard', style: 'natural', tier: 'compact', attempt: 2 },
-    { model: 'dall-e-3', size: '1792x1024', quality: 'standard', style: null, tier: 'full', attempt: 3 },
-    { model: 'gpt-image-1', size: '1536x1024', quality: null, style: null, tier: 'minimal', attempt: 4 },
-    { model: 'gpt-image-1', size: '1024x1024', quality: null, style: null, tier: 'compact', attempt: 5 },
-  ]
-
   const errors = []
-  for (let i = 0; i < attempts.length; i++) {
-    const cfg = attempts[i]
+  for (let i = 0; i < ATTEMPT_PLAN.length; i++) {
+    const cfg = ATTEMPT_PLAN[i]
     const stage =
       i === 0
         ? 'Creating your LinkedIn picture…'
-        : i < 4
-          ? 'Trying a different picture style…'
-          : 'Trying alternate image model…'
-    onProgress?.(12 + i * 14, stage)
+        : i < 3
+          ? 'Trying premium image model…'
+          : 'Trying alternate picture style…'
+    onProgress?.(10 + i * 14, stage)
 
     const recipe = pickInfographicRecipe(refreshSeed, cfg.attempt)
     const prompt = buildPrompt({
@@ -207,15 +255,17 @@ export async function generateNewsroomImage({
         styleId: recipe.layout.id,
         variationId: ((refreshSeed >>> 0) + cfg.attempt).toString(16).slice(0, 6),
         imageModel: cfg.model,
+        via: result.via,
       }
     }
 
     errors.push(`[${cfg.model} ${cfg.size}] ${result.error}`)
-    if (result.status === 429) await sleep(3000)
+    if (result.status === 429) await sleep(4000)
+    else if (i > 0) await sleep(800)
   }
 
   const lastRaw = errors[errors.length - 1] || 'Unknown error'
-  const detail = errors.slice(-3).join(' · ')
+  const detail = errors.join(' · ')
 
   return {
     ok: false,
@@ -224,3 +274,6 @@ export async function generateNewsroomImage({
     allErrors: errors,
   }
 }
+
+// Exported for automated testing
+export { buildPrompt, ATTEMPT_PLAN, requestImage }
