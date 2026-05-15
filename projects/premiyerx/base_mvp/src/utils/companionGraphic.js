@@ -63,6 +63,7 @@ export async function createCompanionGraphic({
     const postTheme = model.implications?.[0] || model.hook
     const img = await generateNewsroomImage({
       model,
+      topicId,
       topicLabel: topicLabel || model.topicLabel,
       refreshSeed: seed,
       postTheme,

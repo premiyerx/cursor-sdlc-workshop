@@ -1,40 +1,66 @@
 /**
- * Premium LinkedIn infographic image generation via OpenAI GPT image models.
- * Never sends response_format — that parameter is rejected by the current API.
+ * Newspaper-style AI infographic generation (NYT / LAT / WaPo data journalism aesthetic).
+ * Uses GPT image models only — never sends response_format.
  */
 import { mulberry32 } from './generationVariety'
 import { pickFromPool } from './freshnessRotation'
+import { getTopicNarrative } from '../data/topicNarratives'
 
-const LAYOUT_TEMPLATES = [
-  { id: 'impact-dashboard', name: 'Impact Dashboard', brief: 'hero stat blocks, donut charts, icon row' },
-  { id: 'comparison-vs', name: 'Comparison', brief: 'split VS panels, circles with percentages' },
-  { id: 'storytelling-modules', name: 'Story Modules', brief: 'stacked modules, mixed chart types' },
-  { id: 'feature-grid', name: 'Feature Grid', brief: 'icon grid, ring chart, chevron flow' },
-  { id: 'engagement-story', name: 'Engagement Story', brief: 'hero metrics, pictograph, insight block' },
+const NEWSPAPER_LAYOUTS = [
+  {
+    id: 'sankey-roi',
+    name: 'Sankey ROI Flow',
+    brief: 'large Sankey/alluvial flow diagram showing investment flowing into benefit categories with dollar labels and percentages',
+  },
+  {
+    id: 'executive-briefing',
+    name: 'Executive Briefing',
+    brief: 'left column narrative + right column "The Bottom Line" callout box with hero ROI number',
+  },
+  {
+    id: 'metrics-grid',
+    name: 'Key Metrics Grid',
+    brief: 'vertical list of 5-6 KPI metrics with icons, plus small sparkline or area chart at bottom',
+  },
+  {
+    id: 'dual-chart',
+    name: 'Dual Chart Spread',
+    brief: 'two coordinated charts side by side — e.g. productivity lift bar chart + cumulative benefit line chart',
+  },
+  {
+    id: 'newspaper-columns',
+    name: 'Newspaper Columns',
+    brief: 'classic 3-column newspaper layout with headline, subheads, pull quote, and embedded charts',
+  },
 ]
 
-const COLOR_PALETTES = [
-  'black background, white type, green #3EDC81 accents',
-  'charcoal background, off-white type, green and gold accents',
-  'navy background, white headlines, green and blue accents',
-  'deep purple background, white type, teal accents',
-  'dark slate background, cream type, emerald accents',
+const NEWSPAPER_PALETTES = [
+  'white and warm cream background, black serif headlines, navy subheads, muted blue/green/gold flow colors',
+  'off-white newsprint background, charcoal text, burgundy accent lines, blue and teal chart colors',
+  'light gray background, Times-style serif masthead, Washington Post blue accents, clean data colors',
 ]
 
-const VISUAL_MOODS = [
-  'editorial annual-report aesthetic',
-  'modern SaaS product marketing style',
-  'McKinsey-style data storytelling',
-  'bold tech keynote slide quality',
-  'premium financial infographic polish',
+const SECTION_KICKERS = [
+  'The Business of AI',
+  'Data Desk',
+  'Enterprise Analysis',
+  'The Bottom Line',
+  'By the Numbers',
 ]
+
+const TOPIC_HEADLINES = {
+  roi: 'The ROI of AI in Software Development',
+  cursor: 'The Business Case for AI-Native Software Development',
+  investment: 'Where Capital Is Flowing in AI Software Development',
+  cio: 'What Technology Leaders Must Know About AI in the SDLC',
+}
 
 export function pickInfographicRecipe(refreshSeed, attempt = 0) {
   const rng = mulberry32((refreshSeed ^ (attempt * 0x9e3779b9)) >>> 0)
-  const layout = LAYOUT_TEMPLATES[Math.floor(rng() * LAYOUT_TEMPLATES.length) % LAYOUT_TEMPLATES.length]
-  const palette = pickFromPool(COLOR_PALETTES, refreshSeed + attempt, 'palette')
-  const mood = pickFromPool(VISUAL_MOODS, refreshSeed + attempt * 3, 'mood')
-  return { layout, palette, mood }
+  const layout = NEWSPAPER_LAYOUTS[Math.floor(rng() * NEWSPAPER_LAYOUTS.length) % NEWSPAPER_LAYOUTS.length]
+  const palette = pickFromPool(NEWSPAPER_PALETTES, refreshSeed + attempt, 'palette')
+  const kicker = pickFromPool(SECTION_KICKERS, refreshSeed + attempt * 5, 'kicker')
+  return { layout, palette, kicker }
 }
 
 export function humanizeImageError(raw = '') {
@@ -64,49 +90,94 @@ export function humanizeImageError(raw = '') {
   return msg
 }
 
-function buildPrompt({ model, topicLabel, refreshSeed, postTheme, recipe, tier = 'full' }) {
-  const { layout, palette, mood } = recipe || pickInfographicRecipe(refreshSeed)
-  const stats = (model?.verifiedStats || []).slice(0, 3)
-  const statsLine = stats.map((s) => s.value).join(', ')
-  const theme = (postTheme || model?.hook || topicLabel || 'technology leadership').slice(0, 60)
+function formatStatsBlock(stats = []) {
+  if (!stats.length) return 'Use abstract KPI shapes only — do not invent numbers.'
+  return stats
+    .slice(0, 5)
+    .map((s, i) => `${i + 1}. ${s.value} — ${s.context?.slice(0, 40) || 'metric'} (source: ${s.source || 'verified registry'})`)
+    .join('\n')
+}
+
+function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postTheme, recipe, tier = 'full' }) {
+  const { layout, palette, kicker } = recipe || pickInfographicRecipe(refreshSeed)
+  const narrative = getTopicNarrative(topicId)
+  const stats = (infographicModel?.verifiedStats || []).slice(0, 5)
+  const headline = TOPIC_HEADLINES[topicId] || `The ROI of ${topicLabel || narrative.label}`
+  const theme = (postTheme || infographicModel?.hook || narrative.coreThesis || '').slice(0, 120)
+  const leadLine = infographicModel?.leadHeadline?.title?.slice(0, 90) || theme
+  const statsBlock = formatStatsBlock(stats)
   const variationId = `v${((refreshSeed >>> 0) + (tier === 'minimal' ? 99 : tier === 'compact' ? 55 : 0)).toString(16).slice(0, 6)}`
+  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
+  const newspaperStyle = [
+    'STYLE: Sophisticated newspaper data journalism infographic.',
+    'Must feel like New York Times, LA Times, Chicago Tribune, or Washington Post — NOT a dark tech slide, NOT a simple 3-bar chart, NOT a Canva template.',
+    'Light/white newsprint background, elegant serif headline font, clean sans-serif labels, professional grid layout, generous whitespace.',
+    `Color palette: ${palette}.`,
+  ].join('\n')
 
   if (tier === 'minimal') {
     return [
-      `Professional LinkedIn landscape infographic, 16:9 wide format.`,
-      `Dark ${palette}. ${layout.brief}. Mood: ${mood}.`,
-      `Topic: ${topicLabel || theme}.`,
-      statsLine ? `Numbers to show: ${statsLine}.` : 'Abstract icons only, no numbers.',
-      `Donut charts, icon cards, modular sections. No plain bar chart.`,
-      `Footer text: Prem Iyer. Unique variation ${variationId}.`,
-    ].join(' ')
+      newspaperStyle,
+      `Headline: "${headline}". Section kicker: "${kicker}". Date: ${today}.`,
+      `Topic angle: ${narrative.label}. ${leadLine}.`,
+      `Hero visual: ${layout.brief}.`,
+      `Verified numbers ONLY:\n${statsBlock}`,
+      `Include "The Bottom Line" sidebar with one big ROI or impact number from the stats above.`,
+      `Small footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
+    ].join('\n')
   }
 
   if (tier === 'compact') {
     return [
-      `Design a multi-section LinkedIn infographic, landscape 1536x1024, like a premium Visme or Piktochart template.`,
-      `SECTION 1 — headline band with topic: ${topicLabel || theme}.`,
-      `SECTION 2 — ${layout.name}: ${layout.brief}.`,
-      `SECTION 3 — data viz: 2 donut charts OR ring charts showing ${statsLine || 'abstract KPI icons'}.`,
-      `SECTION 4 — icon row with 4-6 flat icons illustrating the story.`,
-      `SECTION 5 — insight callout box with one short takeaway.`,
-      `Colors: ${palette}. Mood: ${mood}. Dark background, crisp white type, green accent #3EDC81.`,
-      `FORBIDDEN: simple 3-bar chart, stock photo people, walls of text, invented numbers.`,
-      `Footer strip: Prem Iyer · AI Software Transformation · ${variationId}.`,
+      newspaperStyle,
+      `Create a landscape LinkedIn infographic (1536x1024) titled "${headline}".`,
+      `Section header: "${kicker}" · ${today}.`,
+      `Story angle: ${narrative.coreThesis}`,
+      `News hook (paraphrase, do not copy): ${leadLine}`,
+      '',
+      'LAYOUT SECTIONS:',
+      `1. MASTHEAD — bold serif headline + thin rule line`,
+      `2. HERO VIZ — ${layout.name}: ${layout.brief}`,
+      '   If Sankey-style: show investment/cost on left flowing into 3-4 benefit streams on right with dollar amounts and % labels',
+      `3. SIDEBAR — "The Bottom Line" box with large hero metric (e.g. ROI multiple or payback) derived from verified stats`,
+      '4. KEY METRICS — vertical list of 5 metrics with small icons (clock, chart, shield, code, dollar)',
+      '5. BOTTOM STRIP — two small charts: productivity lift + cumulative benefit over time',
+      '6. SOURCE LINE — small italic source attributions under charts',
+      '',
+      'VERIFIED NUMBERS (use ONLY these — do not invent others):',
+      statsBlock,
+      '',
+      'RULES: sophisticated flows and charts, strong visual hierarchy, accurate-looking data labels, no people photos, no walls of text.',
+      `Footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
     ].join('\n')
   }
 
   return [
-    `Design a publication-quality multi-panel LinkedIn infographic, landscape 16:9, Visme/Piktochart executive style.`,
-    `Panel A — bold headline about ${topicLabel}. Theme: ${theme}.`,
-    `Panel B — ${layout.name} layout: ${layout.brief}.`,
-    `Panel C — mixed visualization: donut chart + pictograph + comparison mini-cards.`,
-    `Panel D — icon grid (6 icons) mapping trends to business impact.`,
-    `Panel E — highlighted stat callouts: ${statsLine || 'use abstract KPI shapes only'}.`,
-    `Palette: ${palette}. Mood: ${mood}. Premium dark UI, green #3EDC81 accents, generous whitespace.`,
-    `Must look like a designed marketing asset — NOT a basic bar chart or PowerPoint slide.`,
-    `No people photos. No invented statistics. Short labels only.`,
-    `Footer: Prem Iyer · AI Software Transformation · variation ${variationId}.`,
+    newspaperStyle,
+    `Generate an infographic that looks like premium newspaper data journalism for LinkedIn (landscape 16:9).`,
+    `Title: "${headline}"`,
+    `Kicker: "${kicker}" · ${today}`,
+    '',
+    `AUDIENCE: ${narrative.audience}`,
+    `CORE THESIS: ${narrative.coreThesis}`,
+    `THIS WEEK'S ANGLE: ${leadLine}`,
+    '',
+    'REQUIRED VISUAL ELEMENTS (all must appear):',
+    '• Large Sankey or alluvial flow diagram — investment/cost flows into 3-4 benefit categories with $ and % labels',
+    '• "The Bottom Line" callout — oversized hero number (ROI multiple, payback months, or net benefit)',
+    '• "Key Metrics" sidebar — 5-6 metrics with clean icons and short labels',
+    '• At least one additional chart (bar, line, or area) showing trend over time',
+    '• Source attribution line in small italic type',
+    `• Primary layout emphasis: ${layout.name} — ${layout.brief}`,
+    '',
+    'VERIFIED DATA (use ONLY these numbers and sources):',
+    statsBlock,
+    '',
+    'QUALITY BAR: Match the sophistication of ChatGPT-generated NYT-style ROI infographics.',
+    'Strong flows, multiple chart types, elegant typography, credible source lines.',
+    'FORBIDDEN: dark background, neon colors, plain 3-bar chart as the only viz, invented statistics, stock photos.',
+    `Small credit line: Prem Iyer · AI Software Transformation · ${variationId}.`,
   ].join('\n')
 }
 
@@ -196,16 +267,17 @@ function sleep(ms) {
 }
 
 const ATTEMPT_PLAN = [
-  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'medium', tier: 'compact', attempt: 0 },
-  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'low', tier: 'minimal', attempt: 1 },
-  { model: 'gpt-image-1', size: '1536x1024', quality: 'medium', tier: 'compact', attempt: 2 },
-  { model: 'gpt-image-1', size: '1024x1024', quality: 'medium', tier: 'minimal', attempt: 3 },
-  { model: 'gpt-image-1-mini', size: '1536x1024', quality: 'medium', tier: 'minimal', attempt: 4 },
-  { model: 'gpt-image-1.5', size: '1024x1024', quality: 'high', tier: 'full', attempt: 5 },
+  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'high', tier: 'full', attempt: 0 },
+  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'medium', tier: 'compact', attempt: 1 },
+  { model: 'gpt-image-1', size: '1536x1024', quality: 'high', tier: 'full', attempt: 2 },
+  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'medium', tier: 'compact', attempt: 3 },
+  { model: 'gpt-image-1', size: '1536x1024', quality: 'medium', tier: 'minimal', attempt: 4 },
+  { model: 'gpt-image-1-mini', size: '1536x1024', quality: 'medium', tier: 'minimal', attempt: 5 },
 ]
 
 export async function generateNewsroomImage({
   model,
+  topicId = '',
   topicLabel,
   refreshSeed,
   postTheme,
@@ -222,15 +294,16 @@ export async function generateNewsroomImage({
     const cfg = ATTEMPT_PLAN[i]
     const stage =
       i === 0
-        ? 'Creating your LinkedIn picture…'
+        ? 'Creating newspaper-style infographic…'
         : i < 3
-          ? 'Trying a different picture style…'
+          ? 'Trying a different layout…'
           : 'Trying alternate image model…'
     onProgress?.(10 + i * 14, stage)
 
     const recipe = pickInfographicRecipe(refreshSeed, cfg.attempt)
     const prompt = buildPrompt({
-      model,
+      infographicModel: model,
+      topicId,
       topicLabel,
       refreshSeed,
       postTheme,
@@ -247,7 +320,7 @@ export async function generateNewsroomImage({
     })
 
     if (result.ok) {
-      onProgress?.(95, 'Picture ready')
+      onProgress?.(95, 'Infographic ready')
       return {
         ok: true,
         url: result.url,
