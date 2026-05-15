@@ -77,29 +77,39 @@ FIRST_COMMENT:
 
 /**
  * Generate a fresh AI post grounded in live headlines. Used by main Generate + AI panel.
+ * Optional onProgress(pct, stage) reports real pipeline steps only.
  */
 export async function generateAIPost(topicId, options = {}) {
+  const report = (pct, stage) => options.onProgress?.(pct, stage)
   const apiKey = (options.apiKey || localStorage.getItem('openai_key') || '').trim()
   if (!apiKey) throw new Error('OpenAI API key required')
 
   const topic = TOPICS.find((t) => t.id === topicId)
   if (!topic) throw new Error('Unknown topic')
 
-  bumpRefreshSeed(topicId)
+  report(8, 'Starting fresh post…')
+  const seed = bumpRefreshSeed(topicId)
   invalidateRealtimeCache(topicId)
 
+  report(15, 'Loading today\'s headlines…')
   const systemPrompt = getActiveProfile().promptInstructions
+  let realtimeData = null
   let realtimeContext = ''
   try {
-    const realtimeData = await fetchRealtimeContext(topicId, {
+    realtimeData = await fetchRealtimeContext(topicId, {
       forceRefresh: true,
       topicLabel: topic.label,
     })
     realtimeContext = formatRealtimeForPrompt(realtimeData, topicId)
-  } catch { /* continue */ }
+    report(34, 'Headlines ready')
+  } catch {
+    report(28, 'Continuing without live headlines…')
+  }
 
+  report(44, 'Applying your voice profile…')
   const userPrompt = buildUserPrompt(topic, topicId, realtimeContext, options.customAngle || '')
 
+  report(58, 'Writing with AI…')
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -126,6 +136,8 @@ export async function generateAIPost(topicId, options = {}) {
   }
 
   const data = await response.json()
+  report(92, 'Polishing your post…')
   const post = parseAIOutput(data.choices[0].message.content)
-  return { post, topic, usedAI: true }
+  report(100, 'Post ready')
+  return { post, topic, usedAI: true, realtimeData, seed }
 }

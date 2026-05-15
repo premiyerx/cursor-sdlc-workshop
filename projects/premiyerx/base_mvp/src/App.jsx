@@ -5,6 +5,7 @@ import { getRealtimeSprinkle, fetchRealtimeContext, invalidateRealtimeCache } fr
 import { weaveNewsIntoTemplate, getResearchSummary } from './utils/newsCraft'
 import { pickTemplateIndex, recordGeneratedHook } from './utils/generationVariety'
 import { hasOpenAiKey, generateAIPost } from './utils/aiPostGenerator'
+import { createCompanionGraphic } from './utils/companionGraphic'
 import { bumpRefreshSeed } from './utils/freshnessRotation'
 import VoiceProfile from './components/VoiceProfile'
 import AIGenerator from './components/AIGenerator'
@@ -20,6 +21,7 @@ import Analytics from './components/Analytics'
 import DataManager from './components/DataManager'
 import { useFlashFeedback } from './hooks/useFlashFeedback'
 import ActionFeedback from './components/ActionFeedback'
+import ProgressRing from './components/ProgressRing'
 
 const DAILY_ANGLES = {
   Monday: { suggested: 'cursor', reason: 'Monday = high engagement from professionals starting their week.' },
@@ -38,8 +40,22 @@ export default function App() {
   const [generatedPost, setGeneratedPost] = useState(null)
   const [liveText, setLiveText] = useState('')
   const [generateBusy, setGenerateBusy] = useState(false)
+  const [generateProgress, setGenerateProgress] = useState(0)
+  const [generateStage, setGenerateStage] = useState('')
   const [customAngle, setCustomAngle] = useState('')
+  const [companionGraphic, setCompanionGraphic] = useState(null)
+  const [graphicSessionId, setGraphicSessionId] = useState(0)
   const { msg: generateMsg, flashOk: flashGenerateOk, flashErr: flashGenerateErr } = useFlashFeedback()
+
+  const reportGenerateProgress = useCallback((pct, stage) => {
+    setGenerateProgress((prev) => Math.max(prev, pct))
+    if (stage) setGenerateStage(stage)
+  }, [])
+
+  const resetGenerateProgress = useCallback(() => {
+    setGenerateProgress(0)
+    setGenerateStage('')
+  }, [])
 
   const topic = TOPICS.find((t) => t.id === selectedTopic)
 
@@ -66,18 +82,48 @@ export default function App() {
   const handleGenerate = useCallback(async () => {
     if (!topic) return
     setGenerateBusy(true)
+    resetGenerateProgress()
+    setCompanionGraphic(null)
     try {
-      bumpRefreshSeed(selectedTopic)
-      invalidateRealtimeCache(selectedTopic)
-
       if (hasOpenAiKey()) {
-        const { post } = await generateAIPost(selectedTopic, { customAngle })
+        const { post, realtimeData, seed } = await generateAIPost(selectedTopic, {
+          customAngle,
+          onProgress: reportGenerateProgress,
+        })
         setGeneratedPost(post)
         const raw = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
-        setLiveText(appendCitations(raw))
-        flashGenerateOk('Fresh AI post from today\'s headlines — written in your voice. Scroll to review.')
+        const cited = appendCitations(raw)
+        setLiveText(cited)
+
+        reportGenerateProgress(68, 'Creating newsroom graphic…')
+        const graphic = await createCompanionGraphic({
+          postText: cited,
+          topicId: selectedTopic,
+          topicLabel: topic.label,
+          realtimeData,
+          seed,
+          preferNewsroom: true,
+          onProgress: (pct, stage) => {
+            const mapped = 68 + Math.round(pct * 0.32)
+            reportGenerateProgress(mapped, stage)
+          },
+        })
+        setCompanionGraphic(graphic)
+        setGraphicSessionId((n) => n + 1)
+
+        if (graphic.mode === 'newsroom') {
+          flashGenerateOk('Post and newsroom graphic ready — scroll to review.')
+        } else if (graphic.newsroomError) {
+          flashGenerateOk('Post ready. SVG graphic shown — newsroom image could not be created this time.')
+        } else {
+          flashGenerateOk('Post and verified SVG graphic ready.')
+        }
         return
       }
+
+      reportGenerateProgress(10, 'Choosing template…')
+      bumpRefreshSeed(selectedTopic)
+      invalidateRealtimeCache(selectedTopic)
 
       const templates = topic.templates
       const idx = pickTemplateIndex(selectedTopic, templates.length)
@@ -89,38 +135,61 @@ export default function App() {
       let woven = pick
       let headlineCount = 0
       let leadTitle = ''
+      let rt = null
       try {
-        const rt = await fetchRealtimeContext(selectedTopic, {
+        reportGenerateProgress(28, 'Loading today\'s headlines…')
+        rt = await fetchRealtimeContext(selectedTopic, {
           forceRefresh: true,
           topicLabel: topic?.label || '',
         })
+        reportGenerateProgress(52, 'Weaving headlines into post…')
         const summary = getResearchSummary(rt, selectedTopic)
         headlineCount = summary.count
         leadTitle = summary.lead?.title || ''
         woven = weaveNewsIntoTemplate(pick, rt, selectedTopic)
       } catch {
-        /* offline */
+        reportGenerateProgress(45, 'Using template without live headlines…')
       }
+
       const raw = `${woven.hook}\n\n${woven.body}${freshLine}\n\n${woven.cta}\n\n${woven.hashtags}`
-      setLiveText(appendCitations(raw))
+      const cited = appendCitations(raw)
+      setLiveText(cited)
+
+      reportGenerateProgress(72, 'Creating graphic…')
+      const graphic = await createCompanionGraphic({
+        postText: cited,
+        topicId: selectedTopic,
+        topicLabel: topic.label,
+        realtimeData: rt,
+        preferNewsroom: false,
+        onProgress: (pct, stage) => {
+          const mapped = 72 + Math.round(pct * 0.28)
+          reportGenerateProgress(mapped, stage)
+        },
+      })
+      setCompanionGraphic(graphic)
+      setGraphicSessionId((n) => n + 1)
+      reportGenerateProgress(100, 'Post ready')
+
       flashGenerateOk(
         headlineCount > 0
           ? leadTitle
-            ? `Post ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'} (lead: "${leadTitle.slice(0, 52)}${leadTitle.length > 52 ? '…' : ''}"). Add OpenAI key for fully fresh AI posts.`
-            : `Post ready — ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}. Add OpenAI key for fully fresh AI posts.`
-          : 'Post ready — add OpenAI key in AI settings for daily-fresh content.',
+            ? `Post and graphic ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'}.`
+            : `Post and graphic ready — ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}.`
+          : 'Post and graphic ready.',
       )
     } catch (err) {
       flashGenerateErr(err?.message || 'Could not generate. Check your connection and API key.')
     } finally {
       setGenerateBusy(false)
     }
-  }, [topic, selectedTopic, customAngle, appendCitations, flashGenerateOk, flashGenerateErr])
+  }, [topic, selectedTopic, customAngle, appendCitations, flashGenerateOk, flashGenerateErr, reportGenerateProgress, resetGenerateProgress])
 
   const handleTopicSelect = useCallback((id) => {
     setSelectedTopic(id)
     setGeneratedPost(null)
     setLiveText('')
+    setCompanionGraphic(null)
   }, [])
 
   const handlePostEdit = useCallback((text) => {
@@ -212,19 +281,28 @@ export default function App() {
                 </div>
 
                 <button
-                  className="command-generate"
+                  className={`command-generate ${generateBusy ? 'is-loading' : ''}`}
                   onClick={() => void handleGenerate()}
                   disabled={!selectedTopic || generateBusy}
                 >
-                  {generateBusy
-                    ? (hasOpenAiKey() ? 'Writing fresh post…' : 'Fetching context…')
-                    : generatedPost
-                      ? '↻ Regenerate fresh'
-                      : hasOpenAiKey()
-                        ? 'Generate fresh post'
-                        : 'Generate'}
+                  {generateBusy ? (
+                    <>
+                      <ProgressRing progress={generateProgress} size={22} strokeWidth={3} className="command-generate-ring" />
+                      <span>{hasOpenAiKey() ? 'Writing fresh post' : 'Building post'}</span>
+                    </>
+                  ) : generatedPost
+                    ? '↻ Regenerate fresh'
+                    : hasOpenAiKey()
+                      ? 'Generate post + graphic'
+                      : 'Generate'}
                 </button>
               </div>
+              {generateBusy && (
+                <div className="graphic-progress-panel command-generate-progress">
+                  <ProgressRing progress={generateProgress} size={72} strokeWidth={5} />
+                  <p className="graphic-progress-stage">{generateStage || 'Creating your post…'}</p>
+                </div>
+              )}
               <ActionFeedback msg={generateMsg} className="command-generate-feedback" />
             </section>
 
@@ -242,7 +320,15 @@ export default function App() {
                 <div className="output-columns">
                   <div className="output-left">
                     <PostDisplay post={generatedPost} topicColor={topic.color} onPostEdit={handlePostEdit} />
-                    {format === 'image' && <DynamicGraphic postText={liveText} topicId={selectedTopic} />}
+                    {format === 'image' && (
+                      <DynamicGraphic
+                        postText={liveText}
+                        topicId={selectedTopic}
+                        bundleGraphic={companionGraphic}
+                        graphicSessionId={graphicSessionId}
+                        onGraphicUpdate={setCompanionGraphic}
+                      />
+                    )}
                   </div>
                   <div className="output-right">
                     <PostPreview text={liveText} />

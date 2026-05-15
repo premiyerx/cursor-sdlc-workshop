@@ -773,6 +773,10 @@ body {
   transition: all 0.25s ease;
   white-space: nowrap;
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
 }
 
 .command-generate:hover:not(:disabled) {
@@ -781,8 +785,22 @@ body {
 }
 
 .command-generate:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
+  cursor: wait;
+}
+
+.command-generate.is-loading {
+  background: linear-gradient(135deg, #1a1a22 0%, #252530 100%);
+  color: #e8e8f0;
+  box-shadow: 0 0 0 1px rgba(62, 220, 129, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35);
+  transform: none;
+}
+
+.command-generate-ring {
+  flex-shrink: 0;
+}
+
+.command-generate-progress {
+  margin-top: 0.85rem;
 }
 
 .command-generate-feedback {

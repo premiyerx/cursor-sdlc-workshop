@@ -2,7 +2,7 @@
   "name": "AI LinkedIn Post Generator",
   "short_name": "AI LI Post",
   "description": "AI-powered LinkedIn posts optimized for algorithms and viral reach",
-  "start_url": "/",
+  "start_url": "/?v=3",
   "display": "standalone",
   "background_color": "#0f0f1a",
   "theme_color": "#3EDC81",
