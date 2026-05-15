@@ -47,28 +47,16 @@ function buildPrompt(seed, topic) {
   ].join('\n')
 }
 
-function buildBody(model, prompt, size, quality, style) {
-  if (model.startsWith('gpt-image')) {
-    return {
-      model,
-      prompt,
-      n: 1,
-      size,
-      quality: quality || 'medium',
-      output_format: 'png',
-      moderation: 'low',
-    }
-  }
-  const body = {
-    model: 'dall-e-3',
-    prompt: prompt.slice(0, 4000),
+function buildBody(model, prompt, size, quality) {
+  return {
+    model,
+    prompt,
     n: 1,
     size,
-    quality: quality || 'standard',
-    response_format: 'b64_json',
+    quality: quality || 'medium',
+    output_format: 'png',
+    moderation: 'low',
   }
-  if (style) body.style = style
-  return body
 }
 
 async function generateOnce({ apiKey, seed, topic, useProxy, apiBase }) {
@@ -76,7 +64,7 @@ async function generateOnce({ apiKey, seed, topic, useProxy, apiBase }) {
   const attempts = [
     { model: 'gpt-image-1.5', size: '1536x1024', quality: 'medium' },
     { model: 'gpt-image-1', size: '1536x1024', quality: 'medium' },
-    { model: 'dall-e-3', size: '1792x1024', quality: 'standard', style: 'vivid' },
+    { model: 'gpt-image-1-mini', size: '1536x1024', quality: 'medium' },
   ]
 
   const errors = []
@@ -109,7 +97,7 @@ async function generateOnce({ apiKey, seed, topic, useProxy, apiBase }) {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${apiKey}`,
           },
-          body: JSON.stringify(buildBody(cfg.model, prompt, cfg.size, cfg.quality, cfg.style)),
+          body: JSON.stringify(buildBody(cfg.model, prompt, cfg.size, cfg.quality)),
         })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {

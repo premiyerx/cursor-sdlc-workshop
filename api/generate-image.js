@@ -1,34 +1,42 @@
 /**
- * Server-side OpenAI image proxy — avoids browser CORS issues and uses correct
- * parameters per model (GPT image vs DALL-E 3).
+ * Server-side OpenAI image proxy.
+ * Uses GPT image models only — never sends response_format (rejected by current API).
  */
 export const config = {
   maxDuration: 60,
 }
 
-function buildOpenAiBody({ model, prompt, size, quality, style }) {
-  const m = model || 'gpt-image-1.5'
-  if (m.startsWith('gpt-image')) {
-    return {
-      model: m,
-      prompt: String(prompt).slice(0, 32000),
-      n: 1,
-      size: size || '1536x1024',
-      quality: quality || 'medium',
-      output_format: 'png',
-      moderation: 'low',
-    }
-  }
-  const body = {
-    model: 'dall-e-3',
-    prompt: String(prompt).slice(0, 4000),
+const GPT_IMAGE_MODELS = new Set([
+  'gpt-image-1.5',
+  'gpt-image-1',
+  'gpt-image-1-mini',
+  'gpt-image-2',
+])
+
+function buildOpenAiBody({ model, prompt, size, quality }) {
+  const m = GPT_IMAGE_MODELS.has(model) ? model : 'gpt-image-1.5'
+  return {
+    model: m,
+    prompt: String(prompt).slice(0, 32000),
     n: 1,
-    size: size || '1792x1024',
-    quality: quality || 'standard',
-    response_format: 'b64_json',
+    size: size || '1536x1024',
+    quality: quality || 'medium',
+    output_format: 'png',
+    moderation: 'low',
   }
-  if (style) body.style = style
-  return body
+}
+
+async function extractBase64(data) {
+  const item = data?.data?.[0]
+  if (!item) return null
+  if (item.b64_json) return item.b64_json
+  if (item.url) {
+    const imgRes = await fetch(item.url)
+    if (!imgRes.ok) return null
+    const buf = Buffer.from(await imgRes.arrayBuffer())
+    return buf.toString('base64')
+  }
+  return null
 }
 
 export default async function handler(req, res) {
@@ -41,7 +49,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method not allowed' })
   }
 
-  const { apiKey, prompt, model, size, quality, style } = req.body || {}
+  const { apiKey, prompt, model, size, quality } = req.body || {}
   const key = (apiKey || process.env.OPENAI_API_KEY || '').trim()
 
   if (!key) {
@@ -51,8 +59,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'Missing prompt', status: 400 })
   }
 
-  const imageModel = model || 'gpt-image-1.5'
-  const body = buildOpenAiBody({ model: imageModel, prompt, size, quality, style })
+  const imageModel = GPT_IMAGE_MODELS.has(model) ? model : 'gpt-image-1.5'
+  const body = buildOpenAiBody({ model: imageModel, prompt, size, quality })
 
   try {
     const response = await fetch('https://api.openai.com/v1/images/generations', {
@@ -75,7 +83,7 @@ export default async function handler(req, res) {
       })
     }
 
-    const b64 = data.data?.[0]?.b64_json
+    const b64 = await extractBase64(data)
     if (!b64) {
       return res.status(500).json({
         ok: false,
@@ -89,7 +97,6 @@ export default async function handler(req, res) {
       ok: true,
       b64,
       model: imageModel,
-      revised_prompt: data.data?.[0]?.revised_prompt || null,
     })
   } catch (err) {
     return res.status(500).json({

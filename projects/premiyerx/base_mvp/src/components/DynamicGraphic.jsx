@@ -262,14 +262,20 @@ async function tryDalleBanner(parsed, topic, topicId, postText) {
   const verified = assembleVerifiedStats(postText, topicId, 3)
   const metrics = verified.map((s) => `${s.value} (${s.source})`).join(', ')
   const prompt = `Professional LinkedIn landscape banner 1200x627 for enterprise audience. Topic: ${parsed.hook.slice(0, 120)}. Verified metrics only: ${metrics || 'no numeric claims'}. Style: near-black background, matte green #3EDC81 accents, minimal charts, no invented numbers, no long sentences. Photoreal or clean 3D, high-end annual report aesthetic.`
-  const res = await fetch('https://api.openai.com/v1/images/generations', {
+  const res = await fetch('/api/generate-image', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1792x1024', quality: 'standard' }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      apiKey,
+      prompt,
+      model: 'gpt-image-1.5',
+      size: '1536x1024',
+      quality: 'medium',
+    }),
   })
-  if (!res.ok) return null
-  const data = await res.json()
-  return data.data?.[0]?.url || null
+  const data = await res.json().catch(() => ({}))
+  if (!data.ok || !data.b64) return null
+  return `data:image/png;base64,${data.b64}`
 }
 
 export default function DynamicGraphic({

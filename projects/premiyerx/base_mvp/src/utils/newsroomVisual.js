@@ -1,6 +1,6 @@
 /**
- * Premium LinkedIn infographic image generation via OpenAI.
- * Uses server proxy first, then direct API. Model-specific request bodies.
+ * Premium LinkedIn infographic image generation via OpenAI GPT image models.
+ * Never sends response_format — that parameter is rejected by the current API.
  */
 import { mulberry32 } from './generationVariety'
 import { pickFromPool } from './freshnessRotation'
@@ -40,8 +40,11 @@ export function pickInfographicRecipe(refreshSeed, attempt = 0) {
 export function humanizeImageError(raw = '') {
   const msg = String(raw || '').trim()
   if (!msg) return 'OpenAI did not return a reason. Tap New graphic angle to try again.'
+  if (/unknown parameter.*response_format/i.test(msg)) {
+    return 'Picture API mismatch — please hard-refresh the page and try again.'
+  }
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
-    return `Connection problem reaching OpenAI. Check signal or Wi‑Fi, then try again. (${msg})`
+    return `Connection problem reaching OpenAI. Check signal or Wi‑Fi, then try again.`
   }
   if (/billing|quota|credit|payment|insufficient|exceeded|hard limit/i.test(msg)) {
     return `Billing issue: ${msg}`
@@ -53,10 +56,10 @@ export function humanizeImageError(raw = '') {
     return `Your OpenAI plan may not include image creation via API. ${msg}`
   }
   if (/content.policy|safety|blocked|moderation/i.test(msg)) {
-    return `OpenAI blocked this picture. Tap New graphic angle for a different layout. ${msg}`
+    return `OpenAI blocked this picture. Tap New graphic angle for a different layout.`
   }
   if (/rate.limit|too many requests/i.test(msg)) {
-    return `OpenAI is busy — wait 30 seconds and try again. ${msg}`
+    return `OpenAI is busy — wait 30 seconds and try again.`
   }
   return msg
 }
@@ -105,51 +108,29 @@ function buildPrompt({ model, topicLabel, refreshSeed, postTheme, recipe, tier =
   ].join('\n')
 }
 
-function buildOpenAiBody({ model, prompt, size, quality, style }) {
-  if (model.startsWith('gpt-image')) {
-    return {
-      model,
-      prompt: prompt.slice(0, 32000),
-      n: 1,
-      size,
-      quality: quality || 'medium',
-      output_format: 'png',
-      moderation: 'low',
-    }
-  }
-  const body = {
-    model: 'dall-e-3',
-    prompt: prompt.slice(0, 4000),
+function buildGptImageBody({ model, prompt, size, quality }) {
+  return {
+    model,
+    prompt: prompt.slice(0, 32000),
     n: 1,
     size,
-    quality: quality || 'standard',
-    response_format: 'b64_json',
+    quality: quality || 'medium',
+    output_format: 'png',
+    moderation: 'low',
   }
-  if (style) body.style = style
-  return body
 }
 
-async function requestImageDirect({ apiKey, prompt, model, size, quality, style }) {
-  const body = buildOpenAiBody({ model, prompt, size, quality, style })
-  const res = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    return { ok: false, error: data.error?.message || `Image API HTTP ${res.status}`, status: res.status, model }
-  }
-  const b64 = data.data?.[0]?.b64_json
-  if (!b64) return { ok: false, error: 'OpenAI returned no image data.', status: 500, model }
-  return { ok: true, url: `data:image/png;base64,${b64}`, model, via: 'direct' }
+function imageFromResponse(data) {
+  const b64 = data?.data?.[0]?.b64_json
+  if (!b64) return null
+  return `data:image/png;base64,${b64}`
 }
 
-async function requestImageProxy({ apiKey, prompt, model, size, quality, style }) {
+async function requestImageProxy({ apiKey, prompt, model, size, quality }) {
   const res = await fetch('/api/generate-image', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ apiKey, prompt, model, size, quality, style }),
+    body: JSON.stringify({ apiKey, prompt, model, size, quality }),
   })
   const data = await res.json().catch(() => ({}))
   if (!data.ok) {
@@ -160,7 +141,28 @@ async function requestImageProxy({ apiKey, prompt, model, size, quality, style }
       model,
     }
   }
-  return { ok: true, url: `data:image/png;base64,${data.b64}`, model: data.model || model, via: 'proxy' }
+  return {
+    ok: true,
+    url: `data:image/png;base64,${data.b64}`,
+    model: data.model || model,
+    via: 'proxy',
+  }
+}
+
+async function requestImageDirect({ apiKey, prompt, model, size, quality }) {
+  const body = buildGptImageBody({ model, prompt, size, quality })
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    return { ok: false, error: data.error?.message || `Image API HTTP ${res.status}`, status: res.status, model }
+  }
+  const url = imageFromResponse(data)
+  if (!url) return { ok: false, error: 'OpenAI returned no image data.', status: 500, model }
+  return { ok: true, url, model, via: 'direct' }
 }
 
 async function requestImage(opts) {
@@ -192,17 +194,14 @@ function sleep(ms) {
 }
 
 const ATTEMPT_PLAN = [
-  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'medium', style: null, tier: 'compact', attempt: 0 },
-  { model: 'gpt-image-1', size: '1536x1024', quality: 'medium', style: null, tier: 'compact', attempt: 1 },
-  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'low', style: null, tier: 'minimal', attempt: 2 },
-  { model: 'dall-e-3', size: '1792x1024', quality: 'standard', style: 'vivid', tier: 'compact', attempt: 3 },
-  { model: 'dall-e-3', size: '1792x1024', quality: 'standard', style: 'natural', tier: 'minimal', attempt: 4 },
-  { model: 'dall-e-3', size: '1024x1024', quality: 'standard', style: 'vivid', tier: 'minimal', attempt: 5 },
+  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'medium', tier: 'compact', attempt: 0 },
+  { model: 'gpt-image-1.5', size: '1536x1024', quality: 'low', tier: 'minimal', attempt: 1 },
+  { model: 'gpt-image-1', size: '1536x1024', quality: 'medium', tier: 'compact', attempt: 2 },
+  { model: 'gpt-image-1', size: '1024x1024', quality: 'medium', tier: 'minimal', attempt: 3 },
+  { model: 'gpt-image-1-mini', size: '1536x1024', quality: 'medium', tier: 'minimal', attempt: 4 },
+  { model: 'gpt-image-1.5', size: '1024x1024', quality: 'high', tier: 'full', attempt: 5 },
 ]
 
-/**
- * Try several models, sizes, and prompt tiers until one succeeds.
- */
 export async function generateNewsroomImage({
   model,
   topicLabel,
@@ -223,8 +222,8 @@ export async function generateNewsroomImage({
       i === 0
         ? 'Creating your LinkedIn picture…'
         : i < 3
-          ? 'Trying premium image model…'
-          : 'Trying alternate picture style…'
+          ? 'Trying a different picture style…'
+          : 'Trying alternate image model…'
     onProgress?.(10 + i * 14, stage)
 
     const recipe = pickInfographicRecipe(refreshSeed, cfg.attempt)
@@ -243,7 +242,6 @@ export async function generateNewsroomImage({
       model: cfg.model,
       size: cfg.size,
       quality: cfg.quality,
-      style: cfg.style,
     })
 
     if (result.ok) {
@@ -275,5 +273,4 @@ export async function generateNewsroomImage({
   }
 }
 
-// Exported for automated testing
 export { buildPrompt, ATTEMPT_PLAN, requestImage }
