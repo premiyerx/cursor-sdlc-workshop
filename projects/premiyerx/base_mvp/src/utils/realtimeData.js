@@ -1,4 +1,4 @@
-import { fnv1a, headlinePromptOffset } from './generationVariety'
+import { fnv1a } from './generationVariety'
 import { researchForTopic } from '../data/topicIntel'
 
 const CACHE_KEY = 'lidp_realtime_cache'
@@ -112,9 +112,9 @@ async function fetchHackerNewsStories(query, hitsPerPage = 10) {
   }))
 }
 
-async function fetchGNewsHeadlines(query) {
+async function fetchGNewsHeadlines(query, max = 10) {
   const apiKey = getGnewsApiKey()
-  const gNewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=8&sortby=publishedAt&apikey=${encodeURIComponent(apiKey)}`
+  const gNewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=${max}&sortby=publishedAt&apikey=${encodeURIComponent(apiKey)}`
   const res = await fetch(gNewsUrl)
   if (!res.ok) return []
   const data = await res.json()
@@ -154,7 +154,8 @@ export async function fetchRealtimeContext(topicId, options = {}) {
     if (cached) return cached
   }
 
-  const { hnQueries, gnewsQuery } = researchForTopic(topicId, topicLabel)
+  const research = researchForTopic(topicId, topicLabel)
+  const { hnQueries } = research
 
   const results = { headlines: [], freshData: [], fetchedAt: new Date().toISOString(), sourcesTried: [] }
 
@@ -172,19 +173,34 @@ export async function fetchRealtimeContext(topicId, options = {}) {
   )
 
   let gNewsList = []
+  const gQueries = research.gnewsQueries?.length
+    ? research.gnewsQueries
+    : [research.gnewsQuery].filter(Boolean)
   try {
-    gNewsList = await fetchGNewsHeadlines(gnewsQuery)
-    results.sourcesTried.push(`GNews (${gNewsList.length})`)
+    const gNewsBatches = await Promise.all(
+      gQueries.map(async (q) => {
+        try {
+          return await fetchGNewsHeadlines(q, isGnewsKeyConfigured() ? 10 : 6)
+        } catch {
+          return []
+        }
+      }),
+    )
+    gNewsList = gNewsBatches.flat()
+    results.sourcesTried.push(`GNews (${gNewsList.length} from ${gQueries.length} queries)`)
   } catch {
     results.sourcesTried.push('GNews (error)')
   }
 
   results.headlines = mergeHeadlines([...hnLists, gNewsList])
   results.freshData = generateFreshDataPoints(topicId)
+  results.gnewsConfigured = isGnewsKeyConfigured()
 
   setCachedData(topicId, results)
   return results
 }
+
+export { formatRealtimeForPrompt } from './newsCraft'
 
 const VERIFIED_DATA_KEY = 'lidp_verified_data'
 
@@ -241,43 +257,6 @@ function generateFreshDataPoints(topicId) {
   }
 
   return dataByTopic[topicId] || dataByTopic.cursor
-}
-
-export function formatRealtimeForPrompt(realtimeData, topicId = '') {
-  if (!realtimeData) return ''
-
-  let context = '\n\nREAL-TIME RESEARCH (headlines are leads only — verify claims; do not copy titles):\n'
-
-  if (realtimeData.headlines?.length > 0) {
-    let headlines = [...realtimeData.headlines]
-    if (topicId && headlines.length > 1) {
-      const o = headlinePromptOffset(headlines.length, topicId)
-      headlines = [...headlines.slice(o), ...headlines.slice(0, o)]
-    }
-    context += '\nRecent headlines & threads (mine 2–4 distinct angles; CIO/CTO/CDO-relevant where applicable):\n'
-    for (const h of headlines.slice(0, 12)) {
-      const pts = h.points != null ? ` · ${h.points} pts` : ''
-      context += `→ "${h.title}" — ${h.source}, ${h.date}${pts}\n`
-    }
-  } else {
-    context +=
-      '\n(No live headlines returned — still use verified registry stats below and hedged language where needed.)\n'
-  }
-
-  if (realtimeData.freshData?.length > 0) {
-    context += '\nVerified / registry stats (still require inline citation when used):\n'
-    for (const d of realtimeData.freshData) {
-      context += `→ ${d}\n`
-    }
-  }
-
-  context +=
-    '\nFRESHNESS CONTRACT:\n' +
-    '- Tie the hook to something in the last ~14 days from the headlines above OR a defensible industry shift (say "recent reporting suggests…" if not primary-sourced).\n' +
-    '- Name-check at most one vendor/product from headlines if it helps specificity — never invent funding rounds, dates, or customer names.\n' +
-    '- Prefer a different narrative frame than generic "AI is changing everything" posts.\n'
-
-  return context
 }
 
 export function getRealtimeSprinkle(topicId) {

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import TOPICS from '../data/postTemplates'
 import { getActiveProfile } from '../data/voiceProfile'
 import { fetchRealtimeContext, formatRealtimeForPrompt } from '../utils/realtimeData'
+import { getTopicNarrative } from '../data/topicNarratives'
 import { buildVarietyEnvelope, recordGeneratedHook } from '../utils/generationVariety'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
@@ -104,18 +105,24 @@ export default function AIGenerator({ topicId, onGenerated }) {
     } catch { /* continue without realtime data */ }
 
     const varietyBlock = buildVarietyEnvelope(topicId, topic.label)
+    const narrative = getTopicNarrative(topicId)
 
     const userPrompt = `Write a LinkedIn post in the content pillar: "${topic.label}".
 
 Pillar context (use themes from this, stay sourced): ${topic.description}
+
+PRIORITY THESIS FOR THIS PILLAR: ${narrative.coreThesis}
+
+MARKET FRAME: ${narrative.competitiveFrame}
 
 ${customAngle ? `Specific angle or news to cover: ${customAngle}` : ''}
 
 ${varietyBlock}
 CONTEXT:
 - Content pillar: "${topic.label}" — ${topic.description}
-- Target audience: CIOs, CTOs, CDOs, VPs of Engineering, DevOps/DevSecOps leaders, board members
-- The post MUST feel timely: ground the narrative in the research headlines below (this fetch is refreshed every time you generate).
+- Target audience: ${narrative.audience}
+- The post MUST feel timely: anchor the hook in the LEAD STORY from the research block below (paraphrase — never paste a headline as your opening line).
+- Write like a viral *operator* on LinkedIn (field memos, spreadsheet truth, myth-busts) — NOT like a celebrity influencer or engagement bait.
 ${realtimeContext}
 
 DATA ACCURACY (non-negotiable):
@@ -129,6 +136,7 @@ ALGORITHM OPTIMIZATION (every rule below is based on LinkedIn's 2026 algorithm s
    - One-liner, 8-12 words, contains a NUMBER
    - First-person or direct address. NEVER start with negative words (stop/don't/quit — 30% lower performance)
    - Must create a curiosity gap or make a bold claim
+   - MUST connect to this week's lead news signal (paraphrased) OR a time-stamped market shift — not generic evergreen AI commentary
 
 2. RE-HOOK (line 2-3):
    - Parenthetical that amplifies the hook: "(And the $2B lesson most companies are missing)"
@@ -192,10 +200,10 @@ FIRST_COMMENT:
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          temperature: 0.92,
-          top_p: 0.94,
-          presence_penalty: 0.55,
-          frequency_penalty: 0.35,
+          temperature: 0.94,
+          top_p: 0.92,
+          presence_penalty: 0.62,
+          frequency_penalty: 0.42,
           max_tokens: 1200,
         }),
       })

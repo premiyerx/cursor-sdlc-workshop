@@ -1,3 +1,5 @@
+import { buildViralCraftBlock } from './viralCraft'
+
 /**
  * Entropy + anti-repetition for template picks and AI prompts.
  * Hooks are stored in sessionStorage (session-only) to nudge the model away from near-duplicates.
@@ -104,21 +106,29 @@ const LENSES_BY_TOPIC = {
     ...DEFAULT_LENSES,
     'Focus on agentic workflows, context windows, or SDLC integration—not generic "AI coding" hype.',
     'Pick one: developer trust, auditability, enterprise rollout, or security review of AI tools.',
+    'Use this week\'s headlines to sharpen a Cursor vs. Copilot/Windsurf/agent-hype contrast — stay sourced.',
+    'Frame as what changed in the competitive stack since last month for teams picking an AI IDE.',
   ],
   investment: [
     ...DEFAULT_LENSES,
     'Tie capital flows to second-order effects: talent markets, M&A, platform shifts, or infra spend.',
     'What would a skeptical CFO ask next—answer it with disciplined, cited reasoning.',
+    'Anchor on a fresh funding/valuation headline — translate what LPs are underwriting vs. what eng feels.',
+    'Contrast infrastructure dollars (models/inference) vs. application layer (dev platforms) using this week\'s news.',
   ],
   cio: [
     ...DEFAULT_LENSES,
     'Write for a CIO who already approved pilots—what breaks at scale (governance, data, org design)?',
     'Balance enablement vs. control: one concrete policy or operating model move.',
+    'Lead with a leadership pain point surfaced in this week\'s enterprise/governance headlines.',
+    'Write the post the CIO forwards to their VP Eng — operational, not visionary fluff.',
   ],
   roi: [
     ...DEFAULT_LENSES,
     'Force a single ROI storyline: payback, risk reduction, or revenue velocity—pick one and prove it.',
     'Expose a hidden cost center that AI shifts (meetings, rework, incidents)—stay sourced.',
+    'Connect a fresh productivity or savings headline to a defensible payback narrative for QBR season.',
+    'Kill vanity metrics (LOC, commits) — tie to cycle time, incidents, or revenue pull-through.',
   ],
 }
 
@@ -206,10 +216,9 @@ export function buildVarietyEnvelope(topicId, topicLabel) {
     'FRESHNESS: Reference models, agents, funding, regulation, or enterprise adoption ONLY with sourced or hedged language ("reports suggest", "vendors claim", "our teams see"). Never invent dates, rounds, or model names.',
     'OUTPUT: This exact run must feel like a 1-of-1; a second generation the same day should choose a different angle, hook shape, and evidence mix.',
     '=== END UNIQUE RUN ===',
-    '',
   )
 
-  return lines.join('\n')
+  return lines.join('\n') + buildViralCraftBlock(topicId)
 }
 
 /**

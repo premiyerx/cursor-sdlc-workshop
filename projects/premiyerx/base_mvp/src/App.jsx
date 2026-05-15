@@ -2,7 +2,8 @@ import { useState, useCallback, useMemo } from 'react'
 import TOPICS from './data/postTemplates'
 import { findCitations } from './data/citations'
 import { getRealtimeSprinkle, fetchRealtimeContext } from './utils/realtimeData'
-import { pickTemplateIndex, recordGeneratedHook, headlinePromptOffset } from './utils/generationVariety'
+import { weaveNewsIntoTemplate, getResearchSummary } from './utils/newsCraft'
+import { pickTemplateIndex, recordGeneratedHook } from './utils/generationVariety'
 import VoiceProfile from './components/VoiceProfile'
 import AIGenerator from './components/AIGenerator'
 import PostDisplay from './components/PostDisplay'
@@ -70,27 +71,28 @@ export default function App() {
       recordGeneratedHook(pick.hook)
       const freshDataPoint = getRealtimeSprinkle(selectedTopic)
       const freshLine = freshDataPoint ? `\n\n📊 Fresh data: ${freshDataPoint}` : ''
-      let newsLine = ''
+      let woven = pick
       let headlineCount = 0
+      let leadTitle = ''
       try {
         const rt = await fetchRealtimeContext(selectedTopic, {
           forceRefresh: true,
           topicLabel: topic?.label || '',
         })
-        headlineCount = rt.headlines?.length || 0
-        if (rt.headlines?.length) {
-          const o = headlinePromptOffset(rt.headlines.length, selectedTopic)
-          const h = rt.headlines[o % rt.headlines.length]
-          newsLine = `\n\n📰 Trending signal (rewrite in your voice; do not paste verbatim): “${h.title}” — ${h.source}${h.date ? `, ${h.date}` : ''}`
-        }
+        const summary = getResearchSummary(rt, selectedTopic)
+        headlineCount = summary.count
+        leadTitle = summary.lead?.title || ''
+        woven = weaveNewsIntoTemplate(pick, rt, selectedTopic)
       } catch {
         /* offline / CORS — template still varies by lens + template rotation */
       }
-      const raw = `${pick.hook}\n\n${pick.body}${freshLine}${newsLine}\n\n${pick.cta}\n\n${pick.hashtags}`
+      const raw = `${woven.hook}\n\n${woven.body}${freshLine}\n\n${woven.cta}\n\n${woven.hashtags}`
       setLiveText(appendCitations(raw))
       flashGenerateOk(
         headlineCount > 0
-          ? `Post ready — refreshed with ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}. Scroll down to review.`
+          ? leadTitle
+            ? `Post ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'} (lead: "${leadTitle.slice(0, 52)}${leadTitle.length > 52 ? '…' : ''}"). Scroll down to edit.`
+            : `Post ready — refreshed with ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}. Scroll down to review.`
           : 'Post ready — scroll down to review and edit.',
       )
     } catch {

@@ -34,6 +34,8 @@ NOVELTY (non-negotiable for every generation):
 - Never recycle boilerplate openers ("In today's...", "Let's dive..."). Prefer time-stamped, operator-specific, or counterintuitive entry points.
 - If you have seen similar posts on LinkedIn, deliberately zig where they zag—while staying truthful and sourced.
 - Ground the post in THIS WEEK's signals from the user's research block when provided — not generic evergreen AI commentary.
+- When headlines are provided: paraphrase the lead story in the hook or re-hook; translate news into operator POV for CIOs/VPs — never paste article titles verbatim.
+- Write like high-performing B2B *operators* on LinkedIn (field memos, spreadsheet math, myth-busts, decision forks) — not celebrity influencers or engagement bait.
 
 PUBLIC PROFILE SNAPSHOT (verify volatile facts externally; use for voice and career arc only):
 - LinkedIn: ${li.profileUrl || 'https://www.linkedin.com/in/premiyer/'}
@@ -132,7 +134,7 @@ const PREM_IYER = createVoiceProfile({
       'Punchy, curiosity-driven openers. A surprising stat, contrarian take, or "Here\'s what nobody talks about" framing.',
     paragraphLength: 'Short — 1-3 sentences max. Heavy use of line breaks for scanability.',
     formatting: 'Uses → arrows for lists, strategic bold for emphasis, numbered lists for frameworks.',
-    tone: 'Confident but approachable. Not salesy — more "here\'s what I\'m seeing from the inside."',
+    tone: 'Confident but approachable. Not salesy — more "here\'s what I\'m seeing from the inside." Peer operator, not guru.',
     closingPattern: 'Ends with an engaging question that invites CxO-level conversation, not generic "thoughts?"',
     hashtagStyle: '3-5 targeted hashtags. Mix of 1 broad + 2 mid + 1-2 niche.',
     emojiUsage: 'Minimal — 2-3 professional emoji anchors (📊 💡 🔑 🎯) at section transitions. Never scattered.',
