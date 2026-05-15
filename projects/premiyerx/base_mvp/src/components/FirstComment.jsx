@@ -1,4 +1,7 @@
 import { useState, useMemo } from 'react'
+import { copyToClipboard } from '../utils/clipboard'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import ActionFeedback from './ActionFeedback'
 
 const COMMENT_STRATEGIES = [
   {
@@ -49,6 +52,7 @@ export default function FirstComment({ post, liveText, onCommentReady }) {
   const [editing, setEditing] = useState(false)
   const [editedComment, setEditedComment] = useState('')
   const [strategy, setStrategy] = useState(null)
+  const { msg: fcActionMsg, flashOk, flashErr } = useFlashFeedback()
 
   const comment = useMemo(() => {
     if (editedComment) return editedComment
@@ -59,16 +63,21 @@ export default function FirstComment({ post, liveText, onCommentReady }) {
     return generateSmartComment(post, liveText)
   }, [post, liveText, editedComment, strategy])
 
-  function handleCopy() {
-    navigator.clipboard.writeText(comment).then(() => {
-      setCopied(true)
-      onCommentReady?.(comment)
-      setTimeout(() => setCopied(false), 3000)
-    })
+  async function handleCopy() {
+    const result = await copyToClipboard(comment)
+    if (!result.ok) {
+      flashErr(result.error || 'Could not copy comment.')
+      return
+    }
+    setCopied(true)
+    onCommentReady?.(comment)
+    flashOk('First comment copied — paste as a reply within 30 seconds of posting.')
+    setTimeout(() => setCopied(false), 3000)
   }
 
   function handleEdit() {
     if (!editing) setEditedComment(comment)
+    else flashOk('Comment edits kept — tap Copy when ready.')
     setEditing(!editing)
   }
 
@@ -76,6 +85,7 @@ export default function FirstComment({ post, liveText, onCommentReady }) {
     setStrategy(s)
     setEditedComment('')
     setEditing(false)
+    flashOk(`Using "${s.label}" strategy — review below, then copy.`)
   }
 
   if (!liveText) return null
@@ -119,7 +129,7 @@ export default function FirstComment({ post, liveText, onCommentReady }) {
       )}
 
       <div className="fc-actions">
-        <button className="fc-copy-btn" onClick={handleCopy}>
+        <button className="fc-copy-btn" onClick={() => void handleCopy()}>
           {copied ? '✓ Comment Copied!' : 'Copy First Comment'}
         </button>
         <button className="fc-edit-btn" onClick={handleEdit}>
@@ -130,6 +140,7 @@ export default function FirstComment({ post, liveText, onCommentReady }) {
           {!isLongEnough && <span className="fc-warn">Add more — short comments get minimal algorithmic credit</span>}
         </div>
       </div>
+      <ActionFeedback msg={fcActionMsg} />
 
       <div className="fc-flow">
         <div className="fc-step">

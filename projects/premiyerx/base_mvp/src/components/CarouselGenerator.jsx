@@ -3,6 +3,9 @@ import { jsPDF } from 'jspdf'
 import { findCitationsForLine, findCitations } from '../data/citations'
 import { scorePost } from '../data/algorithmRules'
 import { fnv1a, mulberry32 } from '../utils/generationVariety'
+import { copyToClipboard } from '../utils/clipboard'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import ActionFeedback from './ActionFeedback'
 
 const SLIDE_W = 1080
 const SLIDE_H = 1080
@@ -627,6 +630,7 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
   const [captionCopied, setCaptionCopied] = useState(false)
   const [captionText, setCaptionText] = useState('')
   const canvasRef = useRef(null)
+  const { msg: carouselMsg, flashOk, flashErr } = useFlashFeedback()
 
   const slides = parseIntoSlides(postText, topicId)
   const captionScore = useMemo(() => (captionText ? scorePost(captionText).total : null), [captionText])
@@ -652,11 +656,15 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
     generatePreview()
   }
 
-  function copyCaption() {
-    navigator.clipboard.writeText(captionText).then(() => {
-      setCaptionCopied(true)
-      setTimeout(() => setCaptionCopied(false), 2000)
-    })
+  async function copyCaption() {
+    const result = await copyToClipboard(captionText)
+    if (!result.ok) {
+      flashErr(result.error || 'Could not copy caption.')
+      return
+    }
+    setCaptionCopied(true)
+    flashOk('Caption copied — paste as your LinkedIn post text.')
+    setTimeout(() => setCaptionCopied(false), 3000)
   }
 
   async function downloadPDF() {
@@ -677,6 +685,9 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
       }
 
       pdf.save(`linkedin-carousel-${Date.now()}.pdf`)
+      flashOk(`Carousel PDF downloaded (${slides.length} slides).`)
+    } catch (err) {
+      flashErr(err?.message || 'PDF download failed — try again.')
     } finally {
       setGenerating(false)
     }
@@ -740,10 +751,11 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
                 </span>
               )}
             </span>
-            <button className="carousel-caption-copy" onClick={copyCaption}>
+            <button className="carousel-caption-copy" onClick={() => void copyCaption()}>
               {captionCopied ? 'Copied ✓' : 'Copy Caption'}
             </button>
           </div>
+          <ActionFeedback msg={carouselMsg} />
         </div>
       )}
 

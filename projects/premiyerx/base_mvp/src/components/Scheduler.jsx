@@ -1,12 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getSchedule, addScheduledPost, removeScheduledPost, markScheduledAsPublished, savePost } from '../utils/storage'
 import { scorePost } from '../data/algorithmRules'
+import { copyToClipboard } from '../utils/clipboard'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import ActionFeedback from './ActionFeedback'
 
 export default function Scheduler({ currentPost, currentTopic, postText }) {
   const [schedule, setSchedule] = useState(getSchedule)
   const [scheduleDate, setScheduleDate] = useState('')
   const [scheduleTime, setScheduleTime] = useState('07:30')
   const [publishStatus, setPublishStatus] = useState(null)
+  const { msg: publishMsg, flashOk: flashPublishOk, flashErr: flashPublishErr } = useFlashFeedback()
+  const { msg: scheduleMsg, flashOk: flashScheduleOk, flashErr: flashScheduleErr } = useFlashFeedback()
+  const { msg: notifyMsg, flashOk: flashNotifyOk, flashErr: flashNotifyErr } = useFlashFeedback()
 
   const refreshSchedule = useCallback(() => setSchedule(getSchedule()), [])
 
@@ -32,22 +38,37 @@ export default function Scheduler({ currentPost, currentTopic, postText }) {
     return () => clearInterval(interval)
   }, [refreshSchedule])
 
-  function openLinkedInShareDialog() {
-    if (!postText) return
+  async function openLinkedInShareDialog() {
+    if (!postText) {
+      flashPublishErr('Generate a post first on the Create tab.')
+      return
+    }
     setPublishStatus('publishing')
     const { total } = scorePost(postText)
     savePost({ topicId: currentTopic, text: postText, score: total, published: false, method: 'share-dialog' })
 
     const shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`
-    navigator.clipboard.writeText(postText).then(() => {
-      window.open(shareUrl, '_blank', 'width=600,height=600')
-      setPublishStatus('opened')
-      setTimeout(() => setPublishStatus(null), 5000)
-    })
+    const copied = await copyToClipboard(postText)
+    if (!copied.ok) {
+      setPublishStatus(null)
+      flashPublishErr(copied.error || 'Could not copy post to clipboard.')
+      return
+    }
+    window.open(shareUrl, '_blank', 'width=600,height=600')
+    setPublishStatus('opened')
+    flashPublishOk('Post copied to clipboard — paste into LinkedIn.')
+    setTimeout(() => setPublishStatus(null), 5000)
   }
 
   function handleSchedule() {
-    if (!postText || !scheduleDate) return
+    if (!postText) {
+      flashScheduleErr('Generate a post first on the Create tab.')
+      return
+    }
+    if (!scheduleDate) {
+      flashScheduleErr('Pick a date for your reminder.')
+      return
+    }
     const scheduledFor = new Date(`${scheduleDate}T${scheduleTime}:00`).toISOString()
     const { total } = scorePost(postText)
     addScheduledPost({
@@ -59,12 +80,35 @@ export default function Scheduler({ currentPost, currentTopic, postText }) {
     })
     refreshSchedule()
     setScheduleDate('')
+    const when = new Date(scheduledFor).toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+    flashScheduleOk(`Reminder saved for ${when} on this device.`)
   }
 
-  function requestNotifications() {
-    if ('Notification' in window) {
-      Notification.requestPermission()
+  async function requestNotifications() {
+    if (!('Notification' in window)) {
+      flashNotifyErr('Notifications are not supported in this browser.')
+      return
     }
+    const permission = await Notification.requestPermission()
+    if (permission === 'granted') {
+      flashNotifyOk('Notifications enabled — you will get a reminder when it is time to post.')
+    } else if (permission === 'denied') {
+      flashNotifyErr('Notifications blocked. Enable them in your browser or phone settings.')
+    } else {
+      flashNotifyErr('Notification permission not granted.')
+    }
+  }
+
+  function handleRemoveReminder(id) {
+    removeScheduledPost(id)
+    refreshSchedule()
+    flashScheduleOk('Reminder removed.')
   }
 
   const upcoming = schedule.filter((p) => p.status === 'scheduled')
@@ -81,7 +125,7 @@ export default function Scheduler({ currentPost, currentTopic, postText }) {
 
           <button
             className="publish-btn linkedin-share-btn"
-            onClick={openLinkedInShareDialog}
+            onClick={() => void openLinkedInShareDialog()}
             disabled={!postText || publishStatus === 'publishing'}
           >
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="li-icon">
@@ -96,6 +140,7 @@ export default function Scheduler({ currentPost, currentTopic, postText }) {
               ? 'Your post is on your clipboard. Paste it into the LinkedIn compose window that just opened.'
               : 'Copies your post to the clipboard and opens LinkedIn in a new window so you can paste and publish.'}
           </p>
+          <ActionFeedback msg={publishMsg} />
         </div>
 
         <div className="scheduler-schedule">
@@ -128,9 +173,11 @@ export default function Scheduler({ currentPost, currentTopic, postText }) {
           <p className="schedule-hint">
             Reminder times use your browser&apos;s local clock and timezone.
           </p>
-          <button className="notify-btn" onClick={requestNotifications}>
+          <button className="notify-btn" onClick={() => void requestNotifications()}>
             Enable Browser Notifications
           </button>
+          <ActionFeedback msg={scheduleMsg} />
+          <ActionFeedback msg={notifyMsg} />
         </div>
       </div>
 
@@ -148,7 +195,7 @@ export default function Scheduler({ currentPost, currentTopic, postText }) {
                 <span className="queue-preview">{post.text?.slice(0, 60)}...</span>
                 <span className="queue-score">Score: {post.score}</span>
               </div>
-              <button className="queue-remove" onClick={() => { removeScheduledPost(post.id); refreshSchedule() }}>✕</button>
+              <button className="queue-remove" onClick={() => handleRemoveReminder(post.id)} title="Remove reminder">✕</button>
             </div>
           ))}
         </div>

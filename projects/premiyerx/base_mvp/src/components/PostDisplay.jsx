@@ -1,11 +1,15 @@
 import { useState, useRef, useCallback } from 'react'
 import FormattingToolbar from './FormattingToolbar'
 import { applyFormatToSelection } from '../utils/unicodeFormatter'
+import { copyToClipboard } from '../utils/clipboard'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import ActionFeedback from './ActionFeedback'
 
 const LINKEDIN_TRUNCATE = 210
 
 export default function PostDisplay({ post, topicColor, onPostEdit }) {
   const [copied, setCopied] = useState(false)
+  const { msg: copyMsg, flashOk, flashErr } = useFlashFeedback()
   const textareaRef = useRef(null)
 
   const fullText = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
@@ -21,11 +25,15 @@ export default function PostDisplay({ post, topicColor, onPostEdit }) {
     onPostEdit?.(e.target.value)
   }, [onPostEdit])
 
-  function handleCopy() {
-    navigator.clipboard.writeText(editedText).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+  async function handleCopy() {
+    const result = await copyToClipboard(editedText)
+    if (!result.ok) {
+      flashErr(result.error || 'Could not copy — try selecting the text manually.')
+      return
+    }
+    setCopied(true)
+    flashOk('Post copied to clipboard.')
+    setTimeout(() => setCopied(false), 3000)
   }
 
   function handleInsert(str) {
@@ -78,9 +86,10 @@ export default function PostDisplay({ post, topicColor, onPostEdit }) {
         style={{ '--card-accent': topicColor }}
       />
 
-      <button className="copy-btn" onClick={handleCopy} style={{ '--btn-color': topicColor }}>
+      <button className="copy-btn" onClick={() => void handleCopy()} style={{ '--btn-color': topicColor }}>
         {copied ? '✓ Copied to Clipboard!' : 'Copy Post to Clipboard'}
       </button>
+      <ActionFeedback msg={copyMsg} />
     </section>
   )
 }

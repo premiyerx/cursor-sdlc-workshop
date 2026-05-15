@@ -1,5 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { scorePost, HASHTAG_SUGGESTIONS } from '../data/algorithmRules'
+import { copyToClipboard } from '../utils/clipboard'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import ActionFeedback from './ActionFeedback'
 
 function ScoreGauge({ score }) {
   const circumference = 2 * Math.PI * 54
@@ -28,8 +31,18 @@ function ScoreGauge({ score }) {
 
 export default function AlgorithmScorer({ postText, topicId }) {
   const result = useMemo(() => scorePost(postText), [postText])
+  const { msg: tagMsg, flashOk, flashErr } = useFlashFeedback()
 
   const suggestions = HASHTAG_SUGGESTIONS[topicId] || []
+
+  async function handleCopyTag(tag) {
+    const result = await copyToClipboard(tag)
+    if (!result.ok) {
+      flashErr(result.error || 'Could not copy hashtag.')
+      return
+    }
+    flashOk(`${tag} copied.`)
+  }
 
   return (
     <section className="algorithm-scorer">
@@ -71,13 +84,14 @@ export default function AlgorithmScorer({ postText, topicId }) {
                 <button
                   key={tag}
                   className="hashtag-chip"
-                  onClick={() => navigator.clipboard.writeText(tag)}
+                  onClick={() => void handleCopyTag(tag)}
                   title="Click to copy"
                 >
                   {tag}
                 </button>
               ))}
             </div>
+            <ActionFeedback msg={tagMsg} />
           </div>
         )}
       </div>

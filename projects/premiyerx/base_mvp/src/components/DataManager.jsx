@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   getRegistry,
   verifyDataPoint,
@@ -8,6 +8,8 @@ import {
   getStaleStatus,
   CATEGORIES,
 } from '../utils/dataRegistry'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import ActionFeedback from './ActionFeedback'
 
 const STATUS_BADGE = {
   verified: { label: 'Verified', cls: 'dm-badge-ok' },
@@ -35,6 +37,7 @@ export default function DataManager({ linkedTopicId = null }) {
   const [newSource, setNewSource] = useState('')
   const [newUrl, setNewUrl] = useState('')
   const [newCategory, setNewCategory] = useState('cursor')
+  const { msg: actionMsg, flashOk, flashErr } = useFlashFeedback()
 
   useEffect(() => {
     setRegistry(getRegistry())
@@ -53,17 +56,23 @@ export default function DataManager({ linkedTopicId = null }) {
 
   function handleSave(id) {
     updateDataPoint(id, { claim: editClaim, source: editSource, sourceUrl: editUrl })
+    verifyDataPoint(id)
     setEditingId(null)
     refresh()
+    flashOk('Data point saved and marked verified.')
   }
 
   function handleVerify(id) {
     verifyDataPoint(id)
     refresh()
+    flashOk('Marked as verified.')
   }
 
   function handleAdd() {
-    if (!newId.trim() || !newClaim.trim()) return
+    if (!newId.trim() || !newClaim.trim()) {
+      flashErr('Enter an ID and claim text before adding.')
+      return
+    }
     const safeId = newId.trim().toLowerCase().replace(/\s+/g, '_')
     addCustomDataPoint(safeId, {
       claim: newClaim,
@@ -77,11 +86,13 @@ export default function DataManager({ linkedTopicId = null }) {
     setNewUrl('')
     setShowAdd(false)
     refresh()
+    flashOk(`Added "${safeId}" to the registry.`)
   }
 
   function handleDelete(id) {
     deleteCustomDataPoint(id)
     refresh()
+    flashOk('Custom data point removed.')
   }
 
   const entries = Object.entries(registry)
@@ -173,6 +184,8 @@ export default function DataManager({ linkedTopicId = null }) {
           </button>
         </div>
       )}
+
+      <ActionFeedback msg={actionMsg} />
 
       <div className="dm-list">
         {filtered.map(([id, dp]) => {

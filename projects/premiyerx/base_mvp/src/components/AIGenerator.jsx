@@ -1,31 +1,88 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import TOPICS from '../data/postTemplates'
 import { getActiveProfile } from '../data/voiceProfile'
 import { fetchRealtimeContext, formatRealtimeForPrompt } from '../utils/realtimeData'
 import { buildVarietyEnvelope, recordGeneratedHook } from '../utils/generationVariety'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import ActionFeedback from './ActionFeedback'
+
+function saveOpenAiKey(key) {
+  try {
+    const trimmed = key?.trim() || ''
+    if (trimmed) localStorage.setItem('openai_key', trimmed)
+    else localStorage.removeItem('openai_key')
+    return { ok: true, cleared: !trimmed }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save OpenAI key.' }
+  }
+}
+
+function saveUnsplashKeyStorage(key) {
+  try {
+    const trimmed = key?.trim() || ''
+    if (trimmed) localStorage.setItem('unsplash_access_key', trimmed)
+    else localStorage.removeItem('unsplash_access_key')
+    return { ok: true, cleared: !trimmed }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Could not save Unsplash key.' }
+  }
+}
 
 export default function AIGenerator({ topicId, onGenerated }) {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('openai_key') || '')
   const [unsplashKey, setUnsplashKey] = useState(() => localStorage.getItem('unsplash_access_key') || '')
+  const [openaiDraft, setOpenaiDraft] = useState('')
+  const [unsplashDraft, setUnsplashDraft] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [customAngle, setCustomAngle] = useState('')
   const [expanded, setExpanded] = useState(false)
+  const { msg: keyMsg, flashOk: flashKeyOk, flashErr: flashKeyErr } = useFlashFeedback()
+  const { msg: genMsg, flashOk: flashGenOk, flashErr: flashGenErr } = useFlashFeedback()
 
   const topic = TOPICS.find((t) => t.id === topicId)
   const hasKey = !!apiKey.trim()
+  const hasUnsplash = !!unsplashKey.trim()
 
-  function saveKey(key) {
-    setApiKey(key)
-    if (key) localStorage.setItem('openai_key', key)
-    else localStorage.removeItem('openai_key')
-  }
+  const handleSaveOpenAi = useCallback(() => {
+    const trimmed = openaiDraft.trim()
+    if (!trimmed && !hasKey) {
+      flashKeyErr('Paste your OpenAI API key first, then tap Save.')
+      return
+    }
+    const result = saveOpenAiKey(trimmed)
+    if (!result.ok) {
+      flashKeyErr(result.error || 'Could not save OpenAI key.')
+      return
+    }
+    setApiKey(trimmed)
+    setOpenaiDraft('')
+    flashKeyOk(
+      result.cleared
+        ? 'OpenAI key removed from this device.'
+        : `OpenAI key saved on this device (ends in …${trimmed.slice(-4)}).`,
+    )
+  }, [openaiDraft, hasKey, flashKeyOk, flashKeyErr])
 
-  function saveUnsplashKey(key) {
-    setUnsplashKey(key)
-    if (key.trim()) localStorage.setItem('unsplash_access_key', key.trim())
-    else localStorage.removeItem('unsplash_access_key')
-  }
+  const handleSaveUnsplash = useCallback(() => {
+    const trimmed = unsplashDraft.trim()
+    if (!trimmed && !hasUnsplash) {
+      flashKeyErr('Paste your Unsplash key first, then tap Save.')
+      return
+    }
+    const result = saveUnsplashKeyStorage(trimmed)
+    if (!result.ok) {
+      flashKeyErr(result.error || 'Could not save Unsplash key.')
+      return
+    }
+    setUnsplashKey(trimmed)
+    setUnsplashDraft('')
+    flashKeyOk(
+      result.cleared
+        ? 'Unsplash key removed from this device.'
+        : `Unsplash key saved on this device (ends in …${trimmed.slice(-4)}).`,
+    )
+  }, [unsplashDraft, hasUnsplash, flashKeyOk, flashKeyErr])
 
   async function handleGenerate() {
     if (!apiKey.trim()) {
@@ -167,8 +224,10 @@ FIRST_COMMENT:
         hashtags: hashMatch ? hashMatch[1].trim() : '',
         firstComment: commentMatch ? commentMatch[1].trim() : '',
       })
+      flashGenOk('AI post generated — scroll down to review and edit.')
     } catch (err) {
       setError(err.message)
+      flashGenErr(err.message || 'Generation failed. Check your API key and try again.')
     } finally {
       setLoading(false)
     }
@@ -198,23 +257,36 @@ FIRST_COMMENT:
             <input
               type="password"
               className="ai-input"
-              placeholder="OpenAI API Key (sk-...) — for AI posts & optional DALL·E visuals"
-              value={apiKey}
-              onChange={(e) => saveKey(e.target.value)}
+              placeholder={hasKey ? 'Paste a new OpenAI key to replace saved key' : 'OpenAI API Key (sk-...)'}
+              value={openaiDraft}
+              onChange={(e) => setOpenaiDraft(e.target.value)}
+              autoComplete="off"
             />
-            {hasKey && <span className="key-saved">Saved locally</span>}
+            <button type="button" className="ai-save-key-btn" onClick={handleSaveOpenAi}>
+              Save
+            </button>
           </div>
+          {hasKey && (
+            <p className="ai-key-status">OpenAI key active on this device (ends in …{apiKey.slice(-4)})</p>
+          )}
 
           <div className="ai-key-row">
             <input
               type="password"
               className="ai-input"
-              placeholder="Unsplash Access Key (optional — for “Get best visual” stock matches)"
-              value={unsplashKey}
-              onChange={(e) => saveUnsplashKey(e.target.value)}
+              placeholder={hasUnsplash ? 'Paste a new Unsplash key to replace' : 'Unsplash Access Key (optional)'}
+              value={unsplashDraft}
+              onChange={(e) => setUnsplashDraft(e.target.value)}
+              autoComplete="off"
             />
-            {unsplashKey.trim() && <span className="key-saved">Unsplash saved</span>}
+            <button type="button" className="ai-save-key-btn" onClick={handleSaveUnsplash}>
+              Save
+            </button>
           </div>
+          {hasUnsplash && (
+            <p className="ai-key-status">Unsplash key active on this device (ends in …{unsplashKey.slice(-4)})</p>
+          )}
+          <ActionFeedback msg={keyMsg} />
 
           <textarea
             className="ai-angle-input"
@@ -233,6 +305,7 @@ FIRST_COMMENT:
           </button>
 
           {error && <div className="ai-error">{error}</div>}
+          <ActionFeedback msg={genMsg} />
         </div>
       )}
     </div>

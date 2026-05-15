@@ -15,6 +15,8 @@ import FactCheckGate from './components/FactCheckGate'
 import Scheduler from './components/Scheduler'
 import Analytics from './components/Analytics'
 import DataManager from './components/DataManager'
+import { useFlashFeedback } from './hooks/useFlashFeedback'
+import ActionFeedback from './components/ActionFeedback'
 
 const DAILY_ANGLES = {
   Monday: { suggested: 'cursor', reason: 'Monday = high engagement from professionals starting their week.' },
@@ -33,6 +35,7 @@ export default function App() {
   const [generatedPost, setGeneratedPost] = useState(null)
   const [liveText, setLiveText] = useState('')
   const [generateBusy, setGenerateBusy] = useState(false)
+  const { msg: generateMsg, flashOk: flashGenerateOk, flashErr: flashGenerateErr } = useFlashFeedback()
 
   const topic = TOPICS.find((t) => t.id === selectedTopic)
 
@@ -68,11 +71,13 @@ export default function App() {
       const freshDataPoint = getRealtimeSprinkle(selectedTopic)
       const freshLine = freshDataPoint ? `\n\n📊 Fresh data: ${freshDataPoint}` : ''
       let newsLine = ''
+      let headlineCount = 0
       try {
         const rt = await fetchRealtimeContext(selectedTopic, {
           forceRefresh: true,
           topicLabel: topic?.label || '',
         })
+        headlineCount = rt.headlines?.length || 0
         if (rt.headlines?.length) {
           const o = headlinePromptOffset(rt.headlines.length, selectedTopic)
           const h = rt.headlines[o % rt.headlines.length]
@@ -83,10 +88,17 @@ export default function App() {
       }
       const raw = `${pick.hook}\n\n${pick.body}${freshLine}${newsLine}\n\n${pick.cta}\n\n${pick.hashtags}`
       setLiveText(appendCitations(raw))
+      flashGenerateOk(
+        headlineCount > 0
+          ? `Post ready — refreshed with ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}. Scroll down to review.`
+          : 'Post ready — scroll down to review and edit.',
+      )
+    } catch {
+      flashGenerateErr('Could not generate. Check your connection and try again.')
     } finally {
       setGenerateBusy(false)
     }
-  }, [topic, selectedTopic, appendCitations])
+  }, [topic, selectedTopic, appendCitations, flashGenerateOk, flashGenerateErr])
 
   const handleTopicSelect = useCallback((id) => {
     setSelectedTopic(id)
@@ -196,6 +208,7 @@ export default function App() {
                   {generateBusy ? 'Fetching context…' : generatedPost ? '↻ Regenerate' : 'Generate'}
                 </button>
               </div>
+              <ActionFeedback msg={generateMsg} className="command-generate-feedback" />
             </section>
 
             {/* STEP 2b: Advanced generation (progressive disclosure) */}

@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { extractClaimsFromText, verifyDataPoint } from '../utils/dataRegistry'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import ActionFeedback from './ActionFeedback'
 
 const STATUS_META = {
   verified: { label: 'Verified', icon: '✅', cls: 'fc-verified' },
@@ -12,6 +14,7 @@ export default function FactCheckGate({ postText, onApprove }) {
   const claims = useMemo(() => extractClaimsFromText(postText), [postText])
   const [approvals, setApprovals] = useState({})
   const [dismissed, setDismissed] = useState(false)
+  const { msg: fcMsg, flashOk } = useFlashFeedback()
 
   if (dismissed || claims.length === 0) return null
 
@@ -22,6 +25,7 @@ export default function FactCheckGate({ postText, onApprove }) {
   function handleApprove(claimText, registryId) {
     if (registryId) verifyDataPoint(registryId)
     setApprovals((prev) => ({ ...prev, [claimText]: true }))
+    flashOk('Claim confirmed.')
   }
 
   function handleApproveAll() {
@@ -31,6 +35,7 @@ export default function FactCheckGate({ postText, onApprove }) {
       if (c.registryMatch?.id) verifyDataPoint(c.registryMatch.id)
     }
     setApprovals(next)
+    flashOk('All claims confirmed.')
   }
 
   function handlePublishApproval() {
@@ -107,6 +112,7 @@ export default function FactCheckGate({ postText, onApprove }) {
           </button>
         )}
       </div>
+      <ActionFeedback msg={fcMsg} />
     </section>
   )
 }

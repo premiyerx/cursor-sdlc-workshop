@@ -495,7 +495,8 @@ body {
   cursor: pointer;
 }
 
-.voice-save-feedback {
+.voice-save-feedback,
+.action-feedback {
   margin-top: 0.55rem;
   padding: 0.5rem 0.75rem;
   border-radius: 8px;
@@ -503,13 +504,15 @@ body {
   line-height: 1.4;
 }
 
-.voice-save-feedback--ok {
+.voice-save-feedback--ok,
+.action-feedback--ok {
   color: var(--green);
   background: rgba(62, 220, 129, 0.08);
   border: 1px solid var(--green-border);
 }
 
-.voice-save-feedback--err {
+.voice-save-feedback--err,
+.action-feedback--err {
   color: #ff7675;
   background: rgba(214, 48, 49, 0.1);
   border: 1px solid rgba(214, 48, 49, 0.25);
@@ -782,6 +785,11 @@ body {
   cursor: not-allowed;
 }
 
+.command-generate-feedback {
+  margin-top: 0.5rem;
+  width: 100%;
+}
+
 @media (max-width: 700px) {
   .command-row { flex-direction: column; align-items: stretch; }
   .command-generate { margin-left: 0; }
@@ -867,6 +875,30 @@ body {
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.75rem;
+}
+
+.ai-save-key-btn {
+  flex-shrink: 0;
+  padding: 0.6rem 1rem;
+  background: var(--green);
+  color: #000;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.ai-save-key-btn:hover {
+  opacity: 0.9;
+}
+
+.ai-key-status {
+  margin: -0.35rem 0 0.75rem;
+  font-size: 0.72rem;
+  color: var(--green);
 }
 
 .ai-input,

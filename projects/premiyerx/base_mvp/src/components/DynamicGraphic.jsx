@@ -2,6 +2,8 @@ import { useRef, useMemo, useState, useEffect, useCallback } from 'react'
 import { parsePostContent, pickLayout, simpleHash } from '../utils/postParser'
 import { findCitations } from '../data/citations'
 import TOPICS from '../data/postTemplates'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import ActionFeedback from './ActionFeedback'
 
 const PALETTES = [
   { accent: '#3EDC81', dim: '#1a2e1a', bg2: '#0d1f0d' },
@@ -271,6 +273,7 @@ export default function DynamicGraphic({ postText, topicId }) {
   const [smartBusy, setSmartBusy] = useState(false)
   const [smartHint, setSmartHint] = useState('')
   const [layoutSalt, setLayoutSalt] = useState('')
+  const { msg: graphicMsg, flashOk, flashErr } = useFlashFeedback()
 
   const topic = TOPICS.find((t) => t.id === topicId)
 
@@ -296,6 +299,7 @@ export default function DynamicGraphic({ postText, topicId }) {
         setAiImage(null)
         setImageMode('photo')
         setSmartHint('Matched a stock photo from Unsplash.')
+        flashOk('Stock photo ready — switch modes or download below.')
         setSmartBusy(false)
         return
       }
@@ -306,6 +310,7 @@ export default function DynamicGraphic({ postText, topicId }) {
         setPhoto(null)
         setImageMode('ai')
         setSmartHint('Generated a custom banner with DALL·E 3.')
+        flashOk('AI banner ready — download or switch to infographic.')
         setSmartBusy(false)
         return
       }
@@ -318,31 +323,40 @@ export default function DynamicGraphic({ postText, topicId }) {
       const hasOpenAI = !!(localStorage.getItem('openai_key') || '').trim()
       if (!hasKey && !hasOpenAI) {
         setSmartHint('Using your data-driven infographic. Optional: add Unsplash + OpenAI keys in AI settings for stock photos or AI renders.')
+        flashOk('Infographic refreshed from your post text.')
       } else if (hasKey && !hasOpenAI) {
         setSmartHint('Unsplash had no match — refreshed your infographic layout.')
+        flashOk('No stock match — showing refreshed infographic.')
       } else {
         setSmartHint('Stock + AI unavailable — refreshed your infographic layout.')
+        flashOk('Showing refreshed infographic.')
       }
     } catch {
       setImageMode('generated')
       setLayoutSalt(String(Date.now()))
       setSmartHint('Showing infographic from your post.')
+      flashErr('Visual search failed — showing infographic instead.')
     } finally {
       setSmartBusy(false)
     }
-  }, [parsed, topic])
+  }, [parsed, topic, flashOk, flashErr])
 
   function handleDownload() {
     if (imageMode === 'photo' && photo) {
       window.open(photo.url, '_blank')
+      flashOk('Opened stock photo in a new tab — save from there.')
       return
     }
     if (imageMode === 'ai' && aiImage) {
       window.open(aiImage, '_blank')
+      flashOk('Opened AI banner in a new tab — save from there.')
       return
     }
     const svgEl = canvasRef.current?.querySelector('svg')
-    if (!svgEl) return
+    if (!svgEl) {
+      flashErr('Nothing to download yet — generate a post first.')
+      return
+    }
     const serializer = new XMLSerializer()
     const svgStr = serializer.serializeToString(svgEl)
     const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
@@ -359,8 +373,19 @@ export default function DynamicGraphic({ postText, topicId }) {
       link.download = `linkedin-post-${Date.now()}.png`
       link.href = canvas.toDataURL('image/png')
       link.click()
+      flashOk('PNG downloaded — attach to your LinkedIn post.')
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      flashErr('PNG export failed — try again.')
     }
     img.src = url
+  }
+
+  function switchVisualMode(mode, hint, okMessage) {
+    setImageMode(mode)
+    setSmartHint(hint)
+    flashOk(okMessage)
   }
 
   if (!postText) return null
@@ -386,7 +411,7 @@ export default function DynamicGraphic({ postText, topicId }) {
         <button
           type="button"
           className={`smart-visual-secondary ${imageMode === 'generated' ? 'active' : ''}`}
-          onClick={() => { setImageMode('generated'); setSmartHint('Infographic from your post text.') }}
+          onClick={() => switchVisualMode('generated', 'Infographic from your post text.', 'Showing data-driven infographic.')}
         >
           Infographic
         </button>
@@ -394,7 +419,7 @@ export default function DynamicGraphic({ postText, topicId }) {
           <button
             type="button"
             className={`smart-visual-secondary ${imageMode === 'photo' ? 'active' : ''}`}
-            onClick={() => setImageMode('photo')}
+            onClick={() => switchVisualMode('photo', 'Stock photo from Unsplash.', 'Showing stock photo.')}
           >
             Stock photo
           </button>
@@ -403,7 +428,7 @@ export default function DynamicGraphic({ postText, topicId }) {
           <button
             type="button"
             className={`smart-visual-secondary ${imageMode === 'ai' ? 'active' : ''}`}
-            onClick={() => setImageMode('ai')}
+            onClick={() => switchVisualMode('ai', 'AI-generated banner.', 'Showing AI banner.')}
           >
             AI banner
           </button>
@@ -455,6 +480,7 @@ export default function DynamicGraphic({ postText, topicId }) {
       <button type="button" className="download-btn" onClick={handleDownload}>
         Download Image (PNG)
       </button>
+      <ActionFeedback msg={graphicMsg} />
     </section>
   )
 }
