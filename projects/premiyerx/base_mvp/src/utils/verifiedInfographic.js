@@ -1,6 +1,8 @@
 import { extractClaimsFromText, getRegistry, getStaleStatus } from './dataRegistry'
 import { selectHeadlinesForTopic } from './newsCraft'
 import { getTopicNarrative } from '../data/topicNarratives'
+import { rotateSlice } from './freshnessRotation'
+import { fnv1a, mulberry32 } from './generationVariety'
 
 const TOPIC_REGISTRY_CATEGORIES = {
   cursor: ['cursor', 'market'],
@@ -76,12 +78,20 @@ export function getVerifiedStatsForTopic(topicId, limit = 4, excludeIds = new Se
 }
 
 /**
- * Merge post-verified stats with topic registry fill-ins. Registry is source of truth for values.
+ * Merge post-verified stats with topic registry fill-ins, rotated by refreshSeed.
  */
-export function assembleVerifiedStats(postText, topicId, limit = 3) {
+export function assembleVerifiedStats(postText, topicId, limit = 3, refreshSeed = 0) {
   const fromPost = getVerifiedStatsFromPost(postText, limit)
   const seen = new Set(fromPost.map((s) => s.registryId))
-  const fill = getVerifiedStatsForTopic(topicId, limit - fromPost.length, seen)
+  const cats = TOPIC_REGISTRY_CATEGORIES[topicId] || [topicId]
+  const registry = getRegistry()
+  const pool = Object.values(registry)
+    .filter((dp) => cats.includes(dp.category))
+    .map((dp) => parseRegistryStat(dp))
+    .filter((s) => s.value !== '—' && !seen.has(s.registryId))
+
+  const rotatedPool = rotateSlice(pool, refreshSeed ^ fnv1a('stats'), limit)
+  const fill = rotatedPool.filter((s) => !seen.has(s.registryId))
   return [...fromPost, ...fill].slice(0, limit)
 }
 
@@ -117,14 +127,17 @@ function formatDisplayDate(isoDate) {
 /**
  * Full model for the Level 3 headline-aware infographic (SVG).
  */
-export function buildHeadlineInfographicModel({ postText, topicId, topicLabel, realtimeData }) {
+export function buildHeadlineInfographicModel({ postText, topicId, topicLabel, realtimeData, refreshSeed = 0 }) {
   const narrative = getTopicNarrative(topicId)
-  const headlines = selectHeadlinesForTopic(realtimeData?.headlines || [], topicId, 3)
+  const allHeadlines = selectHeadlinesForTopic(realtimeData?.headlines || [], topicId, 12)
+  const headlines = rotateSlice(allHeadlines, refreshSeed ^ fnv1a('headlines'), 3)
   const lead = headlines[0] || null
   const supporting = headlines.slice(1, 3)
   const hook = (postText || '').split('\n').filter(Boolean)[0] || narrative.label
-  const verifiedStats = assembleVerifiedStats(postText, topicId, 3)
-  const implications = safeArrowLines(postText, 2)
+  const verifiedStats = assembleVerifiedStats(postText, topicId, 3, refreshSeed)
+  const implications = safeArrowLines(postText, 4)
+  const rng = mulberry32((refreshSeed ^ fnv1a(topicId || 'x')) >>> 0)
+  const layoutVariant = Math.floor(rng() * 4)
 
   if (implications.length < 2 && supporting.length > 0) {
     for (const h of supporting) {
@@ -150,11 +163,14 @@ export function buildHeadlineInfographicModel({ postText, topicId, topicLabel, r
         }
       : null,
     verifiedStats,
-    implications: implications.slice(0, 2),
+    implications: rotateSlice(implications, refreshSeed, 2),
     sources: [...sources].slice(0, 4),
     fetchedAt: realtimeData?.fetchedAt || new Date().toISOString(),
     displayDate: formatDisplayDate(realtimeData?.fetchedAt || new Date().toISOString()),
     verifiedCount: verifiedStats.length,
     hasNews: !!lead,
+    refreshSeed,
+    layoutVariant,
+    refreshId: `${refreshSeed}-${layoutVariant}`,
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Level 3: headline-aware infographic — news callout + registry-verified stats only.
+ * Newsroom editorial SVG — rotates layout variant on each refresh.
  */
 
 function wrapText(text, maxChars, maxLines = 2) {
@@ -17,126 +17,158 @@ function wrapText(text, maxChars, maxLines = 2) {
     if (lines.length >= maxLines) break
   }
   if (line && lines.length < maxLines) lines.push(line)
-  if (words.join(' ').length > maxChars * maxLines && lines.length > 0) {
-    const last = lines[lines.length - 1]
-    if (last.length > maxChars - 1) lines[lines.length - 1] = `${last.slice(0, maxChars - 2)}…`
-  }
   return lines.slice(0, maxLines)
+}
+
+function parseStatPercent(value) {
+  const m = String(value).match(/(\d+(?:\.\d+)?)/)
+  return m ? Math.min(100, parseFloat(m[1])) : 50
+}
+
+function BarChartStats({ stats, palette, yBase }) {
+  const barW = 280
+  const gap = 40
+  const startX = 600 - ((stats.length * barW + (stats.length - 1) * gap) / 2)
+  return stats.map((stat, i) => {
+    const x = startX + i * (barW + gap)
+    const pct = parseStatPercent(stat.value)
+    const barH = (pct / 100) * 120
+    return (
+      <g key={stat.registryId || i}>
+        <rect x={x} y={yBase} width={barW} height={130} rx="4" fill="#111" stroke="#222" strokeWidth="1" />
+        <rect x={x + 12} y={yBase + 130 - barH} width={barW - 24} height={barH} rx="3" fill={palette.accent} opacity="0.75" />
+        <text x={x + barW / 2} y={yBase - 12} textAnchor="middle" fill="#fff" fontSize="28" fontWeight="800" fontFamily="Georgia, serif">
+          {stat.value}
+        </text>
+        <text x={x + barW / 2} y={yBase + 150} textAnchor="middle" fill="#666" fontSize="9" fontFamily="Inter, sans-serif">
+          {stat.context.length > 36 ? `${stat.context.slice(0, 33)}…` : stat.context}
+        </text>
+        <text x={x + barW / 2} y={yBase + 166} textAnchor="middle" fill="#444" fontSize="8" fontFamily="Inter, sans-serif" fontStyle="italic">
+          {stat.source}
+        </text>
+      </g>
+    )
+  })
+}
+
+function CardStats({ stats, palette, yBase }) {
+  const cardW = stats.length === 1 ? 400 : stats.length === 2 ? 480 : 340
+  const gap = 36
+  const startX = 600 - ((stats.length * cardW + (stats.length - 1) * gap) / 2)
+  return stats.map((stat, i) => {
+    const x = startX + i * (cardW + gap)
+    return (
+      <g key={stat.registryId || i}>
+        <rect x={x} y={yBase} width={cardW} height={175} rx="2" fill="#fafafa" opacity="0.04" stroke="#333" strokeWidth="1" />
+        <line x1={x} y1={yBase} x2={x} y2={yBase + 175} stroke={palette.accent} strokeWidth="3" />
+        <text x={x + 24} y={yBase + 58} fill="#fff" fontSize="38" fontWeight="800" fontFamily="Georgia, serif">
+          {stat.value}
+        </text>
+        <text x={x + 24} y={yBase + 92} fill="#999" fontSize="11" fontFamily="Inter, sans-serif">
+          {stat.context.length > 42 ? `${stat.context.slice(0, 39)}…` : stat.context}
+        </text>
+        <text x={x + 24} y={yBase + 155} fill="#555" fontSize="8" fontFamily="Inter, sans-serif">
+          SOURCE: {stat.source}
+        </text>
+      </g>
+    )
+  })
 }
 
 export default function HeadlineInfographic({ model, palette }) {
   if (!model) return null
 
-  const { topicLabel, topicBadge, hook, leadHeadline, verifiedStats, implications, sources, displayDate } =
-    model
+  const {
+    topicLabel,
+    topicBadge,
+    hook,
+    leadHeadline,
+    verifiedStats,
+    implications,
+    sources,
+    displayDate,
+    layoutVariant = 0,
+    refreshId,
+  } = model
 
-  const headlineLines = leadHeadline ? wrapText(leadHeadline.title, 52, 2) : []
-  const statCount = verifiedStats.length
-  const statW = statCount === 1 ? 320 : statCount === 2 ? 480 : 360
-  const statGap = statCount === 2 ? 80 : 40
-  const statStartX =
-    statCount === 1 ? 440 : statCount === 2 ? 120 : 60
+  const headlineLines = leadHeadline ? wrapText(leadHeadline.title, 58, 2) : []
+  const variant = layoutVariant % 4
+  const statsY = leadHeadline ? 250 : 200
 
   return (
-    <>
-      {/* Topic + date row */}
-      <rect x="48" y="28" width="auto" height="0" fill="none" />
-      <text x="48" y="48" fill={palette.accent} fontSize="11" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="1.5">
-        {topicLabel.toUpperCase().slice(0, 42)}
+    <g key={refreshId || 'infographic'}>
+      {/* Editorial grid */}
+      {[...Array(12)].map((_, i) => (
+        <line key={`g${i}`} x1={100 * i} y1="0" x2={100 * i} y2="590" stroke="#151515" strokeWidth="1" />
+      ))}
+      <line x1="0" y1="120" x2="1200" y2="120" stroke="#1a1a1a" strokeWidth="1" />
+
+      {/* Masthead */}
+      <text x="56" y="42" fill={palette.accent} fontSize="10" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="2.5">
+        {topicLabel.toUpperCase().slice(0, 38)}
       </text>
-      <text x="1152" y="48" textAnchor="end" fill="#444" fontSize="10" fontFamily="Inter, sans-serif">
+      <text x="1144" y="42" textAnchor="end" fill="#555" fontSize="9" fontFamily="Inter, sans-serif">
         {displayDate}
       </text>
-
-      {/* Hook */}
-      <text x="600" y="82" textAnchor="middle" fill="#f0f0f0" fontSize="18" fontWeight="800" fontFamily="Inter, sans-serif">
-        {hook.length > 64 ? `${hook.slice(0, 61)}…` : hook}
+      <text x="56" y="78" fill="#f5f5f5" fontSize="22" fontWeight="700" fontFamily="Georgia, serif">
+        {hook.length > 58 ? `${hook.slice(0, 55)}…` : hook}
       </text>
-      <line x1="320" y1="94" x2="880" y2="94" stroke={palette.accent} strokeWidth="1" opacity="0.2" />
 
-      {/* News callout */}
-      <rect x="48" y="108" width="1104" height={leadHeadline ? 108 : 56} rx="14" fill="#0f0f0f" stroke={palette.accent} strokeWidth="1" opacity="0.9" />
-      <rect x="48" y="108" width="4" height={leadHeadline ? 108 : 56} rx="2" fill={palette.accent} />
-      <text x="72" y="132" fill={palette.accent} fontSize="10" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="1.2">
+      {/* News ribbon */}
+      <rect x="56" y="100" width="1088" height={leadHeadline ? 96 : 52} fill="#0d0d0d" stroke="#2a2a2a" strokeWidth="1" />
+      <text x="76" y="122" fill={palette.accent} fontSize="9" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="1.5">
         {topicBadge.toUpperCase()}
       </text>
       {leadHeadline ? (
         <>
           {headlineLines.map((ln, i) => (
-            <text key={i} x="72" y={156 + i * 22} fill="#ddd" fontSize="13" fontWeight="600" fontFamily="Inter, sans-serif">
+            <text key={i} x="76" y={144 + i * 24} fill="#e8e8e8" fontSize="14" fontWeight="600" fontFamily="Georgia, serif">
               {ln}
             </text>
           ))}
-          <text x="72" y="198" fill="#555" fontSize="9" fontFamily="Inter, sans-serif">
-            {leadHeadline.source}
-            {leadHeadline.date ? ` · ${leadHeadline.date}` : ''}
-            {' · Paraphrase in posts — headline for context only'}
+          <text x="76" y="186" fill="#555" fontSize="8" fontFamily="Inter, sans-serif">
+            {leadHeadline.source}{leadHeadline.date ? ` · ${leadHeadline.date}` : ''}
           </text>
         </>
       ) : (
-        <text x="72" y="148" fill="#666" fontSize="12" fontFamily="Inter, sans-serif">
-          No live headlines — showing registry-verified data for this pillar.
+        <text x="76" y="132" fill="#666" fontSize="11" fontFamily="Inter, sans-serif">
+          Fetching headlines — stats below are registry-verified.
         </text>
       )}
 
-      {/* Verified stat cards */}
+      {/* Stats — layout rotates */}
       {verifiedStats.length > 0 ? (
-        verifiedStats.map((stat, i) => {
-          const x = statStartX + i * (statW + statGap)
-          const y = leadHeadline ? 238 : 188
-          const h = 200
-          return (
-            <g key={stat.registryId || i}>
-              <rect x={x} y={y} width={statW} height={h} rx="14" fill="#111" stroke="#1e1e1e" strokeWidth="1" />
-              <rect x={x} y={y} width="4" height={h} rx="2" fill={palette.accent} opacity="0.55" />
-              <text x={x + statW / 2} y={y + 72} textAnchor="middle" fill="#fff" fontSize="36" fontWeight="800" fontFamily="Inter, sans-serif">
-                {stat.value}
-              </text>
-              <text x={x + statW / 2} y={y + 108} textAnchor="middle" fill="#888" fontSize="11" fontFamily="Inter, sans-serif">
-                {stat.context.length > 44 ? `${stat.context.slice(0, 41)}…` : stat.context}
-              </text>
-              <text x={x + statW / 2} y={y + 168} textAnchor="middle" fill="#444" fontSize="9" fontFamily="Inter, sans-serif" fontStyle="italic">
-                ✓ {stat.source}
-              </text>
-              {stat.status === 'verified' && (
-                <text x={x + statW - 14} y={y + 22} textAnchor="end" fill={palette.accent} fontSize="8" fontFamily="Inter, sans-serif">
-                  VERIFIED
-                </text>
-              )}
-            </g>
-          )
-        })
+        variant === 0 || variant === 2 ? (
+          <BarChartStats stats={verifiedStats} palette={palette} yBase={statsY + 20} />
+        ) : (
+          <CardStats stats={verifiedStats} palette={palette} yBase={statsY} />
+        )
       ) : (
-        <text x="600" y="320" textAnchor="middle" fill="#555" fontSize="13" fontFamily="Inter, sans-serif">
-          Add registry-backed stats to your post or Data Registry tab.
+        <text x="600" y="340" textAnchor="middle" fill="#555" fontSize="12" fontFamily="Inter, sans-serif">
+          Add cited stats to your post for data cards.
         </text>
       )}
 
-      {/* Implications (text only — no unverified numbers) */}
+      {/* So what */}
       {implications.length > 0 && (
         <>
-          <text x="48" y="468" fill="#555" fontSize="10" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="1">
-            SO WHAT
+          <line x1="56" y1="455" x2="200" y2="455" stroke={palette.accent} strokeWidth="2" />
+          <text x="56" y="478" fill="#888" fontSize="9" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="1.2">
+            THE TAKEAWAY
           </text>
           {implications.map((line, i) => (
-            <g key={i}>
-              <text x="48" y={492 + i * 28} fill={palette.accent} fontSize="14" fontWeight="700" fontFamily="Inter, sans-serif">
-                →
-              </text>
-              <text x="72" y={492 + i * 28} fill="#aaa" fontSize="12" fontFamily="Inter, sans-serif">
-                {line.length > 88 ? `${line.slice(0, 85)}…` : line}
-              </text>
-            </g>
+            <text key={i} x="56" y={502 + i * 26} fill="#bbb" fontSize="12" fontFamily="Inter, sans-serif">
+              {line.length > 92 ? `${line.slice(0, 89)}…` : line}
+            </text>
           ))}
         </>
       )}
 
-      {/* Footer sources */}
       {sources.length > 0 && (
-        <text x="600" y="568" textAnchor="middle" fill="#3a3a3a" fontSize="9" fontFamily="Inter, sans-serif">
-          Registry-verified data · {sources.join(' · ')}
+        <text x="600" y="565" textAnchor="middle" fill="#3a3a3a" fontSize="8" fontFamily="Inter, sans-serif">
+          Verified registry data · {sources.join(' · ')}
         </text>
       )}
-    </>
+    </g>
   )
 }

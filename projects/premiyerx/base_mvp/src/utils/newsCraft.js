@@ -1,6 +1,7 @@
 import { headlinePromptOffset, fnv1a } from './generationVariety'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { buildViralCraftBlock, pickViralArchetype } from './viralCraft'
+import { rotateSlice, bumpRefreshSeed } from './freshnessRotation'
 
 const TOPIC_KEYWORDS = {
   cursor: [
@@ -175,7 +176,9 @@ export function buildFullResearchBrief(realtimeData, topicId) {
  */
 export function weaveNewsIntoTemplate(pick, realtimeData, topicId) {
   const narrative = getTopicNarrative(topicId)
-  const headlines = selectHeadlinesForTopic(realtimeData?.headlines || [], topicId, 3)
+  const seed = bumpRefreshSeed(topicId)
+  const allHeadlines = selectHeadlinesForTopic(realtimeData?.headlines || [], topicId, 10)
+  const headlines = rotateSlice(allHeadlines, seed, 3)
   if (!headlines.length) return { ...pick, headlineCount: 0 }
 
   const lines = headlines.map((h, i) => {
@@ -183,13 +186,14 @@ export function weaveNewsIntoTemplate(pick, realtimeData, topicId) {
     return `→ "${h.title}" — ${h.source}${h.date ? `, ${h.date}` : ''}\n   (${lens} — rewrite in your voice; connect to ${narrative.label.toLowerCase()})`
   })
 
+  const angleIdx = (seed % narrative.hookDirections.length)
   const newsBlock = [
     `📰 ${narrative.signalLabel}:`,
     '',
     ...lines,
     '',
     '💡 Operator take (edit this):',
-    narrative.hookDirections[headlinePromptOffset(headlines.length, topicId) % narrative.hookDirections.length],
+    narrative.hookDirections[angleIdx],
   ].join('\n')
 
   let body = pick.body || ''
@@ -210,10 +214,12 @@ export function weaveNewsIntoTemplate(pick, realtimeData, topicId) {
 }
 
 export function getResearchSummary(realtimeData, topicId) {
-  const headlines = selectHeadlinesForTopic(realtimeData?.headlines || [], topicId, 1)
+  const seed = fnv1a(`${topicId}:summary:${Date.now()}`)
+  const all = selectHeadlinesForTopic(realtimeData?.headlines || [], topicId, 8)
+  const rotated = rotateSlice(all, seed, 1)
   return {
     count: realtimeData?.headlines?.length || 0,
-    lead: headlines[0] || null,
+    lead: rotated[0] || null,
     fetchedAt: realtimeData?.fetchedAt || null,
   }
 }

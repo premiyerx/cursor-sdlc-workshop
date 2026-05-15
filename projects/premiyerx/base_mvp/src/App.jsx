@@ -1,9 +1,11 @@
 import { useState, useCallback, useMemo } from 'react'
 import TOPICS from './data/postTemplates'
 import { findCitations } from './data/citations'
-import { getRealtimeSprinkle, fetchRealtimeContext } from './utils/realtimeData'
+import { getRealtimeSprinkle, fetchRealtimeContext, invalidateRealtimeCache } from './utils/realtimeData'
 import { weaveNewsIntoTemplate, getResearchSummary } from './utils/newsCraft'
 import { pickTemplateIndex, recordGeneratedHook } from './utils/generationVariety'
+import { hasOpenAiKey, generateAIPost } from './utils/aiPostGenerator'
+import { bumpRefreshSeed } from './utils/freshnessRotation'
 import VoiceProfile from './components/VoiceProfile'
 import AIGenerator from './components/AIGenerator'
 import PostDisplay from './components/PostDisplay'
@@ -64,6 +66,18 @@ export default function App() {
     if (!topic) return
     setGenerateBusy(true)
     try {
+      bumpRefreshSeed(selectedTopic)
+      invalidateRealtimeCache(selectedTopic)
+
+      if (hasOpenAiKey()) {
+        const { post } = await generateAIPost(selectedTopic)
+        setGeneratedPost(post)
+        const raw = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
+        setLiveText(appendCitations(raw))
+        flashGenerateOk('Fresh AI post from today\'s headlines — written in your voice. Scroll to review.')
+        return
+      }
+
       const templates = topic.templates
       const idx = pickTemplateIndex(selectedTopic, templates.length)
       const pick = templates[idx]
@@ -84,19 +98,19 @@ export default function App() {
         leadTitle = summary.lead?.title || ''
         woven = weaveNewsIntoTemplate(pick, rt, selectedTopic)
       } catch {
-        /* offline / CORS — template still varies by lens + template rotation */
+        /* offline */
       }
       const raw = `${woven.hook}\n\n${woven.body}${freshLine}\n\n${woven.cta}\n\n${woven.hashtags}`
       setLiveText(appendCitations(raw))
       flashGenerateOk(
         headlineCount > 0
           ? leadTitle
-            ? `Post ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'} (lead: "${leadTitle.slice(0, 52)}${leadTitle.length > 52 ? '…' : ''}"). Scroll down to edit.`
-            : `Post ready — refreshed with ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}. Scroll down to review.`
-          : 'Post ready — scroll down to review and edit.',
+            ? `Post ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'} (lead: "${leadTitle.slice(0, 52)}${leadTitle.length > 52 ? '…' : ''}"). Add OpenAI key for fully fresh AI posts.`
+            : `Post ready — ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}. Add OpenAI key for fully fresh AI posts.`
+          : 'Post ready — add OpenAI key in AI settings for daily-fresh content.',
       )
-    } catch {
-      flashGenerateErr('Could not generate. Check your connection and try again.')
+    } catch (err) {
+      flashGenerateErr(err?.message || 'Could not generate. Check your connection and API key.')
     } finally {
       setGenerateBusy(false)
     }
@@ -207,7 +221,13 @@ export default function App() {
                   onClick={() => void handleGenerate()}
                   disabled={!selectedTopic || generateBusy}
                 >
-                  {generateBusy ? 'Fetching context…' : generatedPost ? '↻ Regenerate' : 'Generate'}
+                  {generateBusy
+                    ? (hasOpenAiKey() ? 'Writing fresh post…' : 'Fetching context…')
+                    : generatedPost
+                      ? '↻ Regenerate fresh'
+                      : hasOpenAiKey()
+                        ? 'Generate fresh post'
+                        : 'Generate'}
                 </button>
               </div>
               <ActionFeedback msg={generateMsg} className="command-generate-feedback" />

@@ -2,8 +2,10 @@ import { useRef, useMemo, useState, useEffect, useCallback } from 'react'
 import { parsePostContent, pickLayout, simpleHash } from '../utils/postParser'
 import { findCitations } from '../data/citations'
 import TOPICS from '../data/postTemplates'
-import { fetchRealtimeContext } from '../utils/realtimeData'
+import { fetchRealtimeContext, invalidateRealtimeCache } from '../utils/realtimeData'
 import { buildHeadlineInfographicModel, assembleVerifiedStats } from '../utils/verifiedInfographic'
+import { bumpRefreshSeed } from '../utils/freshnessRotation'
+import { generateNewsroomImage } from '../utils/newsroomVisual'
 import HeadlineInfographic from './HeadlineInfographic'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
@@ -280,6 +282,9 @@ export default function DynamicGraphic({ postText, topicId }) {
   const [layoutSalt, setLayoutSalt] = useState('')
   const [realtimeData, setRealtimeData] = useState(null)
   const [newsLoading, setNewsLoading] = useState(false)
+  const [refreshSeed, setRefreshSeed] = useState(0)
+  const [newsroomImage, setNewsroomImage] = useState(null)
+  const [newsroomStyle, setNewsroomStyle] = useState('')
   const { msg: graphicMsg, flashOk, flashErr } = useFlashFeedback()
 
   const topic = TOPICS.find((t) => t.id === topicId)
@@ -295,80 +300,105 @@ export default function DynamicGraphic({ postText, topicId }) {
         topicId,
         topicLabel: topic?.label,
         realtimeData,
+        refreshSeed,
       }),
-    [postText, topicId, topic?.label, realtimeData],
+    [postText, topicId, topic?.label, realtimeData, refreshSeed],
   )
 
-  const refreshHeadlines = useCallback(async (forceRefresh = true) => {
+  const refreshHeadlines = useCallback(async (forceRefresh = true, bumpSeed = false) => {
     if (!topicId) return null
     setNewsLoading(true)
     try {
+      if (forceRefresh) invalidateRealtimeCache(topicId)
+      let seed = refreshSeed
+      if (bumpSeed) {
+        seed = bumpRefreshSeed(topicId)
+        setRefreshSeed(seed)
+      }
       const rt = await fetchRealtimeContext(topicId, {
-        forceRefresh,
+        forceRefresh: true,
         topicLabel: topic?.label || '',
       })
       setRealtimeData(rt)
-      return rt
+      return { rt, seed }
     } catch {
       return null
     } finally {
       setNewsLoading(false)
     }
-  }, [topicId, topic?.label])
+  }, [topicId, topic?.label, refreshSeed])
 
   useEffect(() => {
     setPhoto(null)
     setAiImage(null)
+    setNewsroomImage(null)
     setImageMode('headline')
     setSmartHint('')
     setLayoutSalt('')
     setRealtimeData(null)
     if (postText && topicId) {
-      void refreshHeadlines(true)
+      const seed = bumpRefreshSeed(topicId)
+      setRefreshSeed(seed)
+      void refreshHeadlines(true, false)
     }
-  }, [postText, topicId, refreshHeadlines])
+  }, [postText, topicId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const runSmartVisual = useCallback(async () => {
     setSmartBusy(true)
     setSmartHint('')
     try {
-      const rt = await refreshHeadlines(true)
-      setPhoto(null)
-      setAiImage(null)
-      setImageMode('headline')
+      const result = await refreshHeadlines(true, true)
+      const seed = result?.seed ?? refreshSeed
+      const rt = result?.rt ?? realtimeData
 
       const model = buildHeadlineInfographicModel({
         postText,
         topicId,
         topicLabel: topic?.label,
         realtimeData: rt,
+        refreshSeed: seed,
       })
 
-      if (model.hasNews && model.verifiedCount > 0) {
-        setSmartHint(
-          `Headline infographic: "${model.leadHeadline?.title?.slice(0, 55)}…" + ${model.verifiedCount} registry-verified stats.`,
-        )
-        flashOk(`News infographic ready — ${model.verifiedCount} verified stat${model.verifiedCount === 1 ? '' : 's'} from your data registry.`)
-      } else if (model.hasNews) {
-        setSmartHint('Headlines loaded — add registry-backed stats in your post for numeric cards.')
-        flashOk('Headline infographic updated — news context only (no unverified numbers shown).')
-      } else if (model.verifiedCount > 0) {
-        setSmartHint('Registry-verified stats shown — connect GNews for live headline callouts.')
-        flashOk(`Infographic built from ${model.verifiedCount} verified registry stats.`)
-      } else {
-        setSmartHint('Generate a post with cited stats, or add data points in the Data Registry tab.')
-        flashErr('No verified stats found — infographic shows structure only.')
+      const hasOpenAI = !!(localStorage.getItem('openai_key') || '').trim()
+      if (hasOpenAI) {
+        const postTheme = model.implications?.[0] || model.hook
+        const img = await generateNewsroomImage({
+          model,
+          topicLabel: topic?.label || model.topicLabel,
+          refreshSeed: seed,
+          postTheme,
+        })
+        if (img.ok) {
+          setNewsroomImage(img.url)
+          setNewsroomStyle(img.styleName)
+          setPhoto(null)
+          setAiImage(null)
+          setImageMode('newsroom')
+          setSmartHint(`${img.styleName} editorial · ${model.verifiedCount} verified stats · new angle.`)
+          flashOk(`Fresh ${img.styleName} graphic — visual corollary to your post.`)
+          return
+        }
       }
+
+      setNewsroomImage(null)
+      setImageMode('headline')
+      const lead = model.leadHeadline?.title?.slice(0, 48) || 'updated'
+      setSmartHint(`Editorial SVG refreshed · "${lead}…" · layout ${model.layoutVariant + 1}/4`)
+      flashOk(`New headline + stats rotation (${model.verifiedCount} verified).`)
     } catch {
       setImageMode('headline')
-      setSmartHint('Could not refresh headlines — showing last verified data.')
-      flashErr('Headline refresh failed — try again.')
+      flashErr('Refresh failed — try again.')
     } finally {
       setSmartBusy(false)
     }
-  }, [refreshHeadlines, postText, topicId, topic?.label, flashOk, flashErr])
+  }, [refreshHeadlines, postText, topicId, topic?.label, realtimeData, refreshSeed, flashOk, flashErr])
 
   function handleDownload() {
+    if (imageMode === 'newsroom' && newsroomImage) {
+      window.open(newsroomImage, '_blank')
+      flashOk('Opened newsroom graphic — save from the new tab.')
+      return
+    }
     if (imageMode === 'photo' && photo) {
       window.open(photo.url, '_blank')
       flashOk('Opened stock photo in a new tab — save from there.')
@@ -457,7 +487,7 @@ export default function DynamicGraphic({ postText, topicId }) {
     <section className="image-display fade-in-up">
       <h2 className="section-title">Companion Graphic</h2>
       <p className="section-subtitle">
-        News + registry-verified stats · 1200 × 627 · LinkedIn optimized
+        Newsroom editorial graphics · verified data only · 1200 × 627
       </p>
 
       <div className="smart-visual-row">
@@ -468,6 +498,19 @@ export default function DynamicGraphic({ postText, topicId }) {
           disabled={smartBusy || newsLoading}
         >
           {smartBusy || newsLoading ? 'Refreshing news…' : 'Refresh news infographic'}
+        </button>
+        <button
+          type="button"
+          className={`smart-visual-secondary ${imageMode === 'newsroom' ? 'active' : ''}`}
+          onClick={() => {
+            if (newsroomImage) {
+              switchVisualMode('newsroom', `${newsroomStyle} editorial graphic.`, 'Showing newsroom visual.')
+            } else {
+              flashErr('Tap Refresh first to generate a newsroom graphic (needs OpenAI key).')
+            }
+          }}
+        >
+          Newsroom
         </button>
         <button
           type="button"
@@ -514,6 +557,15 @@ export default function DynamicGraphic({ postText, topicId }) {
         <p className="smart-visual-hint">
           {headlineModel.verifiedCount} verified stat{headlineModel.verifiedCount === 1 ? '' : 's'} · lead story from {headlineModel.leadHeadline?.source}
         </p>
+      )}
+
+      {imageMode === 'newsroom' && newsroomImage && (
+        <div className="image-wrapper image-wrapper-graphic">
+          <img src={newsroomImage} alt="Newsroom-style editorial infographic" className="companion-photo" />
+          <div className="unsplash-credit">
+            {newsroomStyle} editorial style · DALL·E 3 · verified stats only · Prem Iyer
+          </div>
+        </div>
       )}
 
       {imageMode === 'headline' && (
