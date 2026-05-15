@@ -24,12 +24,13 @@ export async function createCompanionGraphic({
   let seed = existingSeed
   if (bumpSeed || seed == null) {
     seed = bumpRefreshSeed(topicId)
+    if (bumpSeed) invalidateRealtimeCache(topicId)
   }
 
   let rt = existingRt
-  if (!rt) {
-    report(12, 'Loading headlines for graphic…')
-    invalidateRealtimeCache(topicId)
+  if (!rt || bumpSeed) {
+    report(12, bumpSeed ? 'Fetching fresh headlines…' : 'Loading headlines for graphic…')
+    if (!existingRt || bumpSeed) invalidateRealtimeCache(topicId)
     try {
       rt = await fetchRealtimeContext(topicId, {
         forceRefresh: true,
@@ -37,7 +38,7 @@ export async function createCompanionGraphic({
       })
       report(32, 'Headlines ready')
     } catch {
-      rt = null
+      rt = existingRt
       report(28, 'Building graphic without live headlines…')
     }
   } else {
@@ -57,8 +58,9 @@ export async function createCompanionGraphic({
   const lead = model.leadHeadline?.title?.slice(0, 48) || 'updated'
 
   if (tryNewsroom) {
-    report(55, 'Creating newsroom graphic…')
+    report(48, 'Designing infographic layout…')
     const postTheme = model.implications?.[0] || model.hook
+    report(62, 'Rendering premium graphic with DALL·E…')
     const img = await generateNewsroomImage({
       model,
       topicLabel: topicLabel || model.topicLabel,
@@ -67,16 +69,17 @@ export async function createCompanionGraphic({
     })
 
     if (img.ok) {
-      report(100, 'Newsroom graphic ready')
+      report(100, 'Premium graphic ready')
       return {
         ok: true,
         mode: 'newsroom',
         newsroomImage: img.url,
         newsroomStyle: img.styleName,
+        newsroomVariation: img.variationId,
         realtimeData: rt,
         seed,
         model,
-        hint: `${img.styleName} editorial · ${model.verifiedCount} verified stats.`,
+        hint: `${img.styleName} · variation ${img.variationId} · ${model.verifiedCount} verified stats.`,
         newsroomError: null,
       }
     }

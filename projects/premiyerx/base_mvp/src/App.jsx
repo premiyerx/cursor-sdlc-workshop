@@ -40,21 +40,32 @@ export default function App() {
   const [generatedPost, setGeneratedPost] = useState(null)
   const [liveText, setLiveText] = useState('')
   const [generateBusy, setGenerateBusy] = useState(false)
-  const [generateProgress, setGenerateProgress] = useState(0)
-  const [generateStage, setGenerateStage] = useState('')
+  const [generatePhase, setGeneratePhase] = useState(null)
+  const [postProgress, setPostProgress] = useState(0)
+  const [postStage, setPostStage] = useState('')
+  const [graphicProgress, setGraphicProgress] = useState(0)
+  const [graphicStage, setGraphicStage] = useState('')
   const [customAngle, setCustomAngle] = useState('')
   const [companionGraphic, setCompanionGraphic] = useState(null)
   const [graphicSessionId, setGraphicSessionId] = useState(0)
   const { msg: generateMsg, flashOk: flashGenerateOk, flashErr: flashGenerateErr } = useFlashFeedback()
 
-  const reportGenerateProgress = useCallback((pct, stage) => {
-    setGenerateProgress((prev) => Math.max(prev, pct))
-    if (stage) setGenerateStage(stage)
+  const reportPostProgress = useCallback((pct, stage) => {
+    setPostProgress((prev) => Math.max(prev, pct))
+    if (stage) setPostStage(stage)
+  }, [])
+
+  const reportGraphicProgress = useCallback((pct, stage) => {
+    setGraphicProgress((prev) => Math.max(prev, pct))
+    if (stage) setGraphicStage(stage)
   }, [])
 
   const resetGenerateProgress = useCallback(() => {
-    setGenerateProgress(0)
-    setGenerateStage('')
+    setGeneratePhase(null)
+    setPostProgress(0)
+    setPostStage('')
+    setGraphicProgress(0)
+    setGraphicStage('')
   }, [])
 
   const topic = TOPICS.find((t) => t.id === selectedTopic)
@@ -86,16 +97,19 @@ export default function App() {
     setCompanionGraphic(null)
     try {
       if (hasOpenAiKey()) {
+        setGeneratePhase('post')
         const { post, realtimeData, seed } = await generateAIPost(selectedTopic, {
           customAngle,
-          onProgress: reportGenerateProgress,
+          onProgress: reportPostProgress,
         })
         setGeneratedPost(post)
         const raw = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
         const cited = appendCitations(raw)
         setLiveText(cited)
 
-        reportGenerateProgress(68, 'Creating newsroom graphic…')
+        setGeneratePhase('graphic')
+        setGraphicProgress(0)
+        setGraphicStage('Starting graphic…')
         const graphic = await createCompanionGraphic({
           postText: cited,
           topicId: selectedTopic,
@@ -103,25 +117,24 @@ export default function App() {
           realtimeData,
           seed,
           preferNewsroom: true,
-          onProgress: (pct, stage) => {
-            const mapped = 68 + Math.round(pct * 0.32)
-            reportGenerateProgress(mapped, stage)
-          },
+          bumpSeed: false,
+          onProgress: reportGraphicProgress,
         })
         setCompanionGraphic(graphic)
         setGraphicSessionId((n) => n + 1)
 
         if (graphic.mode === 'newsroom') {
-          flashGenerateOk('Post and newsroom graphic ready — scroll to review.')
+          flashGenerateOk('Post and premium infographic ready — scroll to review.')
         } else if (graphic.newsroomError) {
-          flashGenerateOk('Post ready. SVG graphic shown — newsroom image could not be created this time.')
+          flashGenerateOk('Post ready. SVG fallback shown — DALL·E could not render this time.')
         } else {
           flashGenerateOk('Post and verified SVG graphic ready.')
         }
         return
       }
 
-      reportGenerateProgress(10, 'Choosing template…')
+      setGeneratePhase('post')
+      reportPostProgress(10, 'Choosing template…')
       bumpRefreshSeed(selectedTopic)
       invalidateRealtimeCache(selectedTopic)
 
@@ -137,39 +150,39 @@ export default function App() {
       let leadTitle = ''
       let rt = null
       try {
-        reportGenerateProgress(28, 'Loading today\'s headlines…')
+        reportPostProgress(28, 'Loading today\'s headlines…')
         rt = await fetchRealtimeContext(selectedTopic, {
           forceRefresh: true,
           topicLabel: topic?.label || '',
         })
-        reportGenerateProgress(52, 'Weaving headlines into post…')
+        reportPostProgress(52, 'Weaving headlines into post…')
         const summary = getResearchSummary(rt, selectedTopic)
         headlineCount = summary.count
         leadTitle = summary.lead?.title || ''
         woven = weaveNewsIntoTemplate(pick, rt, selectedTopic)
       } catch {
-        reportGenerateProgress(45, 'Using template without live headlines…')
+        reportPostProgress(45, 'Using template without live headlines…')
       }
 
       const raw = `${woven.hook}\n\n${woven.body}${freshLine}\n\n${woven.cta}\n\n${woven.hashtags}`
       const cited = appendCitations(raw)
       setLiveText(cited)
 
-      reportGenerateProgress(72, 'Creating graphic…')
+      setGeneratePhase('graphic')
+      setGraphicProgress(0)
+      setGraphicStage('Starting graphic…')
       const graphic = await createCompanionGraphic({
         postText: cited,
         topicId: selectedTopic,
         topicLabel: topic.label,
         realtimeData: rt,
         preferNewsroom: false,
-        onProgress: (pct, stage) => {
-          const mapped = 72 + Math.round(pct * 0.28)
-          reportGenerateProgress(mapped, stage)
-        },
+        bumpSeed: true,
+        onProgress: reportGraphicProgress,
       })
       setCompanionGraphic(graphic)
       setGraphicSessionId((n) => n + 1)
-      reportGenerateProgress(100, 'Post ready')
+      reportPostProgress(100, 'Post ready')
 
       flashGenerateOk(
         headlineCount > 0
@@ -183,7 +196,7 @@ export default function App() {
     } finally {
       setGenerateBusy(false)
     }
-  }, [topic, selectedTopic, customAngle, appendCitations, flashGenerateOk, flashGenerateErr, reportGenerateProgress, resetGenerateProgress])
+  }, [topic, selectedTopic, customAngle, appendCitations, flashGenerateOk, flashGenerateErr, reportPostProgress, reportGraphicProgress, resetGenerateProgress])
 
   const handleTopicSelect = useCallback((id) => {
     setSelectedTopic(id)
@@ -287,8 +300,19 @@ export default function App() {
                 >
                   {generateBusy ? (
                     <>
-                      <ProgressRing progress={generateProgress} size={22} strokeWidth={3} className="command-generate-ring" />
-                      <span>{hasOpenAiKey() ? 'Writing fresh post' : 'Building post'}</span>
+                      <ProgressRing
+                        progress={generatePhase === 'graphic' ? graphicProgress : postProgress}
+                        size={22}
+                        strokeWidth={3}
+                        className="command-generate-ring"
+                      />
+                      <span>
+                        {generatePhase === 'graphic'
+                          ? 'Creating graphic'
+                          : hasOpenAiKey()
+                            ? 'Writing fresh post'
+                            : 'Building post'}
+                      </span>
                     </>
                   ) : generatedPost
                     ? '↻ Regenerate fresh'
@@ -297,10 +321,10 @@ export default function App() {
                       : 'Generate'}
                 </button>
               </div>
-              {generateBusy && (
+              {generateBusy && generatePhase === 'post' && (
                 <div className="graphic-progress-panel command-generate-progress">
-                  <ProgressRing progress={generateProgress} size={72} strokeWidth={5} />
-                  <p className="graphic-progress-stage">{generateStage || 'Creating your post…'}</p>
+                  <ProgressRing progress={postProgress} size={72} strokeWidth={5} />
+                  <p className="graphic-progress-stage">{postStage || 'Writing your post…'}</p>
                 </div>
               )}
               <ActionFeedback msg={generateMsg} className="command-generate-feedback" />
@@ -327,6 +351,9 @@ export default function App() {
                         bundleGraphic={companionGraphic}
                         graphicSessionId={graphicSessionId}
                         onGraphicUpdate={setCompanionGraphic}
+                        externalGraphicLoading={generateBusy && generatePhase === 'graphic'}
+                        externalGraphicProgress={graphicProgress}
+                        externalGraphicStage={graphicStage}
                       />
                     )}
                   </div>

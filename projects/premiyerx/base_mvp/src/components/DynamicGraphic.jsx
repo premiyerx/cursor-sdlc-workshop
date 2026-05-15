@@ -278,6 +278,9 @@ export default function DynamicGraphic({
   bundleGraphic = null,
   graphicSessionId = 0,
   onGraphicUpdate,
+  externalGraphicLoading = false,
+  externalGraphicProgress = 0,
+  externalGraphicStage = '',
 }) {
   const canvasRef = useRef(null)
   const [photo, setPhoto] = useState(null)
@@ -295,7 +298,9 @@ export default function DynamicGraphic({
   const [graphicStage, setGraphicStage] = useState('')
   const { msg: graphicMsg, flashOk, flashErr } = useFlashFeedback()
 
-  const isGraphicLoading = smartBusy
+  const isGraphicLoading = smartBusy || externalGraphicLoading
+  const activeProgress = externalGraphicLoading ? externalGraphicProgress : graphicProgress
+  const activeStage = externalGraphicLoading ? externalGraphicStage : graphicStage
 
   const reportGraphicProgress = useCallback((pct, stage) => {
     setGraphicProgress((prev) => Math.max(prev, pct))
@@ -372,9 +377,9 @@ export default function DynamicGraphic({
       finishGraphicProgress('Fresh graphic ready')
 
       if (graphic.mode === 'newsroom') {
-        flashOk(`Fresh ${graphic.newsroomStyle} newsroom graphic.`)
+        flashOk(`New ${graphic.newsroomStyle} layout · variation ${graphic.newsroomVariation || 'fresh'}.`)
       } else if (graphic.newsroomError) {
-        flashOk('New SVG graphic ready.')
+        flashOk('New SVG angle — DALL·E could not render. Check OpenAI billing.')
       } else {
         flashOk('Fresh verified SVG graphic.')
       }
@@ -525,16 +530,21 @@ export default function DynamicGraphic({
   const hasFallbackContent = parsed.stats.length > 0 || parsed.arrowLines.length > 0
 
   const modeLabel = {
-    newsroom: 'Newsroom',
-    headline: 'News infographic',
+    newsroom: 'DALL·E infographic',
+    headline: 'SVG fallback',
     generated: 'Classic',
     photo: 'Stock photo',
     ai: 'AI banner',
-  }[imageMode] || 'News infographic'
+  }[imageMode] || 'Graphic'
+
+  const showGraphicPreview = !isGraphicLoading && (newsroomImage || imageMode === 'headline' || imageMode === 'generated' || photo || aiImage)
 
   return (
     <section className="image-display fade-in-up">
       <h2 className="section-title">Post Graphic</h2>
+      <p className="section-subtitle graphic-section-subtitle">
+        Premium multi-section infographics via DALL·E · verified stats only
+      </p>
 
       <div className="smart-visual-row">
         <button
@@ -545,14 +555,18 @@ export default function DynamicGraphic({
         >
           {isGraphicLoading ? (
             <>
-              <ProgressRing progress={graphicProgress} size={22} strokeWidth={3} className="smart-visual-btn-ring" />
+              <ProgressRing progress={activeProgress} size={22} strokeWidth={3} className="smart-visual-btn-ring" />
               <span>Creating graphic</span>
             </>
           ) : (
-            '↻ Refresh graphic'
+            '↻ New graphic angle'
           )}
         </button>
-        <span className="smart-visual-mode">{modeLabel}</span>
+        {!isGraphicLoading && (
+          <span className="smart-visual-style-pill" title="Current visual style">
+            {modeLabel}
+          </span>
+        )}
       </div>
 
       <button
@@ -617,28 +631,30 @@ export default function DynamicGraphic({
         </div>
       )}
       {isGraphicLoading && (
-        <div className="graphic-progress-panel">
-          <ProgressRing progress={graphicProgress} size={72} strokeWidth={5} />
-          <p className="graphic-progress-stage">{graphicStage || 'Refreshing graphic…'}</p>
+        <div className="graphic-progress-panel graphic-progress-panel--hero">
+          <ProgressRing progress={activeProgress} size={80} strokeWidth={5} />
+          <p className="graphic-progress-stage">{activeStage || 'Creating your infographic…'}</p>
+          <p className="graphic-progress-sub">Premium layout · DALL·E HD · usually 15–30 sec</p>
         </div>
       )}
+
+      {showGraphicPreview && imageMode === 'newsroom' && newsroomImage && (
+        <div className="image-wrapper image-wrapper-graphic">
+          <img src={newsroomImage} alt="Newsroom-style editorial infographic" className="companion-photo" />
+          <div className="unsplash-credit">
+            {newsroomStyle} · DALL·E 3 HD · verified stats · Prem Iyer
+          </div>
+        </div>
+      )}
+
       {smartHint && !isGraphicLoading && <p className="smart-visual-hint">{smartHint}</p>}
-      {!smartHint && !isGraphicLoading && headlineModel.hasNews && (
+      {!smartHint && !isGraphicLoading && headlineModel.hasNews && imageMode === 'headline' && (
         <p className="smart-visual-hint">
           {headlineModel.verifiedCount} verified stat{headlineModel.verifiedCount === 1 ? '' : 's'} · lead story from {headlineModel.leadHeadline?.source}
         </p>
       )}
 
-      {imageMode === 'newsroom' && newsroomImage && (
-        <div className="image-wrapper image-wrapper-graphic">
-          <img src={newsroomImage} alt="Newsroom-style editorial infographic" className="companion-photo" />
-          <div className="unsplash-credit">
-            {newsroomStyle} editorial style · DALL·E 3 · verified stats only · Prem Iyer
-          </div>
-        </div>
-      )}
-
-      {imageMode === 'headline' && (
+      {showGraphicPreview && imageMode === 'headline' && (
         <div className="image-wrapper image-wrapper-graphic" ref={canvasRef}>
           <svg viewBox="0 0 1200 627" xmlns="http://www.w3.org/2000/svg">
             <rect width="1200" height="627" fill="#0a0a0a" />
@@ -657,7 +673,7 @@ export default function DynamicGraphic({
         </div>
       )}
 
-      {imageMode === 'generated' && (
+      {showGraphicPreview && imageMode === 'generated' && (
         <div className="image-wrapper image-wrapper-graphic" ref={canvasRef}>
           <svg viewBox="0 0 1200 627" xmlns="http://www.w3.org/2000/svg">
             <rect width="1200" height="627" fill="#0a0a0a" />
@@ -682,7 +698,7 @@ export default function DynamicGraphic({
         </div>
       )}
 
-      {imageMode === 'photo' && photo && (
+      {showGraphicPreview && imageMode === 'photo' && photo && (
         <div className="image-wrapper image-wrapper-graphic">
           <img src={photo.url} alt="LinkedIn post companion" className="companion-photo" />
           <div className="unsplash-credit">
@@ -691,7 +707,7 @@ export default function DynamicGraphic({
         </div>
       )}
 
-      {imageMode === 'ai' && aiImage && (
+      {showGraphicPreview && imageMode === 'ai' && aiImage && (
         <div className="image-wrapper image-wrapper-graphic">
           <img src={aiImage} alt="AI-generated LinkedIn graphic" className="companion-photo" />
           <div className="unsplash-credit">Generated with DALL·E 3 — Prem Iyer</div>
