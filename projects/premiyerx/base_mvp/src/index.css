@@ -483,6 +483,38 @@ body {
   color: var(--text-muted);
 }
 
+.voice-corpus-clear {
+  padding: 0.35rem 0.75rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.voice-save-feedback {
+  margin-top: 0.55rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.voice-save-feedback--ok {
+  color: var(--green);
+  background: rgba(62, 220, 129, 0.08);
+  border: 1px solid var(--green-border);
+}
+
+.voice-save-feedback--err {
+  color: #ff7675;
+  background: rgba(214, 48, 49, 0.1);
+  border: 1px solid rgba(214, 48, 49, 0.25);
+}
+
 .voice-corpus-input--inline {
   flex: 1 1 12rem;
   min-width: 0;

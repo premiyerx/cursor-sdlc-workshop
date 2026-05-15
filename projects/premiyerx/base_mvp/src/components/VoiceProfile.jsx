@@ -1,6 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { getVoiceProfileForDisplay, getVoiceCorpusMeta, saveVoiceCorpus } from '../data/voiceProfile'
-import { getGnewsApiKey, saveGnewsApiKey } from '../utils/realtimeData'
+import {
+  getGnewsKeyMeta,
+  saveGnewsApiKey,
+  isGnewsKeyConfigured,
+} from '../utils/realtimeData'
 
 export default function VoiceProfile() {
   const [expanded, setExpanded] = useState(false)
@@ -9,7 +13,29 @@ export default function VoiceProfile() {
   const corpusMeta = getVoiceCorpusMeta()
   const [corpusDraft, setCorpusDraft] = useState(corpusMeta.text)
   const [corpusSavedAt, setCorpusSavedAt] = useState(corpusMeta.updated)
-  const [gnewsKey, setGnewsKey] = useState(() => getGnewsApiKey())
+  const [corpusSaveMsg, setCorpusSaveMsg] = useState(null)
+  const [gnewsKey, setGnewsKey] = useState('')
+  const [gnewsMeta, setGnewsMeta] = useState(() => getGnewsKeyMeta())
+  const [gnewsSaveMsg, setGnewsSaveMsg] = useState(null)
+  const gnewsMsgTimer = useRef(null)
+
+  const refreshGnewsMeta = useCallback(() => {
+    setGnewsMeta(getGnewsKeyMeta())
+  }, [])
+
+  useEffect(() => {
+    if (expanded) refreshGnewsMeta()
+  }, [expanded, refreshGnewsMeta])
+
+  useEffect(() => () => {
+    if (gnewsMsgTimer.current) clearTimeout(gnewsMsgTimer.current)
+  }, [])
+
+  const flashGnewsMessage = useCallback((msg) => {
+    setGnewsSaveMsg(msg)
+    if (gnewsMsgTimer.current) clearTimeout(gnewsMsgTimer.current)
+    gnewsMsgTimer.current = setTimeout(() => setGnewsSaveMsg(null), 6000)
+  }, [])
 
   const refreshMeta = useCallback(() => {
     const m = getVoiceCorpusMeta()
@@ -18,14 +44,60 @@ export default function VoiceProfile() {
   }, [])
 
   const handleSaveCorpus = useCallback(() => {
-    saveVoiceCorpus(corpusDraft)
-    refreshMeta()
+    try {
+      saveVoiceCorpus(corpusDraft)
+      refreshMeta()
+      setCorpusSaveMsg(
+        corpusDraft.trim().length >= 80
+          ? { type: 'ok', text: 'Voice corpus saved on this device.' }
+          : { type: 'ok', text: 'Saved (add more posts when you can — 80+ characters helps the model).' },
+      )
+      setTimeout(() => setCorpusSaveMsg(null), 5000)
+    } catch {
+      setCorpusSaveMsg({ type: 'err', text: 'Could not save — browser storage may be blocked.' })
+    }
   }, [corpusDraft, refreshMeta])
 
   const handleGnewsSave = useCallback(() => {
-    saveGnewsApiKey(gnewsKey === 'demo' ? '' : gnewsKey)
-    setGnewsKey(getGnewsApiKey())
-  }, [gnewsKey])
+    const trimmed = gnewsKey.trim()
+    if (!trimmed && !isGnewsKeyConfigured()) {
+      flashGnewsMessage({ type: 'err', text: 'Paste your GNews API key first, then tap Save key.' })
+      return
+    }
+    const result = saveGnewsApiKey(trimmed)
+    if (!result.ok) {
+      flashGnewsMessage({
+        type: 'err',
+        text: result.error || 'Could not save. Try turning off Private Browsing or allow site storage.',
+      })
+      return
+    }
+    setGnewsKey('')
+    refreshGnewsMeta()
+    if (result.cleared) {
+      flashGnewsMessage({
+        type: 'ok',
+        text: 'GNews key removed. Headlines will use Hacker News only until you save a key again.',
+      })
+      return
+    }
+    const meta = getGnewsKeyMeta()
+    flashGnewsMessage({
+      type: 'ok',
+      text: `GNews key saved on this device${meta.lastFour ? ` (ends in …${meta.lastFour})` : ''}${meta.savedAt ? ` · ${meta.savedAt}` : ''}.`,
+    })
+  }, [gnewsKey, flashGnewsMessage, refreshGnewsMeta])
+
+  const handleGnewsClear = useCallback(() => {
+    const result = saveGnewsApiKey('')
+    if (!result.ok) {
+      flashGnewsMessage({ type: 'err', text: result.error || 'Could not clear key.' })
+      return
+    }
+    setGnewsKey('')
+    refreshGnewsMeta()
+    flashGnewsMessage({ type: 'ok', text: 'GNews key removed from this device.' })
+  }, [flashGnewsMessage, refreshGnewsMeta])
 
   const hasVoiceCorpus = corpusMeta.text.trim().length >= 80
 
@@ -109,20 +181,44 @@ export default function VoiceProfile() {
             <p className="voice-corpus-hint">
               Improves headline diversity alongside Hacker News. Get a free key at{' '}
               <a href="https://gnews.io/" target="_blank" rel="noreferrer">gnews.io</a>
-              . Stored only in this browser.
+              . Stored only in this browser / phone.
             </p>
+            {gnewsMeta.configured && !gnewsSaveMsg && (
+              <p className="voice-corpus-hint voice-corpus-hint--ok" role="status">
+                GNews active on this device
+                {gnewsMeta.lastFour ? ` (key ends in …${gnewsMeta.lastFour})` : ''}
+                {gnewsMeta.savedAt ? ` · saved ${gnewsMeta.savedAt}` : ''}
+              </p>
+            )}
             <div className="voice-corpus-actions">
               <input
                 type="password"
                 className="voice-corpus-input voice-corpus-input--inline"
-                placeholder="GNews API key (optional)"
-                value={gnewsKey === 'demo' ? '' : gnewsKey}
+                placeholder={gnewsMeta.configured ? 'Paste a new key to replace saved key' : 'GNews API key (optional)'}
+                value={gnewsKey}
                 onChange={(e) => setGnewsKey(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
               />
               <button type="button" className="voice-corpus-save" onClick={handleGnewsSave}>
                 Save key
               </button>
+              {gnewsMeta.configured && (
+                <button type="button" className="voice-corpus-clear" onClick={handleGnewsClear}>
+                  Remove
+                </button>
+              )}
             </div>
+            {gnewsSaveMsg && (
+              <p
+                className={`voice-save-feedback voice-save-feedback--${gnewsSaveMsg.type}`}
+                role="status"
+                aria-live="polite"
+              >
+                {gnewsSaveMsg.type === 'ok' ? '✓ ' : '⚠ '}
+                {gnewsSaveMsg.text}
+              </p>
+            )}
           </div>
 
           <div className="voice-section voice-section--corpus">
@@ -162,6 +258,16 @@ export default function VoiceProfile() {
                     <span className="voice-corpus-meta">Last saved: {corpusSavedAt}</span>
                   )}
                 </div>
+                {corpusSaveMsg && (
+                  <p
+                    className={`voice-save-feedback voice-save-feedback--${corpusSaveMsg.type}`}
+                    role="status"
+                    aria-live="polite"
+                  >
+                    {corpusSaveMsg.type === 'ok' ? '✓ ' : '⚠ '}
+                    {corpusSaveMsg.text}
+                  </p>
+                )}
               </>
             )}
           </div>

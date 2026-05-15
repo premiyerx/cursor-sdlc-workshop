@@ -6,6 +6,7 @@ const CACHE_KEY = 'lidp_realtime_cache'
 const CACHE_TTL = 4 * 60 * 60 * 1000
 
 const GNEWS_KEY_STORAGE = 'lidp_gnews_api_key'
+const GNEWS_KEY_SAVED_AT = 'lidp_gnews_api_key_saved_at'
 
 export function getGnewsApiKey() {
   try {
@@ -16,9 +17,42 @@ export function getGnewsApiKey() {
   return (env && String(env).trim()) || 'demo'
 }
 
+export function isGnewsKeyConfigured() {
+  const k = getGnewsApiKey()
+  return !!k && k !== 'demo'
+}
+
+export function getGnewsKeyMeta() {
+  try {
+    return {
+      configured: isGnewsKeyConfigured(),
+      savedAt: localStorage.getItem(GNEWS_KEY_SAVED_AT) || '',
+      lastFour: (() => {
+        const k = localStorage.getItem(GNEWS_KEY_STORAGE)?.trim()
+        return k && k.length >= 4 ? k.slice(-4) : ''
+      })(),
+    }
+  } catch {
+    return { configured: false, savedAt: '', lastFour: '' }
+  }
+}
+
+/** @returns {{ ok: boolean, cleared?: boolean, error?: string }} */
 export function saveGnewsApiKey(key) {
-  if (key?.trim()) localStorage.setItem(GNEWS_KEY_STORAGE, key.trim())
-  else localStorage.removeItem(GNEWS_KEY_STORAGE)
+  try {
+    const trimmed = key?.trim() || ''
+    if (trimmed) {
+      localStorage.setItem(GNEWS_KEY_STORAGE, trimmed)
+      localStorage.setItem(GNEWS_KEY_SAVED_AT, new Date().toISOString().slice(0, 10))
+    } else {
+      localStorage.removeItem(GNEWS_KEY_STORAGE)
+      localStorage.removeItem(GNEWS_KEY_SAVED_AT)
+    }
+    return { ok: true, cleared: !trimmed }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Could not save (browser storage blocked?)'
+    return { ok: false, error: message }
+  }
 }
 
 function calendarDayUtc() {
