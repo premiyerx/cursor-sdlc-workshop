@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import TOPICS from './data/postTemplates'
 import { findCitations } from './data/citations'
 import { getRealtimeSprinkle, fetchRealtimeContext, invalidateRealtimeCache } from './utils/realtimeData'
@@ -67,6 +67,15 @@ export default function App() {
     setGraphicProgress(0)
     setGraphicStage('')
   }, [])
+
+  // Gentle progress creep while OpenAI writes (avoids stuck-at-60% feel)
+  useEffect(() => {
+    if (!generateBusy || generatePhase !== 'post') return undefined
+    const timer = setInterval(() => {
+      setPostProgress((p) => (p >= 58 && p < 88 ? p + 1 : p))
+    }, 2200)
+    return () => clearInterval(timer)
+  }, [generateBusy, generatePhase])
 
   const topic = TOPICS.find((t) => t.id === selectedTopic)
 
@@ -310,25 +319,19 @@ export default function App() {
                   disabled={!selectedTopic || generateBusy}
                 >
                   {generateBusy ? (
-                    generatePhase === 'graphic' ? (
-                      <span>Creating your infographic…</span>
-                    ) : (
-                      <>
-                        <ProgressRing progress={postProgress} size={22} strokeWidth={3} className="command-generate-ring" />
-                        <span>Writing your post…</span>
-                      </>
-                    )
+                    <span>{generatePhase === 'graphic' ? 'Creating your infographic…' : 'Writing your post…'}</span>
                   ) : generatedPost
-                    ? '↻ Regenerate fresh'
-                    : hasOpenAiKey()
+                    ? '↻ Regenerate post + graphic'
+                    : format === 'image'
                       ? 'Generate post + graphic'
-                      : 'Generate'}
+                      : 'Generate post'}
                 </button>
               </div>
               {generateBusy && generatePhase === 'post' && (
                 <div className="graphic-progress-panel command-generate-progress">
                   <ProgressRing progress={postProgress} size={72} strokeWidth={5} />
                   <p className="graphic-progress-stage">{postStage || 'Writing your post…'}</p>
+                  <p className="graphic-progress-sub">Usually 10–20 seconds</p>
                 </div>
               )}
               <ActionFeedback msg={generateMsg} className="command-generate-feedback" />

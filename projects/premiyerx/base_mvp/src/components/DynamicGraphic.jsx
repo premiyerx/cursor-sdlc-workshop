@@ -9,6 +9,7 @@ import { getOpenAiKeyStatus } from '../utils/openaiKey'
 import HeadlineInfographic from './HeadlineInfographic'
 import ProgressRing from './ProgressRing'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import { saveImageToDevice, saveSuccessMessage } from '../utils/saveImage'
 import ActionFeedback from './ActionFeedback'
 
 const PALETTES = [
@@ -305,6 +306,7 @@ export default function DynamicGraphic({
   const [graphicStage, setGraphicStage] = useState('')
   const [graphicError, setGraphicError] = useState('')
   const [graphicErrorDetail, setGraphicErrorDetail] = useState('')
+  const [downloadBusy, setDownloadBusy] = useState(false)
   const { msg: graphicMsg, flashOk, flashErr } = useFlashFeedback()
 
   const isGraphicLoading = smartBusy || externalGraphicLoading
@@ -474,50 +476,58 @@ export default function DynamicGraphic({
     }
   }
 
-  function handleDownload() {
-    if (imageMode === 'newsroom' && newsroomImage) {
-      window.open(newsroomImage, '_blank')
-      flashOk('Opened your infographic — save it from the new tab for LinkedIn.')
-      return
-    }
-    if (imageMode === 'photo' && photo) {
-      window.open(photo.url, '_blank')
-      flashOk('Opened stock photo in a new tab — save from there.')
-      return
-    }
-    if (imageMode === 'ai' && aiImage) {
-      window.open(aiImage, '_blank')
-      flashOk('Opened AI banner in a new tab — save from there.')
-      return
-    }
-    const svgEl = canvasRef.current?.querySelector('svg')
-    if (!svgEl) {
-      flashErr('Nothing to download yet — generate a post first.')
-      return
-    }
-    const serializer = new XMLSerializer()
-    const svgStr = serializer.serializeToString(svgEl)
-    const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
-    const url = URL.createObjectURL(svgBlob)
-    const img = new Image()
-    img.onload = () => {
+  async function handleDownload() {
+    if (downloadBusy) return
+    setDownloadBusy(true)
+    try {
+      if (imageMode === 'newsroom' && newsroomImage) {
+        const result = await saveImageToDevice(newsroomImage, { topicLabel: topic?.label })
+        if (result.ok) flashOk(saveSuccessMessage(result))
+        else flashErr(result.error || 'Could not save image.')
+        return
+      }
+      if (imageMode === 'photo' && photo) {
+        const result = await saveImageToDevice(photo.url, { topicLabel: topic?.label })
+        if (result.ok) flashOk(saveSuccessMessage(result))
+        else flashErr(result.error || 'Could not save image.')
+        return
+      }
+      if (imageMode === 'ai' && aiImage) {
+        const result = await saveImageToDevice(aiImage, { topicLabel: topic?.label })
+        if (result.ok) flashOk(saveSuccessMessage(result))
+        else flashErr(result.error || 'Could not save image.')
+        return
+      }
+      const svgEl = canvasRef.current?.querySelector('svg')
+      if (!svgEl) {
+        flashErr('Nothing to save yet — generate a post first.')
+        return
+      }
+      const serializer = new XMLSerializer()
+      const svgStr = serializer.serializeToString(svgEl)
+      const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+      const url = URL.createObjectURL(svgBlob)
+      const img = new Image()
+      await new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = reject
+        img.src = url
+      })
       const canvas = document.createElement('canvas')
       canvas.width = 1200
       canvas.height = 627
       const ctx = canvas.getContext('2d')
       ctx.drawImage(img, 0, 0)
       URL.revokeObjectURL(url)
-      const link = document.createElement('a')
-      link.download = `linkedin-post-${Date.now()}.png`
-      link.href = canvas.toDataURL('image/png')
-      link.click()
-      flashOk('PNG downloaded — attach to your LinkedIn post.')
+      const dataUrl = canvas.toDataURL('image/png')
+      const result = await saveImageToDevice(dataUrl, { topicLabel: topic?.label })
+      if (result.ok) flashOk(saveSuccessMessage(result))
+      else flashErr(result.error || 'Could not save image.')
+    } catch {
+      flashErr('Could not save image — try again.')
+    } finally {
+      setDownloadBusy(false)
     }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      flashErr('PNG export failed — try again.')
-    }
-    img.src = url
   }
 
   function switchVisualMode(mode, hint, okMessage) {
@@ -768,8 +778,8 @@ export default function DynamicGraphic({
         </div>
       )}
 
-      <button type="button" className="download-btn" onClick={handleDownload}>
-        Download Image (PNG)
+      <button type="button" className="download-btn" onClick={() => void handleDownload()} disabled={downloadBusy}>
+        {downloadBusy ? 'Saving…' : 'Save infographic to Photos / Files'}
       </button>
       <ActionFeedback msg={graphicMsg} />
     </section>
