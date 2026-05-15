@@ -312,7 +312,7 @@ export default function DynamicGraphic({
   const isGraphicLoading = smartBusy || externalGraphicLoading
   const activeProgress = externalGraphicLoading ? externalGraphicProgress : graphicProgress
   const activeStage = externalGraphicLoading ? externalGraphicStage : graphicStage
-  const showHeroProgress = isGraphicLoading
+  const showHeroProgress = isGraphicLoading && !externalGraphicLoading
 
   const reportGraphicProgress = useCallback((pct, stage) => {
     setGraphicProgress((prev) => Math.max(prev, pct))

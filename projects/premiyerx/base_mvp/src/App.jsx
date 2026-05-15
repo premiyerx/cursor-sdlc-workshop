@@ -21,7 +21,9 @@ import Analytics from './components/Analytics'
 import DataManager from './components/DataManager'
 import { useFlashFeedback } from './hooks/useFlashFeedback'
 import ActionFeedback from './components/ActionFeedback'
-import ProgressRing from './components/ProgressRing'
+import CommandProgress from './components/CommandProgress'
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const DAILY_ANGLES = {
   Monday: { suggested: 'cursor', reason: 'Monday = high engagement from professionals starting their week.' },
@@ -45,6 +47,7 @@ export default function App() {
   const [postStage, setPostStage] = useState('')
   const [graphicProgress, setGraphicProgress] = useState(0)
   const [graphicStage, setGraphicStage] = useState('')
+  const [phaseComplete, setPhaseComplete] = useState(false)
   const [customAngle, setCustomAngle] = useState('')
   const [companionGraphic, setCompanionGraphic] = useState(null)
   const [graphicSessionId, setGraphicSessionId] = useState(0)
@@ -66,16 +69,33 @@ export default function App() {
     setPostStage('')
     setGraphicProgress(0)
     setGraphicStage('')
+    setPhaseComplete(false)
   }, [])
 
-  // Gentle progress creep while OpenAI writes (avoids stuck-at-60% feel)
+  const flashPhaseComplete = useCallback(async (phase, stage) => {
+    setPhaseComplete(true)
+    if (stage) {
+      if (phase === 'graphic') setGraphicStage(stage)
+      else setPostStage(stage)
+    }
+    await sleep(1400)
+    setPhaseComplete(false)
+  }, [])
+
+  // Smooth creep between real milestones so the ring never feels stuck
   useEffect(() => {
-    if (!generateBusy || generatePhase !== 'post') return undefined
+    if (!generateBusy || phaseComplete || !generatePhase) return undefined
     const timer = setInterval(() => {
-      setPostProgress((p) => (p >= 58 && p < 88 ? p + 1 : p))
-    }, 2200)
+      const tick = (prev) => {
+        if (prev >= 94) return prev
+        const bump = prev < 40 ? 1.2 : prev < 70 ? 1.6 : 1
+        return Math.min(94, prev + bump)
+      }
+      if (generatePhase === 'post') setPostProgress(tick)
+      else if (generatePhase === 'graphic') setGraphicProgress(tick)
+    }, 1100)
     return () => clearInterval(timer)
-  }, [generateBusy, generatePhase])
+  }, [generateBusy, generatePhase, phaseComplete])
 
   const topic = TOPICS.find((t) => t.id === selectedTopic)
 
@@ -116,7 +136,8 @@ export default function App() {
         const cited = appendCitations(raw)
         setLiveText(cited)
         setPostProgress(100)
-        setPostStage('Post ready — now creating your picture…')
+        setPostStage('Post complete')
+        await flashPhaseComplete('post', 'Post complete')
 
         setGeneratePhase('graphic')
         setGraphicProgress(0)
@@ -134,6 +155,9 @@ export default function App() {
         })
         setCompanionGraphic(graphic)
         setGraphicSessionId((n) => n + 1)
+        setGraphicProgress(100)
+        setGraphicStage(graphic.ok ? 'Infographic complete' : 'Infographic finished')
+        await flashPhaseComplete('graphic', graphic.ok ? 'Infographic complete' : 'Infographic finished')
 
         if (graphic.ok && graphic.mode === 'newsroom') {
           flashGenerateOk('Your post and infographic are ready — scroll down to save the picture.')
@@ -180,7 +204,8 @@ export default function App() {
       const cited = appendCitations(raw)
       setLiveText(cited)
       setPostProgress(100)
-      setPostStage('Post ready')
+      setPostStage('Post complete')
+      await flashPhaseComplete('post', 'Post complete')
 
       setGeneratePhase('graphic')
       setGraphicProgress(0)
@@ -197,6 +222,9 @@ export default function App() {
       })
       setCompanionGraphic(graphic)
       setGraphicSessionId((n) => n + 1)
+      setGraphicProgress(100)
+      setGraphicStage(graphic.ok ? 'Infographic complete' : 'Infographic finished')
+      await flashPhaseComplete('graphic', graphic.ok ? 'Infographic complete' : 'Infographic finished')
 
       if (graphic.ok && graphic.mode === 'newsroom') {
         flashGenerateOk('Your post and infographic are ready.')
@@ -216,7 +244,7 @@ export default function App() {
     } finally {
       setGenerateBusy(false)
     }
-  }, [topic, selectedTopic, customAngle, appendCitations, flashGenerateOk, flashGenerateErr, reportPostProgress, reportGraphicProgress, resetGenerateProgress])
+  }, [topic, selectedTopic, customAngle, appendCitations, flashGenerateOk, flashGenerateErr, reportPostProgress, reportGraphicProgress, resetGenerateProgress, flashPhaseComplete])
 
   const handleTopicSelect = useCallback((id) => {
     setSelectedTopic(id)
@@ -318,21 +346,30 @@ export default function App() {
                   onClick={() => void handleGenerate()}
                   disabled={!selectedTopic || generateBusy}
                 >
-                  {generateBusy ? (
-                    <span>{generatePhase === 'graphic' ? 'Creating your infographic…' : 'Writing your post…'}</span>
-                  ) : generatedPost
+                  {generatedPost
                     ? '↻ Regenerate post + graphic'
                     : format === 'image'
                       ? 'Generate post + graphic'
                       : 'Generate post'}
                 </button>
               </div>
-              {generateBusy && generatePhase === 'post' && (
-                <div className="graphic-progress-panel command-generate-progress">
-                  <ProgressRing progress={postProgress} size={72} strokeWidth={5} />
-                  <p className="graphic-progress-stage">{postStage || 'Writing your post…'}</p>
-                  <p className="graphic-progress-sub">Usually 10–20 seconds</p>
-                </div>
+              {generateBusy && generatePhase && (
+                <CommandProgress
+                  progress={generatePhase === 'post' ? postProgress : graphicProgress}
+                  stage={
+                    generatePhase === 'post'
+                      ? postStage || 'Writing your post…'
+                      : graphicStage || 'Creating your infographic…'
+                  }
+                  complete={phaseComplete}
+                  sub={
+                    phaseComplete
+                      ? ''
+                      : generatePhase === 'post'
+                        ? 'Usually 10–20 seconds'
+                        : 'Usually 20–45 seconds'
+                  }
+                />
               )}
               <ActionFeedback msg={generateMsg} className="command-generate-feedback" />
             </section>

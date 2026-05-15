@@ -1,11 +1,13 @@
 /**
- * Circular progress — fill advances only when `progress` changes (real pipeline steps).
+ * Circular progress — shows % in center, or a checkmark when complete.
  */
 export default function ProgressRing({
   progress = 0,
   size = 48,
   strokeWidth = 4,
   className = '',
+  complete = false,
+  showPercent = false,
   'aria-label': ariaLabel = 'Progress',
 }) {
   const clamped = Math.min(100, Math.max(0, progress))
@@ -13,6 +15,22 @@ export default function ProgressRing({
   const circumference = 2 * Math.PI * radius
   const offset = circumference - (clamped / 100) * circumference
   const center = size / 2
+  const fontSize = size < 40 ? 9 : size < 56 ? 11 : 14
+
+  if (complete) {
+    return (
+      <div
+        className={`progress-ring-complete ${className}`.trim()}
+        style={{ width: size, height: size }}
+        role="img"
+        aria-label="Complete"
+      >
+        <span className="progress-ring-check" aria-hidden>
+          ✓
+        </span>
+      </div>
+    )
+  }
 
   return (
     <svg
@@ -46,6 +64,20 @@ export default function ProgressRing({
         strokeDashoffset={offset}
         transform={`rotate(-90 ${center} ${center})`}
       />
+      {showPercent && (
+        <text
+          x={center}
+          y={center}
+          textAnchor="middle"
+          dominantBaseline="central"
+          className="progress-ring-label"
+          fontSize={fontSize}
+          fontWeight="700"
+          fill="currentColor"
+        >
+          {Math.round(clamped)}%
+        </text>
+      )}
     </svg>
   )
 }

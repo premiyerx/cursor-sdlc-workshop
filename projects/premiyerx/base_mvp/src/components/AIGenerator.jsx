@@ -72,7 +72,7 @@ export default function AIGenerator({ customAngle, onCustomAngleChange }) {
       className="ai-settings-wrap"
       title="Settings"
       badge={statusBadge}
-      hint={keyStatus.saved ? keyStatus.label : 'Add OpenAI key for AI posts and premium infographics'}
+      hint={keyStatus.saved ? 'Tap to view or change keys' : 'Add OpenAI key for AI posts and premium infographics'}
       defaultOpen={!hasKey}
     >
       <div className="ai-settings">
