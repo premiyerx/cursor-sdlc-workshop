@@ -296,11 +296,14 @@ export default function DynamicGraphic({
   const [showOtherStyles, setShowOtherStyles] = useState(false)
   const [graphicProgress, setGraphicProgress] = useState(0)
   const [graphicStage, setGraphicStage] = useState('')
+  const [graphicError, setGraphicError] = useState('')
+  const [graphicErrorDetail, setGraphicErrorDetail] = useState('')
   const { msg: graphicMsg, flashOk, flashErr } = useFlashFeedback()
 
   const isGraphicLoading = smartBusy || externalGraphicLoading
   const activeProgress = externalGraphicLoading ? externalGraphicProgress : graphicProgress
   const activeStage = externalGraphicLoading ? externalGraphicStage : graphicStage
+  const showHeroProgress = isGraphicLoading
 
   const reportGraphicProgress = useCallback((pct, stage) => {
     setGraphicProgress((prev) => Math.max(prev, pct))
@@ -312,7 +315,7 @@ export default function DynamicGraphic({
     setGraphicStage('')
   }, [])
 
-  const finishGraphicProgress = useCallback((stage = 'Graphic ready') => {
+  const finishGraphicProgress = useCallback((stage = 'Picture ready') => {
     setGraphicProgress(100)
     setGraphicStage(stage)
   }, [])
@@ -321,12 +324,25 @@ export default function DynamicGraphic({
     if (!bundle) return
     setRealtimeData(bundle.realtimeData ?? null)
     setRefreshSeed(bundle.seed ?? 0)
+    setPhoto(null)
+    setAiImage(null)
+
+    if (bundle.ok === false) {
+      setImageMode('failed')
+      setNewsroomImage(null)
+      setNewsroomStyle('')
+      setSmartHint('')
+      setGraphicError(bundle.error || 'Could not create your infographic picture.')
+      setGraphicErrorDetail(bundle.rawError || bundle.error || '')
+      return
+    }
+
+    setGraphicError('')
+    setGraphicErrorDetail('')
     setImageMode(bundle.mode || 'headline')
     setNewsroomImage(bundle.newsroomImage || null)
     setNewsroomStyle(bundle.newsroomStyle || '')
     setSmartHint(bundle.hint || '')
-    setPhoto(null)
-    setAiImage(null)
   }, [])
 
   const topic = TOPICS.find((t) => t.id === topicId)
@@ -348,19 +364,25 @@ export default function DynamicGraphic({
   )
 
   useEffect(() => {
-    if (bundleGraphic) {
-      applyBundle(bundleGraphic)
-      finishGraphicProgress(
-        bundleGraphic.mode === 'newsroom' ? 'Newsroom graphic ready' : 'SVG graphic ready',
-      )
+    if (!bundleGraphic) return
+    applyBundle(bundleGraphic)
+    if (!externalGraphicLoading) {
+      if (bundleGraphic.ok === false) {
+        finishGraphicProgress('Picture could not be created')
+      } else if (bundleGraphic.mode === 'newsroom') {
+        finishGraphicProgress('Infographic ready')
+      } else {
+        finishGraphicProgress('Basic chart ready')
+      }
     }
-  }, [graphicSessionId, bundleGraphic, applyBundle, finishGraphicProgress])
+  }, [graphicSessionId, bundleGraphic, applyBundle, finishGraphicProgress, externalGraphicLoading])
 
   const runSmartVisual = useCallback(async () => {
     if (!postText || !topicId) return
     setSmartBusy(true)
+    setGraphicError('')
     resetGraphicProgress()
-    reportGraphicProgress(5, 'Refreshing graphic…')
+    reportGraphicProgress(5, 'Planning a new picture layout…')
     try {
       const graphic = await createCompanionGraphic({
         postText,
@@ -374,17 +396,19 @@ export default function DynamicGraphic({
       })
       applyBundle(graphic)
       onGraphicUpdate?.(graphic)
-      finishGraphicProgress('Fresh graphic ready')
 
-      if (graphic.mode === 'newsroom') {
-        flashOk(`New ${graphic.newsroomStyle} layout · variation ${graphic.newsroomVariation || 'fresh'}.`)
-      } else if (graphic.newsroomError) {
-        flashOk('New SVG angle — DALL·E could not render. Check OpenAI billing.')
+      if (graphic.ok && graphic.mode === 'newsroom') {
+        finishGraphicProgress('Infographic ready')
+        flashOk(`${graphic.newsroomStyle} infographic ready — save or post on LinkedIn.`)
+      } else if (!graphic.ok) {
+        finishGraphicProgress('Picture could not be created')
+        flashErr(graphic.error || 'Could not create your picture.')
       } else {
-        flashOk('Fresh verified SVG graphic.')
+        finishGraphicProgress('Basic chart ready')
+        flashOk('Basic chart ready — add your OpenAI key in Settings for premium pictures.')
       }
     } catch {
-      flashErr('Refresh failed — try again.')
+      flashErr('Could not refresh — try again.')
     } finally {
       setSmartBusy(false)
     }
@@ -414,7 +438,7 @@ export default function DynamicGraphic({
     }
     setSmartBusy(true)
     resetGraphicProgress()
-    reportGraphicProgress(40, 'Creating newsroom graphic…')
+    reportGraphicProgress(40, 'Creating your LinkedIn picture…')
     try {
       const graphic = await createCompanionGraphic({
         postText,
@@ -429,10 +453,12 @@ export default function DynamicGraphic({
       if (graphic.ok && graphic.mode === 'newsroom') {
         applyBundle(graphic)
         onGraphicUpdate?.(graphic)
-        finishGraphicProgress('Newsroom graphic ready')
-        flashOk(`${graphic.newsroomStyle} newsroom graphic ready.`)
+        finishGraphicProgress('Infographic ready')
+        flashOk(`${graphic.newsroomStyle} infographic ready.`)
       } else {
-        flashErr(graphic.error || 'Could not create newsroom graphic.')
+        setGraphicError(graphic.error || 'Could not create your picture.')
+        finishGraphicProgress('Picture could not be created')
+        flashErr(graphic.error || 'Could not create your picture.')
       }
     } finally {
       setSmartBusy(false)
@@ -442,7 +468,7 @@ export default function DynamicGraphic({
   function handleDownload() {
     if (imageMode === 'newsroom' && newsroomImage) {
       window.open(newsroomImage, '_blank')
-      flashOk('Opened newsroom graphic — save from the new tab.')
+      flashOk('Opened your infographic — save it from the new tab for LinkedIn.')
       return
     }
     if (imageMode === 'photo' && photo) {
@@ -530,20 +556,24 @@ export default function DynamicGraphic({
   const hasFallbackContent = parsed.stats.length > 0 || parsed.arrowLines.length > 0
 
   const modeLabel = {
-    newsroom: 'DALL·E infographic',
-    headline: 'SVG fallback',
+    newsroom: 'AI infographic',
+    headline: 'Basic chart',
+    failed: 'Picture needed',
     generated: 'Classic',
     photo: 'Stock photo',
     ai: 'AI banner',
   }[imageMode] || 'Graphic'
 
-  const showGraphicPreview = !isGraphicLoading && (newsroomImage || imageMode === 'headline' || imageMode === 'generated' || photo || aiImage)
+  const showGraphicPreview =
+    !isGraphicLoading &&
+    imageMode !== 'failed' &&
+    (newsroomImage || imageMode === 'headline' || imageMode === 'generated' || photo || aiImage)
 
   return (
     <section className="image-display fade-in-up">
       <h2 className="section-title">Post Graphic</h2>
       <p className="section-subtitle graphic-section-subtitle">
-        Premium multi-section infographics via DALL·E · verified stats only
+        Premium LinkedIn infographics — created automatically from your post
       </p>
 
       <div className="smart-visual-row">
@@ -553,14 +583,7 @@ export default function DynamicGraphic({
           onClick={() => void runSmartVisual()}
           disabled={isGraphicLoading}
         >
-          {isGraphicLoading ? (
-            <>
-              <ProgressRing progress={activeProgress} size={22} strokeWidth={3} className="smart-visual-btn-ring" />
-              <span>Creating graphic</span>
-            </>
-          ) : (
-            '↻ New graphic angle'
-          )}
+          {isGraphicLoading ? 'Creating your picture…' : '↻ New graphic angle'}
         </button>
         {!isGraphicLoading && (
           <span className="smart-visual-style-pill" title="Current visual style">
@@ -630,19 +653,31 @@ export default function DynamicGraphic({
           </button>
         </div>
       )}
-      {isGraphicLoading && (
+      {showHeroProgress && (
         <div className="graphic-progress-panel graphic-progress-panel--hero">
           <ProgressRing progress={activeProgress} size={80} strokeWidth={5} />
-          <p className="graphic-progress-stage">{activeStage || 'Creating your infographic…'}</p>
-          <p className="graphic-progress-sub">Premium layout · DALL·E HD · usually 15–30 sec</p>
+          <p className="graphic-progress-stage">{activeStage || 'Creating your LinkedIn picture…'}</p>
+          <p className="graphic-progress-sub">This usually takes 15–45 seconds — your post is already ready above</p>
+        </div>
+      )}
+
+      {imageMode === 'failed' && graphicError && !isGraphicLoading && (
+        <div className="graphic-error-panel">
+          <p className="graphic-error-text">{graphicError}</p>
+          {graphicErrorDetail && graphicErrorDetail !== graphicError && (
+            <p className="graphic-error-detail">{graphicErrorDetail}</p>
+          )}
+          <button type="button" className="smart-visual-btn" onClick={() => void runSmartVisual()}>
+            Try creating picture again
+          </button>
         </div>
       )}
 
       {showGraphicPreview && imageMode === 'newsroom' && newsroomImage && (
         <div className="image-wrapper image-wrapper-graphic">
-          <img src={newsroomImage} alt="Newsroom-style editorial infographic" className="companion-photo" />
+          <img src={newsroomImage} alt="LinkedIn infographic for your post" className="companion-photo" />
           <div className="unsplash-credit">
-            {newsroomStyle} · DALL·E 3 HD · verified stats · Prem Iyer
+            {newsroomStyle} layout · ready for LinkedIn · Prem Iyer
           </div>
         </div>
       )}
@@ -710,7 +745,7 @@ export default function DynamicGraphic({
       {showGraphicPreview && imageMode === 'ai' && aiImage && (
         <div className="image-wrapper image-wrapper-graphic">
           <img src={aiImage} alt="AI-generated LinkedIn graphic" className="companion-photo" />
-          <div className="unsplash-credit">Generated with DALL·E 3 — Prem Iyer</div>
+          <div className="unsplash-credit">AI picture · Prem Iyer</div>
         </div>
       )}
 

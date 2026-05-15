@@ -109,7 +109,7 @@ export async function generateAIPost(topicId, options = {}) {
   report(44, 'Applying your voice profile…')
   const userPrompt = buildUserPrompt(topic, topicId, realtimeContext, options.customAngle || '')
 
-  report(58, 'Writing with AI…')
+  report(58, 'Writing your post…')
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {

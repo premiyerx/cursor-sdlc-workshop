@@ -106,10 +106,12 @@ export default function App() {
         const raw = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
         const cited = appendCitations(raw)
         setLiveText(cited)
+        setPostProgress(100)
+        setPostStage('Post ready — now creating your picture…')
 
         setGeneratePhase('graphic')
         setGraphicProgress(0)
-        setGraphicStage('Starting graphic…')
+        setGraphicStage('Planning your infographic…')
         const graphic = await createCompanionGraphic({
           postText: cited,
           topicId: selectedTopic,
@@ -123,12 +125,12 @@ export default function App() {
         setCompanionGraphic(graphic)
         setGraphicSessionId((n) => n + 1)
 
-        if (graphic.mode === 'newsroom') {
-          flashGenerateOk('Post and premium infographic ready — scroll to review.')
-        } else if (graphic.newsroomError) {
-          flashGenerateOk('Post ready. SVG fallback shown — DALL·E could not render this time.')
+        if (graphic.ok && graphic.mode === 'newsroom') {
+          flashGenerateOk('Your post and infographic are ready — scroll down to save the picture.')
+        } else if (!graphic.ok) {
+          flashGenerateErr(`Your post is ready. ${graphic.error || 'The picture could not be created.'}`, 15000)
         } else {
-          flashGenerateOk('Post and verified SVG graphic ready.')
+          flashGenerateOk('Post ready. Add your OpenAI key in Settings for premium infographics.')
         }
         return
       }
@@ -167,10 +169,12 @@ export default function App() {
       const raw = `${woven.hook}\n\n${woven.body}${freshLine}\n\n${woven.cta}\n\n${woven.hashtags}`
       const cited = appendCitations(raw)
       setLiveText(cited)
+      setPostProgress(100)
+      setPostStage('Post ready')
 
       setGeneratePhase('graphic')
       setGraphicProgress(0)
-      setGraphicStage('Starting graphic…')
+      setGraphicStage('Planning your infographic…')
       const graphic = await createCompanionGraphic({
         postText: cited,
         topicId: selectedTopic,
@@ -182,15 +186,20 @@ export default function App() {
       })
       setCompanionGraphic(graphic)
       setGraphicSessionId((n) => n + 1)
-      reportPostProgress(100, 'Post ready')
 
-      flashGenerateOk(
-        headlineCount > 0
-          ? leadTitle
-            ? `Post and graphic ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'}.`
-            : `Post and graphic ready — ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}.`
-          : 'Post and graphic ready.',
-      )
+      if (graphic.ok && graphic.mode === 'newsroom') {
+        flashGenerateOk('Your post and infographic are ready.')
+      } else if (!graphic.ok && hasOpenAiKey()) {
+        flashGenerateErr(`Your post is ready. ${graphic.error || 'The picture could not be created.'}`)
+      } else {
+        flashGenerateOk(
+          headlineCount > 0
+            ? leadTitle
+              ? `Post ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'}.`
+              : `Post ready — ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}.`
+            : 'Post ready.',
+        )
+      }
     } catch (err) {
       flashGenerateErr(err?.message || 'Could not generate. Check your connection and API key.')
     } finally {
@@ -299,21 +308,14 @@ export default function App() {
                   disabled={!selectedTopic || generateBusy}
                 >
                   {generateBusy ? (
-                    <>
-                      <ProgressRing
-                        progress={generatePhase === 'graphic' ? graphicProgress : postProgress}
-                        size={22}
-                        strokeWidth={3}
-                        className="command-generate-ring"
-                      />
-                      <span>
-                        {generatePhase === 'graphic'
-                          ? 'Creating graphic'
-                          : hasOpenAiKey()
-                            ? 'Writing fresh post'
-                            : 'Building post'}
-                      </span>
-                    </>
+                    generatePhase === 'graphic' ? (
+                      <span>Creating your infographic…</span>
+                    ) : (
+                      <>
+                        <ProgressRing progress={postProgress} size={22} strokeWidth={3} className="command-generate-ring" />
+                        <span>Writing your post…</span>
+                      </>
+                    )
                   ) : generatedPost
                     ? '↻ Regenerate fresh'
                     : hasOpenAiKey()

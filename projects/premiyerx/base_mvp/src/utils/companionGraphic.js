@@ -5,8 +5,8 @@ import { generateNewsroomImage } from './newsroomVisual'
 import { hasOpenAiKey } from './aiPostGenerator'
 
 /**
- * Build the companion graphic (newsroom DALL·E when key present, else verified SVG).
- * Progress callbacks reflect real pipeline steps only.
+ * Build the companion graphic. When OpenAI key is present, ONLY returns an AI image
+ * or a clear failure — no silent bar-chart fallback.
  */
 export async function createCompanionGraphic({
   postText,
@@ -29,23 +29,23 @@ export async function createCompanionGraphic({
 
   let rt = existingRt
   if (!rt || bumpSeed) {
-    report(12, bumpSeed ? 'Fetching fresh headlines…' : 'Loading headlines for graphic…')
+    report(15, bumpSeed ? 'Loading fresh headlines for your picture…' : 'Preparing picture data…')
     if (!existingRt || bumpSeed) invalidateRealtimeCache(topicId)
     try {
       rt = await fetchRealtimeContext(topicId, {
         forceRefresh: true,
         topicLabel,
       })
-      report(32, 'Headlines ready')
+      report(30, 'Headlines ready for picture')
     } catch {
       rt = existingRt
-      report(28, 'Building graphic without live headlines…')
+      report(25, 'Building picture from your post text…')
     }
   } else {
-    report(35, 'Using headlines from your post…')
+    report(28, 'Using data from your post…')
   }
 
-  report(42, 'Matching verified stats…')
+  report(38, 'Matching verified stats…')
   const model = buildHeadlineInfographicModel({
     postText,
     topicId,
@@ -54,22 +54,21 @@ export async function createCompanionGraphic({
     refreshSeed: seed,
   })
 
-  const tryNewsroom = hasOpenAiKey() && (preferNewsroom || forceNewsroom)
-  const lead = model.leadHeadline?.title?.slice(0, 48) || 'updated'
+  const tryAiImage = hasOpenAiKey() && (preferNewsroom || forceNewsroom)
 
-  if (tryNewsroom) {
-    report(48, 'Designing infographic layout…')
+  if (tryAiImage) {
+    report(45, 'Planning infographic layout…')
     const postTheme = model.implications?.[0] || model.hook
-    report(62, 'Rendering premium graphic with DALL·E…')
     const img = await generateNewsroomImage({
       model,
       topicLabel: topicLabel || model.topicLabel,
       refreshSeed: seed,
       postTheme,
+      onProgress: (pct, stage) => report(Math.min(95, pct), stage),
     })
 
     if (img.ok) {
-      report(100, 'Premium graphic ready')
+      report(100, 'Infographic ready')
       return {
         ok: true,
         mode: 'newsroom',
@@ -79,42 +78,29 @@ export async function createCompanionGraphic({
         realtimeData: rt,
         seed,
         model,
-        hint: `${img.styleName} · variation ${img.variationId} · ${model.verifiedCount} verified stats.`,
-        newsroomError: null,
+        hint: `${img.styleName} layout · ready to save or post on LinkedIn`,
+        error: null,
       }
     }
 
-    if (forceNewsroom) {
-      report(100, 'Newsroom failed')
-      return {
-        ok: false,
-        mode: 'headline',
-        error: img.error || 'Could not create newsroom graphic.',
-        realtimeData: rt,
-        seed,
-        model,
-        hint: null,
-        newsroomError: img.error,
-      }
-    }
-
-    report(78, 'Building verified SVG fallback…')
-    report(100, 'SVG graphic ready')
+    report(100, 'Picture not created')
     return {
-      ok: true,
-      mode: 'headline',
+      ok: false,
+      mode: 'failed',
       newsroomImage: null,
       newsroomStyle: '',
       realtimeData: rt,
       seed,
       model,
-      hint: `Verified SVG · "${lead}…" · layout ${model.layoutVariant + 1}/4`,
-      newsroomError: img.error,
+      hint: null,
+      error: img.error || 'Could not create your infographic picture.',
+      rawError: img.rawError,
     }
   }
 
-  report(85, 'Building verified SVG…')
-  report(100, 'SVG graphic ready')
+  report(85, 'Building simple chart (add OpenAI key for premium pictures)…')
+  report(100, 'Basic chart ready')
+  const lead = model.leadHeadline?.title?.slice(0, 48) || 'updated'
   return {
     ok: true,
     mode: 'headline',
@@ -123,7 +109,7 @@ export async function createCompanionGraphic({
     realtimeData: rt,
     seed,
     model,
-    hint: `Verified SVG · "${lead}…" · layout ${model.layoutVariant + 1}/4`,
-    newsroomError: null,
+    hint: `Basic chart · "${lead}…" · add OpenAI key for premium infographics`,
+    error: null,
   }
 }
