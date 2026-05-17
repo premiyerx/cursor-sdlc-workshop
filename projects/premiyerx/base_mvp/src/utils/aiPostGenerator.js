@@ -8,23 +8,186 @@ import { getOpenAiKey, hasOpenAiKey } from './openaiKey'
 
 export { hasOpenAiKey, getOpenAiKey }
 
-function parseAIOutput(raw) {
-  const hookMatch = raw.match(/HOOK:\s*\n([\s\S]*?)(?=\nBODY:)/i)
-  const bodyMatch = raw.match(/BODY:\s*\n([\s\S]*?)(?=\nCTA:)/i)
-  const ctaMatch = raw.match(/CTA:\s*\n([\s\S]*?)(?=\nHASHTAGS:)/i)
-  const hashMatch = raw.match(/HASHTAGS:\s*\n([\s\S]*?)(?=\nFIRST_COMMENT:|$)/i)
-  const commentMatch = raw.match(/FIRST_COMMENT:\s*\n([\s\S]*?)$/i)
+/** Strip common assistant wrappers so section headers parse cleanly. */
+function stripAssistantPreamble(text) {
+  let t = text.trim()
+  const introPatterns = [
+    /^Sure[!,.]?\s*\n+/i,
+    /^Certainly[!,.]?\s*\n+/i,
+    /^Here(?:'s| is) (?:your|the) (?:LinkedIn )?post[^\n]*\n+/i,
+    /^Below (?:is|you(?:'|')ll find)[^\n]*\n+/i,
+  ]
+  for (const re of introPatterns) {
+    t = t.replace(re, '')
+  }
+  return t.trim()
+}
 
-  const hook = hookMatch ? hookMatch[1].trim() : raw.slice(0, 200)
-  recordGeneratedHook(hook)
+function stripCodeFence(text) {
+  let t = text.trim()
+  if (t.startsWith('```')) {
+    t = t.replace(/^```(?:json|text)?\s*\n?/i, '').replace(/\n?```\s*$/i, '')
+  }
+  return t.trim()
+}
 
+function normalizeSectionLabel(label) {
+  const u = label.replace(/\*+/g, '').replace(/\s+/g, '_').toUpperCase()
+  if (u === 'HOOK' || u === 'OPENING' || u === 'HEADLINE' || u === 'OPENER') return 'hook'
+  if (u === 'BODY' || u === 'CONTENT' || u === 'MAIN') return 'body'
+  if (u === 'CTA' || u === 'CALL_TO_ACTION') return 'cta'
+  if (u === 'HASHTAGS' || u === 'HASHTAG' || u === 'TAGS') return 'hashtags'
+  if (u === 'FIRST_COMMENT' || u === 'FIRSTCOMMENT') return 'firstComment'
+  return null
+}
+
+/** Remove standalone section labels the model sometimes leaves inside prose. */
+function stripStraySectionLabels(s) {
+  if (!s) return ''
+  return s
+    .split('\n')
+    .filter((line) => !/^\s*#*\s*(?:\*\*)?\s*(HOOK|BODY|CTA|HASHTAGS|CONTENT|OPENING|HEADLINE|MAIN|TAGS)\s*(?:\*\*)?\s*:?\s*$/i.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function tryParseJsonPost(text) {
+  const tryObj = (o) => {
+    if (!o || typeof o !== 'object') return null
+    const hook = String(o.hook ?? o.opening ?? o.headline ?? '').trim()
+    const body = String(o.body ?? o.content ?? o.main ?? o.text ?? '').trim()
+    const cta = String(o.cta ?? o.callToAction ?? '').trim()
+    const hashtags = String(o.hashtags ?? o.tags ?? '').trim()
+    const firstComment = String(o.firstComment ?? o.first_comment ?? '').trim()
+    if (hook || body) return { hook, body, cta, hashtags, firstComment }
+    return null
+  }
+  try {
+    const o = JSON.parse(text)
+    const got = tryObj(o)
+    if (got) return got
+  } catch {
+    /* continue */
+  }
+  const brace = text.match(/\{[\s\S]*\}/)
+  if (brace) {
+    try {
+      const o = JSON.parse(brace[0])
+      return tryObj(o)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+/** Match section headers at line starts (markdown / bold / blockquote ok). */
+function parseHeaderSections(text) {
+  const re =
+    /(?:^|\n)(\s*(?:>\s*)?#*\s*(?:\*\*)?\s*)(HOOK|HEADLINE|OPENING|BODY|CONTENT|MAIN|CTA|HASHTAGS|TAGS|FIRST[\s_]?COMMENT)(?:\*\*)?\s*:\s*/gi
+  const matches = [...text.matchAll(re)]
+  if (matches.length === 0) return null
+
+  const chunks = { hook: '', body: '', cta: '', hashtags: '', firstComment: '' }
+  const firstMatch = matches[0]
+  const lead = text.slice(0, firstMatch.index).trim()
+
+  for (let i = 0; i < matches.length; i++) {
+    const key = normalizeSectionLabel(matches[i][2])
+    if (!key) continue
+    const start = matches[i].index + matches[i][0].length
+    const end = matches[i + 1]?.index ?? text.length
+    const chunk = text.slice(start, end).trim()
+    if (!chunk) continue
+    chunks[key] = chunks[key] ? `${chunks[key]}\n\n${chunk}` : chunk
+  }
+
+  let { hook, body, cta, hashtags, firstComment } = chunks
+  const firstKey = normalizeSectionLabel(matches[0][2])
+
+  if (lead) {
+    if (firstKey === 'hook') hook = hook ? `${lead}\n\n${hook}` : lead
+    else if (!hook) hook = lead
+    else body = body ? `${lead}\n\n${body}` : `${lead}\n\n${body}`
+  }
+
+  if (!hook && body) {
+    const lines = body.split('\n').filter(Boolean)
+    hook = lines[0] || ''
+    body = lines.slice(1).join('\n').trim() || body
+  }
+
+  if (hook || body || cta || hashtags) {
+    return { hook, body, cta, hashtags, firstComment }
+  }
+  return null
+}
+
+/** Original strict newline format: HOOK:\\n...\\nBODY: */
+function parseLegacyNewlineSections(text) {
+  const hookMatch = text.match(/HOOK:\s*\n([\s\S]*?)(?=\nBODY:)/i)
+  const bodyMatch = text.match(/BODY:\s*\n([\s\S]*?)(?=\nCTA:)/i)
+  const ctaMatch = text.match(/CTA:\s*\n([\s\S]*?)(?=\nHASHTAGS:)/i)
+  const hashMatch = text.match(/HASHTAGS:\s*\n([\s\S]*?)(?=\nFIRST_COMMENT:|$)/i)
+  const commentMatch = text.match(/FIRST_COMMENT:\s*\n([\s\S]*?)$/i)
+  if (!hookMatch && !bodyMatch) return null
   return {
-    hook,
-    body: bodyMatch ? bodyMatch[1].trim() : raw,
+    hook: hookMatch ? hookMatch[1].trim() : '',
+    body: bodyMatch ? bodyMatch[1].trim() : '',
     cta: ctaMatch ? ctaMatch[1].trim() : '',
     hashtags: hashMatch ? hashMatch[1].trim() : '',
     firstComment: commentMatch ? commentMatch[1].trim() : '',
   }
+}
+
+/** Same-line HOOK: text (no required newline after colon). */
+function parseLegacyFlexibleColon(text) {
+  const hookMatch = text.match(/HOOK:\s*\n?([\s\S]*?)(?=BODY:)/i)
+  const bodyMatch = text.match(/BODY:\s*\n?([\s\S]*?)(?=CTA:)/i)
+  const ctaMatch = text.match(/CTA:\s*\n?([\s\S]*?)(?=HASHTAGS:)/i)
+  const hashMatch = text.match(/HASHTAGS:\s*\n?([\s\S]*?)(?=FIRST_COMMENT:|$)/i)
+  const commentMatch = text.match(/FIRST_COMMENT:\s*\n?([\s\S]*?)$/i)
+  if (!hookMatch && !bodyMatch) return null
+  return {
+    hook: hookMatch ? hookMatch[1].trim() : '',
+    body: bodyMatch ? bodyMatch[1].trim() : '',
+    cta: ctaMatch ? ctaMatch[1].trim() : '',
+    hashtags: hashMatch ? hashMatch[1].trim() : '',
+    firstComment: commentMatch ? commentMatch[1].trim() : '',
+  }
+}
+
+function finalizePost(p) {
+  const hook = stripStraySectionLabels(p.hook || '')
+  const body = stripStraySectionLabels(p.body || '')
+  const cta = stripStraySectionLabels(p.cta || '')
+  const hashtags = stripStraySectionLabels(p.hashtags || '')
+  const firstComment = stripStraySectionLabels(p.firstComment || '')
+  recordGeneratedHook(hook || body.slice(0, 200))
+  return { hook, body, cta, hashtags, firstComment }
+}
+
+function parseAIOutput(raw) {
+  let text = stripCodeFence(String(raw || '').replace(/\r\n/g, '\n'))
+  text = stripAssistantPreamble(text)
+
+  const json = tryParseJsonPost(text)
+  if (json) return finalizePost(json)
+
+  const headers = parseHeaderSections(text)
+  if (headers) return finalizePost(headers)
+
+  const legacyNl = parseLegacyNewlineSections(text)
+  if (legacyNl && (legacyNl.hook || legacyNl.body)) return finalizePost(legacyNl)
+
+  const legacyFlex = parseLegacyFlexibleColon(text)
+  if (legacyFlex && (legacyFlex.hook || legacyFlex.body)) return finalizePost(legacyFlex)
+
+  const lines = text.split('\n').filter((l) => l.trim())
+  const hook = lines[0] || text.slice(0, 200)
+  const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text
+  return finalizePost({ hook, body, cta: '', hashtags: '', firstComment: '' })
 }
 
 function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '') {
@@ -55,23 +218,24 @@ ${realtimeContext}
 
 DATA ACCURACY: Every stat needs inline source. Never invent funding, dates, or customer names.
 
-ALGORITHM: Hook 8-12 words with number. Re-hook line 2. Body: line breaks, → arrows, 2-3 emoji at section breaks only, numbered framework, flip-the-script moment, 5+ cited stats. CTA: specific "you/your" question. 200-280 words.
+ALGORITHM (2026): Optimize for sustained read depth (dwell), comment threads over passive likes, pillar consistency, and an opening that earns "see more." No engagement bait or naked external URLs in the body. FIRST_COMMENT must add new insight and a follow-up question so you can reply substantively in the first hour.
 
-Structure EXACTLY (plain text, no markdown):
+Output format — use these labels ONLY as section markers (each on its own line, then your prose). Do not write the words Hook, Body, CTA, Hashtags, or Content as standalone lines inside the post itself. No JSON. No markdown headings.
+
 HOOK:
-[hook]
+[opening — two short lines max]
 
 BODY:
-[body]
+[main post]
 
 CTA:
-[cta]
+[one question line]
 
 HASHTAGS:
-[hashtags]
+[space-separated hashtags]
 
 FIRST_COMMENT:
-[first comment 15+ words]`
+[15+ words for a first comment]`
 }
 
 /**

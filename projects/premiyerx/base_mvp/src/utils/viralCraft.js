@@ -66,6 +66,7 @@ const COMMENT_MAGNETS = [
   'Ask for a specific artifact: "What metric does YOUR board actually track?"',
   'Offer two options in the question: "Bottom-up adoption or top-down mandate — which won in your org?"',
   'Invite a counterexample respectfully: "Where has this NOT worked for you?"',
+  'Invite a threaded reply: "Push back if you disagree—what nuance am I missing for your industry?"',
 ]
 
 /**
@@ -95,7 +96,7 @@ export function buildViralCraftBlock(topicId) {
     `- Voice: ${archetype.voice}`,
     `- Scroll: ${stopper}`,
     `- Comment magnet: ${comment}`,
-    '- Do NOT sound like a generic LinkedIn guru, life coach, or engagement bait ("Agree?", "Thoughts?").',
+    '- Do NOT sound like a generic LinkedIn guru, life coach, or engagement bait ("Agree?", "Thoughts?", "Comment YES").',
     '- Sound like a peer operator who invests, sells to CxOs, and has seen rollouts — not a motivational poster.',
     '',
   ].join('\n')

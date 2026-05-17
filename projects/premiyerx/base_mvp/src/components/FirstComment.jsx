@@ -97,11 +97,11 @@ export default function FirstComment({ post, liveText, onCommentReady }) {
     <div className="first-comment fade-in-up">
       <div className="fc-header">
         <h3 className="fc-title">First Comment</h3>
-        <span className="fc-badge">Post within 30s — comments carry 15x the weight of likes</span>
+        <span className="fc-badge">Post fast after publish — comments + threads beat passive likes in 2026</span>
       </div>
 
       <p className="fc-hint">
-        Your first comment triggers "threaded conversation" signals. Long comments (15+ words) with a follow-up question generate 3+ reply threads, which unlock Phase 3 viral distribution.
+        Your first comment should add net-new insight plus a second question so you can reply with substance (brief thanks + extra value + follow-up) and earn threaded back-and-forth in the first hour.
       </p>
 
       <div className="fc-strategies">

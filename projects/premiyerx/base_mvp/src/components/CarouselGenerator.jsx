@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { jsPDF } from 'jspdf'
 import { findCitationsForLine, findCitations } from '../data/citations'
 import { scorePost } from '../data/algorithmRules'
+import { CAROUSEL_ALGORITHM_TIP } from '../data/linkedinAlgorithm2026'
 import { fnv1a, mulberry32 } from '../utils/generationVariety'
 import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
@@ -595,9 +596,9 @@ function generateCarouselCaption(postText, topicId = '') {
   }
 
   const closers = [
-    `Every data point is sourced. Every slide is one key insight.\n\nThe full breakdown is in the carousel below.\n\n`,
-    `Sources inline where it matters—each slide = one decision-useful idea.\n\nGrab the PDF under this post.\n\n`,
-    `Built for speed-reading: claim → proof → so-what per slide.\n\nCarousel PDF attached.\n\n`,
+    `Every stat is sourced; each slide is one decision-useful beat.\n\nThe PDF is for dwell—the caption above does the ranking work.\n\n`,
+    `Built to read fast: claim → proof → so-what per slide.\n\nAttach the document and let people swipe—depth signals matter in 2026.\n\n`,
+    `If someone only reads the caption, they should still learn something concrete.\n\nFull walkthrough in the PDF.\n\n`,
   ]
   caption += closers[Math.floor(captionRng() * closers.length) % closers.length]
 
@@ -613,7 +614,9 @@ function generateCarouselCaption(postText, topicId = '') {
     caption += fallbackQuestions[Math.floor(captionRng() * fallbackQuestions.length) % fallbackQuestions.length]
   }
 
-  caption += `♻️ Repost if this is useful to your network.\n💾 Save for your next strategy conversation.\n\n`
+  if (captionRng() > 0.4) {
+    caption += `Save this PDF for your next CIO or board readout if the framing helps.\n\n`
+  }
 
   if (hashtags) {
     caption += hashtags
@@ -699,7 +702,7 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
     <div className="carousel-gen fade-in-up">
       <div className="carousel-info">
         <span className="carousel-count">{slides.length} slides</span>
-        <span className="carousel-tip">Carousels get 2-3x more reach — auto-play stops the scroll</span>
+        <span className="carousel-tip">{CAROUSEL_ALGORITHM_TIP}</span>
       </div>
 
       {previewSlides.length > 0 && (

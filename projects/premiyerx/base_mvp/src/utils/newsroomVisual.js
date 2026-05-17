@@ -5,6 +5,7 @@
 import { mulberry32 } from './generationVariety'
 import { pickFromPool } from './freshnessRotation'
 import { getTopicNarrative } from '../data/topicNarratives'
+import { buildNewsroomAlgorithmLine } from '../data/linkedinAlgorithm2026'
 
 const NEWSPAPER_LAYOUTS = [
   {
@@ -125,6 +126,7 @@ function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postT
       `Verified numbers ONLY:\n${statsBlock}`,
       `Include "The Bottom Line" sidebar with one big ROI or impact number from the stats above.`,
       `Small footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
+      buildNewsroomAlgorithmLine(),
     ].join('\n')
   }
 
@@ -150,6 +152,7 @@ function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postT
       '',
       'RULES: sophisticated flows and charts, strong visual hierarchy, accurate-looking data labels, no people photos, no walls of text.',
       `Footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
+      buildNewsroomAlgorithmLine(),
     ].join('\n')
   }
 
@@ -178,6 +181,7 @@ function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postT
     'Strong flows, multiple chart types, elegant typography, credible source lines.',
     'FORBIDDEN: dark background, neon colors, plain 3-bar chart as the only viz, invented statistics, stock photos.',
     `Small credit line: Prem Iyer · AI Software Transformation · ${variationId}.`,
+    buildNewsroomAlgorithmLine(),
   ].join('\n')
 }
 

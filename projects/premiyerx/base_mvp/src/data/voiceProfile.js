@@ -1,3 +1,5 @@
+import { buildLinkedInAlgorithmBlock } from './linkedinAlgorithm2026'
+
 const STORAGE_KEY = 'lidp_active_voice'
 const CORPUS_KEY = 'lidp_voice_corpus'
 const CORPUS_DATE_KEY = 'lidp_voice_corpus_updated'
@@ -60,23 +62,22 @@ VOICE RULES:
 - Tone: ${style.tone}
 - Target ${style.length}
 
-ALGORITHM OPTIMIZATION (follow all):
-1. HOOK: One-liner, 8-12 words, with a number. First-person or direct. Never start with "stop/don't/quit"
-2. RE-HOOK: Line 2-3 = parenthetical that amplifies curiosity
-3. BODY: Aggressive line breaks. Every 1-2 sentences on its own line. Use → arrows for data. 2-3 professional emoji anchors (📊 💡 🔑 🎯) at section transitions ONLY
-4. DWELL TIME: Include a framework (numbered list 1-4), data points, and a story/anecdote. Aim for 60+ seconds of read time
-5. COMMENT TRIGGER: End with a SPECIFIC question using "you/your" that invites sharing personal experience. Comments are weighted 15x more than likes
-6. PAS: Use Problem → Agitate → Solution when appropriate
-7. HASHTAGS: 3-5 total. Mix 1 broad + 2 mid + 1-2 niche. Place at end
-8. FIRST_COMMENT: Generate a P.S. with additional insight + follow-up question. Must be 15+ words. Design it to spark threaded replies
-9. DATA ACCURACY: Every stat must have an inline source citation. Never fabricate numbers
+STRUCTURE (still mandatory):
+1. HOOK: 8-12 words with a number; first-person or direct; never start with "stop/don't/quit"
+2. RE-HOOK: Line 2-3 = parenthetical that earns the "see more" tap
+3. BODY: Aggressive line breaks; → arrows for evidence; 2-3 professional emoji anchors (📊 💡 🔑 🎯) at section transitions only
+4. FRAMEWORK + STORY: Numbered beats plus one concrete anecdote so the post sustains read depth
+5. CTA: One closing question using "you/your" that can spark threaded replies—not binary bait
+6. HASHTAGS: 3-5 at the end (1 broad + 2 mid + 1-2 niche)
+7. FIRST_COMMENT: 15+ words; new insight not in the body + a second question the author can use to start real back-and-forth in the golden hour
+8. DATA: Inline sources for every stat—never invent numbers
+
+${buildLinkedInAlgorithmBlock()}
 
 CAROUSEL CAPTION (if generating for carousel):
-- The caption is what the algorithm reads — the PDF is opaque to it
-- Write 1200+ characters as the caption
-- Include the hook, re-hook, 3-4 data point previews, bridge to carousel, CTA question, and hashtags
-- Vary the bridge and closer phrasing vs. prior carousels (same facts, different packaging)
-- Add "♻️ Repost" and "💾 Save" CTAs — saves and shares are key distribution signals`
+- The caption is what the feed ranks—the PDF is opaque; make the caption long enough to preview value on its own
+- Include hook, re-hook, 3-4 sourced data previews, bridge to the document, closing question, hashtags
+- Vary bridges vs. prior carousels; one optional "save for later" line is fine—avoid aggressive repost-begging`
 }
 
 const PREM_IYER = createVoiceProfile({
@@ -138,7 +139,7 @@ const PREM_IYER = createVoiceProfile({
     closingPattern: 'Ends with an engaging question that invites CxO-level conversation, not generic "thoughts?"',
     hashtagStyle: '3-5 targeted hashtags. Mix of 1 broad + 2 mid + 1-2 niche.',
     emojiUsage: 'Minimal — 2-3 professional emoji anchors (📊 💡 🔑 🎯) at section transitions. Never scattered.',
-    length: '1000-1800 characters for optimal dwell time and algorithm performance.',
+    length: 'Roughly 1000–1800 characters: enough depth for dwell-time signals while still finishable on mobile.',
   },
 
   engagementPatterns: {

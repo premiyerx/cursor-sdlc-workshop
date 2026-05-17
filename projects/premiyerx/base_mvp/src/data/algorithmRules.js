@@ -63,7 +63,7 @@ export const SCORING_RULES = [
   {
     id: 'dwellTime',
     label: 'Dwell Time Potential',
-    description: 'Content depth that keeps readers on-screen 60+ seconds. The #1 algorithm signal in 2026.',
+    description: 'Depth and pacing for 60+ seconds on-screen—the primary reach signal in 2026 operator playbooks.',
     weight: 18,
     evaluate: (text) => {
       const body = stripHashtagBlock(text)
@@ -125,7 +125,7 @@ export const SCORING_RULES = [
   {
     id: 'commentTrigger',
     label: 'Comment Trigger',
-    description: 'Ends with a specific question using "you/your". Comments carry 15x more weight than likes.',
+    description: 'Ends with a specific "you/your" question. Threaded replies rank far above passive likes in 2026 playbooks.',
     weight: 15,
     evaluate: (text) => {
       const body = stripHashtagBlock(text).trim()
@@ -182,6 +182,30 @@ export const SCORING_RULES = [
       else if (hasCitations) score += 25
       if (/I've seen|data shows|research|study|survey|report/i.test(text)) score += 20
       return Math.min(score, 100)
+    },
+  },
+  {
+    id: 'authenticity2026',
+    label: 'Authenticity',
+    description: 'Avoids engagement bait; keeps naked external URLs out of feed text (2026 reach playbooks).',
+    weight: 3,
+    evaluate: (text) => {
+      const body = stripHashtagBlock(text)
+      const bodyNoLi = body.replace(/https?:\/\/(?:www\.)?linkedin\.com[^\s]*/gi, '')
+      let score = 94
+      const bait = [
+        /comment\s+yes\b/i,
+        /tag\s+(?:a\s+)?friend/i,
+        /double\s*tap/i,
+        /link\s+in\s+(?:bio|comments)\b/i,
+        /\blike\s+if\s+you\b/i,
+      ]
+      for (const re of bait) {
+        if (re.test(body)) score -= 26
+      }
+      if (/https?:\/\/[^\s]+/i.test(bodyNoLi)) score -= 32
+      if (/\b(?:repost|re-share)\s+if\b/i.test(body)) score -= 14
+      return Math.min(100, Math.max(0, score))
     },
   },
   {

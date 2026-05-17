@@ -1,11 +1,9 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import FormattingToolbar from './FormattingToolbar'
 import { applyFormatToSelection } from '../utils/unicodeFormatter'
 import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
-
-const LINKEDIN_TRUNCATE = 210
 
 export default function PostDisplay({ post, topicColor, onPostEdit }) {
   const [copied, setCopied] = useState(false)
@@ -15,10 +13,12 @@ export default function PostDisplay({ post, topicColor, onPostEdit }) {
   const fullText = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
   const [editedText, setEditedText] = useState(fullText)
 
+  useEffect(() => {
+    const next = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
+    setEditedText(next)
+  }, [post.hook, post.body, post.cta, post.hashtags])
+
   const charCount = editedText.length
-  const firstLine = editedText.split('\n')[0] || ''
-  const hookLength = firstLine.length
-  const hookHealthy = hookLength <= LINKEDIN_TRUNCATE
 
   const handleTextChange = useCallback((e) => {
     setEditedText(e.target.value)
@@ -64,13 +64,10 @@ export default function PostDisplay({ post, topicColor, onPostEdit }) {
   return (
     <section className="post-display">
       <div className="post-header">
-        <h2 className="section-title">Edit Your Post</h2>
+        <h2 className="section-title">Your post</h2>
         <div className="post-meta">
-          <span className={`char-badge ${charCount > 3000 ? 'warn' : ''}`}>
-            {charCount.toLocaleString()} chars
-          </span>
-          <span className={`hook-badge ${hookHealthy ? 'good' : 'warn'}`} title="LinkedIn shows ~210 characters before See more">
-            First line: {hookLength}/{LINKEDIN_TRUNCATE} chars {hookHealthy ? '✓' : '⚠'}
+          <span className={`char-badge ${charCount > 3000 ? 'warn' : ''}`} title="Approximate length for LinkedIn">
+            {charCount.toLocaleString()} characters
           </span>
         </div>
       </div>

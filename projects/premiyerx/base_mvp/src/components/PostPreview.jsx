@@ -18,8 +18,7 @@ export default function PostPreview({ text }) {
 
   return (
     <section className="post-preview">
-      <h2 className="section-title">LinkedIn Feed Preview</h2>
-      <p className="section-subtitle">How your post will appear in the feed</p>
+      <h2 className="section-title">Feed preview</h2>
 
       <div className="preview-card">
         <div className="preview-author">
