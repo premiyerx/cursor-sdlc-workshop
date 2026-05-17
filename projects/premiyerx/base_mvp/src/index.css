@@ -2213,6 +2213,19 @@ body {
   margin-bottom: 1rem;
 }
 
+.carousel-preview-explainer {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 0 0 0.75rem;
+  max-width: 42rem;
+}
+
+.carousel-preview-explainer strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
 .carousel-slide {
   width: 100%;
   max-width: 480px;
