@@ -29,6 +29,8 @@
 
 html {
   overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -40,6 +42,7 @@ body {
   overflow-x: hidden;
   padding-left: env(safe-area-inset-left, 0);
   padding-right: env(safe-area-inset-right, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 #root,
@@ -129,7 +132,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   width: 100%;
-  max-width: min(720px, calc(100vw - 1.5rem));
+  max-width: min(720px, calc(100vw - max(1.5rem, env(safe-area-inset-left) + env(safe-area-inset-right))));
   margin-left: auto;
   margin-right: auto;
   box-sizing: border-box;
@@ -150,6 +153,7 @@ body {
   min-width: min(140px, 42vw);
   text-align: center;
   white-space: nowrap;
+  touch-action: manipulation;
 }
 
 .tab-btn:hover { color: var(--text-primary); background: var(--bg-secondary); }
@@ -1272,7 +1276,8 @@ body {
 @media (max-width: 480px) {
   .app-title { font-size: 1.45rem; }
   .app-header { padding: 1.5rem 0.75rem 1.25rem; }
-  .tab-btn {
+  .app-tabs .tab-btn {
+    flex: 1 1 calc(50% - 0.25rem);
     font-size: 0.72rem;
     padding: 0.45rem 0.5rem;
     min-width: 0;
@@ -1281,6 +1286,26 @@ body {
   }
   .smart-visual-secondary {
     flex: 1 1 100%;
+  }
+}
+
+/* Phones: avoid iOS Safari input-zoom; faster taps; readable editors */
+@media (max-width: 640px) {
+  .post-editor,
+  .carousel-caption-textarea,
+  .voice-corpus-textarea,
+  .dm-edit-form textarea {
+    font-size: 16px;
+  }
+  .command-generate,
+  .topic-chip,
+  .format-chip,
+  .hero-suggestion-btn,
+  .copy-btn,
+  .carousel-nav-btn,
+  .carousel-download-btn,
+  .carousel-caption-copy {
+    touch-action: manipulation;
   }
 }
 

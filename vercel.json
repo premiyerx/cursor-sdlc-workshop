@@ -2,6 +2,7 @@
   "installCommand": "cd projects/premiyerx/base_mvp && npm install",
   "buildCommand": "cd projects/premiyerx/base_mvp && npm run build",
   "outputDirectory": "projects/premiyerx/base_mvp/dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "functions": {
     "api/generate-image.js": {
       "maxDuration": 60
