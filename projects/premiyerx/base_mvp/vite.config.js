@@ -23,8 +23,10 @@ function resolveDeploySha() {
 
 const deploySha = resolveDeploySha()
 
+const buildInstant = new Date()
+
 /** Shown in the footer so non-developers know when this bundle was built (UTC). */
-const buildDateLabel = new Date().toLocaleString('en-US', {
+const buildDateLabel = buildInstant.toLocaleString('en-US', {
   month: 'long',
   day: 'numeric',
   year: 'numeric',
@@ -34,12 +36,15 @@ const buildDateLabel = new Date().toLocaleString('en-US', {
   timeZoneName: 'short',
 })
 
+const builtAtIso = buildInstant.toISOString()
+
 /** Stamp index.html + manifest so PWAs and phones can detect new production deploys. */
-function buildStampPlugin({ sha, builtAt }) {
+function buildStampPlugin({ sha, builtAt, builtAtIso: iso }) {
   const safeSha = String(sha).replace(/"/g, '')
   const safeBuiltAt = String(builtAt).replace(/"/g, '')
+  const safeIso = String(iso).replace(/"/g, '')
   // Inline object so the footer can read it before / alongside the module bundle (avoids stale cached JS showing an old build time).
-  const inlineStamp = JSON.stringify({ sha, builtAt }).replace(/</g, '\\u003c')
+  const inlineStamp = JSON.stringify({ sha, builtAt, iso: safeIso }).replace(/</g, '\\u003c')
   return {
     name: 'lidp-build-stamp',
     transformIndexHtml: {
@@ -48,14 +53,19 @@ function buildStampPlugin({ sha, builtAt }) {
         if (html.includes('name="app-build"')) return html
         return html.replace(
           '</head>',
-          `    <meta name="app-build" content="${safeSha}" />\n    <meta name="app-built-at" content="${safeBuiltAt}" />\n    <script>window.__LIDP_BUILD_STAMP__=${inlineStamp}</script>\n  </head>`,
+          `    <meta name="app-build" content="${safeSha}" />\n    <meta name="app-built-at" content="${safeBuiltAt}" />\n    <meta name="app-built-at-iso" content="${safeIso}" />\n    <script>window.__LIDP_BUILD_STAMP__=${inlineStamp}</script>\n  </head>`,
         )
       },
     },
     closeBundle() {
+      const distDir = resolve(__dirname, 'dist')
+      const stampPath = resolve(distDir, 'build-stamp.json')
+      if (existsSync(distDir)) {
+        writeFileSync(stampPath, `${JSON.stringify({ sha, iso: safeIso })}\n`)
+      }
       const manifestSrc = resolve(__dirname, 'public/manifest.json')
       const manifestDist = resolve(__dirname, 'dist/manifest.json')
-      if (!existsSync(manifestSrc) || !existsSync(resolve(__dirname, 'dist'))) return
+      if (!existsSync(manifestSrc) || !existsSync(distDir)) return
       const manifest = JSON.parse(readFileSync(manifestSrc, 'utf8'))
       manifest.start_url = `/?build=${encodeURIComponent(safeSha)}`
       writeFileSync(manifestDist, `${JSON.stringify(manifest, null, 2)}\n`)
@@ -64,7 +74,7 @@ function buildStampPlugin({ sha, builtAt }) {
 }
 
 export default defineConfig({
-  plugins: [react(), buildStampPlugin({ sha: deploySha, builtAt: buildDateLabel })],
+  plugins: [react(), buildStampPlugin({ sha: deploySha, builtAt: buildDateLabel, builtAtIso })],
   server: { port: 5180 },
   define: {
     __DEPLOY_SHA__: JSON.stringify(deploySha),

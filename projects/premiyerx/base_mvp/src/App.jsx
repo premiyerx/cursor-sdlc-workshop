@@ -19,6 +19,7 @@ import CarouselGenerator from './components/CarouselGenerator'
 import FactCheckGate from './components/FactCheckGate'
 import ModelComparePicker from './components/ModelComparePicker'
 import { useFlashFeedback } from './hooks/useFlashFeedback'
+import { useFooterBuildStamp } from './hooks/useFooterBuildStamp'
 import ActionFeedback from './components/ActionFeedback'
 import CommandProgress from './components/CommandProgress'
 
@@ -35,6 +36,7 @@ const DAILY_ANGLES = {
 }
 
 export default function App() {
+  const { time: footerBuildTime, sha: footerBuildSha } = useFooterBuildStamp()
   const [selectedTopic, setSelectedTopic] = useState(null)
   const [format, setFormat] = useState('image')
   const [generatedPost, setGeneratedPost] = useState(null)
@@ -567,12 +569,9 @@ export default function App() {
         <p className="footer-copy">© Prem Iyer 2026</p>
         <p
           className="footer-build"
-          title={`Build ${typeof window !== 'undefined' && window.__LIDP_BUILD_STAMP__?.sha ? window.__LIDP_BUILD_STAMP__.sha : __DEPLOY_SHA__}. When we ship a change, switch away from this tab or reopen the app so this time can refresh.`}
+          title={`Build ${footerBuildSha || __DEPLOY_SHA__}. Time is UTC (24h). If this looks old, hard-refresh (Ctrl+Shift+R) or clear site data for this URL.`}
         >
-          Last updated:{' '}
-          {typeof window !== 'undefined' && window.__LIDP_BUILD_STAMP__?.builtAt
-            ? window.__LIDP_BUILD_STAMP__.builtAt
-            : __BUILD_DATE__}
+          Last updated: {footerBuildTime} · build {footerBuildSha || __DEPLOY_SHA__}
         </p>
       </footer>
     </div>

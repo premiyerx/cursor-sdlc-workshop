@@ -2,7 +2,7 @@
  * Bump CACHE_VERSION after meaningful app updates so clients drop old cached assets.
  * HTML navigations are never cached so new index.html (and hashed JS/CSS) loads after deploy.
  */
-const CACHE_VERSION = 'v8-2026-05-19'
+const CACHE_VERSION = 'v10-no-stamp-cache'
 const CACHE_NAME = `lidp-assets-${CACHE_VERSION}`
 
 self.addEventListener('install', (event) => {
@@ -33,6 +33,12 @@ self.addEventListener('fetch', (event) => {
 
   // Always fetch fresh HTML shell so new hashed bundles are referenced after deploy.
   if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
+    event.respondWith(fetch(event.request))
+    return
+  }
+
+  // Deploy stamp must never hit Cache Storage — otherwise the footer can show an old build time forever.
+  if (url.pathname === '/build-stamp.json') {
     event.respondWith(fetch(event.request))
     return
   }
