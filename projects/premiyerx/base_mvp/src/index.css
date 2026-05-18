@@ -833,13 +833,6 @@ body {
   line-height: 1.4;
 }
 
-.command-progress-pct {
-  margin: 0;
-  font-size: 0.72rem;
-  color: var(--green);
-  font-weight: 600;
-}
-
 .command-progress-sub {
   margin: 0;
   font-size: 0.7rem;

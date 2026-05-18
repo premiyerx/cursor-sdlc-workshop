@@ -2,6 +2,8 @@
  * Newsroom editorial SVG — rotates layout variant on each refresh.
  */
 
+import { slideCopy } from '../utils/completeSentence'
+
 function wrapText(text, maxChars, maxLines = 2) {
   const words = (text || '').split(/\s+/)
   const lines = []
@@ -41,7 +43,7 @@ function BarChartStats({ stats, palette, yBase }) {
           {stat.value}
         </text>
         <text x={x + barW / 2} y={yBase + 150} textAnchor="middle" fill="#666" fontSize="9" fontFamily="Inter, sans-serif">
-          {stat.context.length > 36 ? `${stat.context.slice(0, 33)}…` : stat.context}
+          {slideCopy(stat.context, 34, 110)}
         </text>
         <text x={x + barW / 2} y={yBase + 166} textAnchor="middle" fill="#444" fontSize="8" fontFamily="Inter, sans-serif" fontStyle="italic">
           {stat.source}
@@ -65,7 +67,7 @@ function CardStats({ stats, palette, yBase }) {
           {stat.value}
         </text>
         <text x={x + 24} y={yBase + 92} fill="#999" fontSize="11" fontFamily="Inter, sans-serif">
-          {stat.context.length > 42 ? `${stat.context.slice(0, 39)}…` : stat.context}
+          {slideCopy(stat.context, 58, 150)}
         </text>
         <text x={x + 24} y={yBase + 155} fill="#555" fontSize="8" fontFamily="Inter, sans-serif">
           SOURCE: {stat.source}
@@ -111,7 +113,7 @@ export default function HeadlineInfographic({ model, palette }) {
         {displayDate}
       </text>
       <text x="56" y="78" fill="#f5f5f5" fontSize="22" fontWeight="700" fontFamily="Georgia, serif">
-        {hook.length > 58 ? `${hook.slice(0, 55)}…` : hook}
+        {slideCopy(hook, 96, 200)}
       </text>
 
       {/* News ribbon */}
@@ -158,7 +160,7 @@ export default function HeadlineInfographic({ model, palette }) {
           </text>
           {implications.map((line, i) => (
             <text key={i} x="56" y={502 + i * 26} fill="#bbb" fontSize="12" fontFamily="Inter, sans-serif">
-              {line.length > 92 ? `${line.slice(0, 89)}…` : line}
+              {slideCopy(line, 120, 240)}
             </text>
           ))}
         </>

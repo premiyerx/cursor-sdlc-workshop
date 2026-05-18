@@ -139,6 +139,11 @@ export default function App() {
         setPostStage('Post complete')
         await flashPhaseComplete('post', 'Post complete')
 
+        if (format === 'carousel') {
+          flashGenerateOk('Your post is ready — scroll down to export the carousel PDF and caption.')
+          return
+        }
+
         setGeneratePhase('graphic')
         setGraphicProgress(0)
         setGraphicStage('Planning your infographic…')
@@ -207,6 +212,17 @@ export default function App() {
       setPostStage('Post complete')
       await flashPhaseComplete('post', 'Post complete')
 
+      if (format === 'carousel') {
+        flashGenerateOk(
+          headlineCount > 0
+            ? leadTitle
+              ? `Post ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'}. Open the carousel section below.`
+              : `Post ready — ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}. Open the carousel section below.`
+            : 'Post ready — scroll down to export your carousel PDF and caption.',
+        )
+        return
+      }
+
       setGeneratePhase('graphic')
       setGraphicProgress(0)
       setGraphicStage('Planning your infographic…')
@@ -244,7 +260,19 @@ export default function App() {
     } finally {
       setGenerateBusy(false)
     }
-  }, [topic, selectedTopic, customAngle, appendCitations, flashGenerateOk, flashGenerateErr, reportPostProgress, reportGraphicProgress, resetGenerateProgress, flashPhaseComplete])
+  }, [
+    topic,
+    selectedTopic,
+    customAngle,
+    format,
+    appendCitations,
+    flashGenerateOk,
+    flashGenerateErr,
+    reportPostProgress,
+    reportGraphicProgress,
+    resetGenerateProgress,
+    flashPhaseComplete,
+  ])
 
   const handleTopicSelect = useCallback((id) => {
     setSelectedTopic(id)

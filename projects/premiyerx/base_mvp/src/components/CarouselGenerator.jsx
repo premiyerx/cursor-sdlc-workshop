@@ -8,6 +8,7 @@ import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
 import TOPICS from '../data/postTemplates'
+import { slideCopy, subdeckDuplicatesBullet } from '../utils/completeSentence'
 
 const SLIDE_W = 1080
 const SLIDE_H = 1080
@@ -15,6 +16,9 @@ const SIDE = 56
 const PAD = 72
 const CONTENT_TOP = 118
 const FOOTER_TOP = SLIDE_H - 100
+/** Vertical band for hero copy (below header, above footer). */
+const HERO_REGION_TOP = 112
+const HERO_REGION_BOT = FOOTER_TOP - 52
 
 /** Editorial deck — near-black, warm paper type, green accent (Prem brand). */
 const BG = '#050505'
@@ -66,17 +70,23 @@ function rotateTitleBank(titles, topicId, hook) {
   return [...titles.slice(offset), ...titles.slice(0, offset)]
 }
 
-function sliceForSlide(s, maxLen = 200) {
-  const t = (s || '').replace(/\s+/g, ' ').trim()
-  if (!t) return ''
-  if (t.length <= maxLen) return t
-  const cut = t.slice(0, maxLen - 1)
-  const sp = cut.lastIndexOf(' ')
-  return `${sp > 48 ? cut.slice(0, sp) : cut}…`
-}
-
 function bulletTexts(bullets, n) {
   return bullets.slice(0, n).map((b) => (typeof b === 'string' ? b : b?.text || '')).filter(Boolean)
+}
+
+function allBulletStrings(bullets) {
+  return bullets.map((b) => (typeof b === 'string' ? b : b?.text || '')).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean)
+}
+
+function pickPlatformNarrative(subdeck, hook, bullets) {
+  const bt = allBulletStrings(bullets)
+  const b0 = bt[0] || ''
+  const sd = (subdeck || '').replace(/\s+/g, ' ').trim()
+  if (sd.length > 28 && !subdeckDuplicatesBullet(sd, b0)) return sd
+  if (bt[3] && bt[3] !== b0) return bt[3]
+  if (bt[2] && bt[2] !== b0) return bt[2]
+  if (bt[1] && bt[1] !== b0) return bt[1]
+  return hook || b0
 }
 
 function parseIntoSlides(text, topicId = '') {
@@ -93,9 +103,8 @@ function parseIntoSlides(text, topicId = '') {
       const t = l.trim()
       return t.length > 45 && !t.startsWith('#') && !/^(→|➜|►|▸|•|\d+\.|-)/.test(t) && !/\?$/.test(t)
     })
-    if (prose) subdeck = prose.trim().slice(0, 280)
+    if (prose) subdeck = prose.trim()
   }
-  slides.push({ type: 'cover', text: hook, topicLabel, subdeck })
 
   const bullets = []
   const sections = []
@@ -132,6 +141,15 @@ function parseIntoSlides(text, topicId = '') {
   }
   if (currentSection && currentSection.items.length > 0) sections.push(currentSection)
 
+  const firstBulletStr = bullets[0]
+    ? (typeof bullets[0] === 'string' ? bullets[0] : bullets[0].text).replace(/\s+/g, ' ').trim()
+    : ''
+  if (subdeck && firstBulletStr && subdeckDuplicatesBullet(subdeck, firstBulletStr)) {
+    subdeck = ''
+  }
+
+  slides.push({ type: 'cover', text: hook, topicLabel, subdeck })
+
   let shiftCounter = 0
 
   if (sections.length >= 2) {
@@ -148,13 +166,13 @@ function parseIntoSlides(text, topicId = '') {
         totalSections: sections.length,
         cites: [...new Set(cites)],
         kicker: shiftKicker(++shiftCounter),
-        supporting: sliceForSlide(t0, 220),
+        supporting: slideCopy(t0, 280),
         boxMeta: 'INSIDE — PIPELINE — OPEN MARKET',
         leftCol: t0
-          ? { title: 'THE CONSTRAINT', body: sliceForSlide(t0, 140) }
+          ? { title: 'THE CONSTRAINT', body: slideCopy(t0, 320) }
           : null,
         rightCol: t1
-          ? { title: 'THE LEVERAGE', body: sliceForSlide(t1, 140) }
+          ? { title: 'THE LEVERAGE', body: slideCopy(t1, 320) }
           : null,
       })
     }
@@ -193,45 +211,61 @@ function parseIntoSlides(text, topicId = '') {
     bullets.length >= 4 || bodyCount >= 6 || text.length > 700 || lines.length > 14
 
   if (richEnough) {
-    const bt = bulletTexts(bullets, 3)
+    const btList = allBulletStrings(bullets)
+    const narrativeRaw = pickPlatformNarrative(subdeck, hook, bullets)
     slides.push({
       type: 'platform',
       titleMain: 'One narrative across every execution surface.',
       titleAccent: 'At machine speed.',
-      body: sliceForSlide(bt[0] || hook, 170),
+      body: slideCopy(narrativeRaw, 380),
       trio: [
-        { title: 'Roadmap', sub: sliceForSlide(bt[0] || 'Clarity on what to instrument before you scale spend.', 72) },
-        { title: 'Ship', sub: sliceForSlide(bt[1] || 'Tight loops: smaller batches, measurable risk reduction each week.', 72) },
-        { title: 'Prove', sub: sliceForSlide(bt[2] || 'Receipts leaders trust: citations, deltas, and owner names.', 72) },
+        {
+          title: 'Roadmap',
+          sub: slideCopy(btList[0] || 'Clarity on what to instrument before you scale spend.', 720),
+        },
+        {
+          title: 'Ship',
+          sub: slideCopy(btList[1] || 'Tight loops: smaller batches, measurable risk reduction each week.', 720),
+        },
+        {
+          title: 'Prove',
+          sub: slideCopy(btList[2] || 'Receipts leaders trust: citations, deltas, and owner names.', 720),
+        },
       ],
     })
   }
 
-  const bt3 = bulletTexts(bullets, 3)
+  const fallPillar = [
+    'Presence across channels buyers scan before they trust a vendor.',
+    'Risk shows up across brands, teams, products, and agents — not only in tickets.',
+    'Automation without receipts becomes liability at machine speed in production.',
+  ]
+  const seenCol = new Set()
+  const colPick = []
+  for (const b of [...allBulletStrings(bullets), ...fallPillar]) {
+    const key = b.slice(0, 56).toLowerCase()
+    if (seenCol.has(key)) continue
+    seenCol.add(key)
+    colPick.push(b)
+    if (colPick.length >= 3) break
+  }
+  while (colPick.length < 3) colPick.push(fallPillar[colPick.length])
+
   const topicShort = (topicLabel.split(':')[0] || topicLabel).trim().slice(0, 44)
   slides.push({
     type: 'pillar',
     strike: STRIKE_BY_TOPIC[topicId] || 'HYPE — PILOTS — SLIDEWARE',
     headline: `Welcome to ${topicShort}.`,
-    body: sliceForSlide(
+    body: slideCopy(
       standaloneStatements[0] ||
         subdeck ||
         'Cybersecurity is converging on one outcome: securing how you show up in the world — not just what you run internally.',
-      200,
+      420,
     ),
     cols: [
-      {
-        label: 'EXTERNAL',
-        text: sliceForSlide(bt3[0] || 'Presence across channels buyers actually scan before they trust you.', 100),
-      },
-      {
-        label: 'ENTITY-LEVEL',
-        text: sliceForSlide(bt3[1] || 'Risk lives in brands, teams, products, and agents — not only in tickets.', 100),
-      },
-      {
-        label: 'AI-NATIVE',
-        text: sliceForSlide(bt3[2] || 'Automation without receipts becomes liability at machine speed.', 100),
-      },
+      { label: 'EXTERNAL', text: slideCopy(colPick[0], 560) },
+      { label: 'ENTITY-LEVEL', text: slideCopy(colPick[1], 560) },
+      { label: 'AI-NATIVE', text: slideCopy(colPick[2], 560) },
     ],
   })
 
@@ -296,6 +330,43 @@ function splitHeadlineForAccent(raw) {
   }
   const tailN = Math.min(6, Math.max(2, Math.round(words.length * 0.28)))
   return { primary: words.slice(0, -tailN).join(' '), accent: words.slice(-tailN).join(' ') }
+}
+
+/** Prefer sentence boundary so citations / parentheses are not split across styles. */
+function splitHeadlineForQuote(raw) {
+  const t = raw.replace(/\s+/g, ' ').trim()
+  if (!t) return { primary: '', accent: '' }
+  if (t.length < 90) return splitHeadlineForAccent(t)
+  const cap = Math.min(260, t.length)
+  const head = t.slice(0, cap)
+  const dot = head.lastIndexOf('. ')
+  if (dot > 55) {
+    return { primary: t.slice(0, dot + 1).trim(), accent: t.slice(dot + 1).trim() }
+  }
+  const q = head.lastIndexOf('? ')
+  if (q > 40) {
+    return { primary: t.slice(0, q + 1).trim(), accent: t.slice(q + 1).trim() }
+  }
+  const paren = head.indexOf('(')
+  if (paren > 50 && paren < 140) {
+    return { primary: t.slice(0, paren).trim(), accent: t.slice(paren).trim() }
+  }
+  return splitHeadlineForAccent(t)
+}
+
+function countHeadlineLines(ctx, primary, accent, maxW, fontPx) {
+  ctx.font = `700 ${fontPx}px ${FONT_SANS}`
+  const n1 = primary ? wrapText(ctx, primary, maxW).length : 0
+  const n2 = accent ? wrapText(ctx, accent, maxW).length : 0
+  return n1 + n2
+}
+
+/** First-line baseline so a block of n lines (given lineGap & fontPx) is vertically centered in the hero band. */
+function verticalHeroBaseline(lineCount, lineGap, fontPx) {
+  if (lineCount <= 0) return CONTENT_TOP + 56
+  const blockH = (lineCount - 1) * lineGap + fontPx * 1.05
+  const regionH = HERO_REGION_BOT - HERO_REGION_TOP
+  return HERO_REGION_TOP + (regionH - blockH) / 2 + fontPx * 0.72
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -393,6 +464,10 @@ function hairlineV(ctx, x, y1, y2) {
 
 function drawSplitHeadline(ctx, fullText, maxW, startY, fontPx = 50, lineGap = 54) {
   const { primary, accent } = splitHeadlineForAccent(fullText)
+  return drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, fontPx, lineGap)
+}
+
+function drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, fontPx, lineGap) {
   let y = startY
   ctx.fillStyle = PAPER
   ctx.font = `700 ${fontPx}px ${FONT_SANS}`
@@ -448,43 +523,56 @@ function drawCompareBox(ctx, topY, maxW, meta, leftCol, rightCol) {
   ctx.letterSpacing = '0px'
 
   const labelBottom = y + 22
-  ctx.font = `400 18px ${FONT_SANS}`
+  ctx.font = `400 20px ${FONT_SANS}`
   ctx.fillStyle = PAPER
   let ly = labelBottom
   for (const line of wrapText(ctx, leftCol.body, colW)) {
     ctx.fillText(line, lx, ly)
-    ly += 26
+    ly += 28
   }
   let ry = labelBottom
   for (const line of wrapText(ctx, rightCol.body, colW)) {
     ctx.fillText(line, rx, ry)
-    ry += 26
+    ry += 28
   }
 }
 
-function drawThreeColGrid(ctx, topY, maxW, cols, rowH = 118) {
-  const x0 = PAD
+function drawThreeColGrid(ctx, topY, maxW, cols, bottomLimit = FOOTER_TOP - 14) {
+  if (!cols || cols.length < 3) return
   const w = maxW
   const cw = (w - 32) / 3
+  const x0 = PAD
   const x1 = x0 + 16
   const x2 = x1 + cw + 16
   const x3 = x2 + cw + 16
+  const labelH = 24
+  const lineGap = 20
+  const maxH = Math.max(100, bottomLimit - topY - 8)
+  const maxLines = Math.max(4, Math.min(16, Math.floor((maxH - labelH - 10) / lineGap)))
+
+  ctx.font = `400 15px ${FONT_SANS}`
+  const lineSets = cols.map((col) => wrapText(ctx, col.text || '', cw - 8))
+  const usedLines = Math.min(maxLines, Math.max(...lineSets.map((ls) => ls.length), 1))
+  const rowH = labelH + usedLines * lineGap + 10
+
   hairlineV(ctx, x2 - 8, topY, topY + rowH)
   hairlineV(ctx, x3 - 8, topY, topY + rowH)
+
   let i = 0
   for (const col of cols) {
     const bx = i === 0 ? x1 : i === 1 ? x2 : x3
-    ctx.font = `500 9px ${FONT_MONO}`
+    ctx.font = `500 10px ${FONT_MONO}`
     ctx.letterSpacing = '2px'
     ctx.fillStyle = ACCENT_SOFT
-    ctx.fillText(col.label.toUpperCase(), bx, topY + 4)
+    ctx.fillText((col.label || '').toUpperCase(), bx, topY + 4)
     ctx.letterSpacing = '0px'
     ctx.fillStyle = PAPER
-    ctx.font = `400 17px ${FONT_SANS}`
-    let ly = topY + 28
-    for (const line of wrapText(ctx, col.text, cw - 8)) {
-      ctx.fillText(line, bx, ly)
-      ly += 24
+    ctx.font = `400 15px ${FONT_SANS}`
+    let ly = topY + labelH
+    const lines = lineSets[i] || []
+    for (let li = 0; li < usedLines; li++) {
+      ctx.fillText(lines[li] || '', bx, ly)
+      ly += lineGap
     }
     i++
   }
@@ -582,7 +670,7 @@ function drawPlatformInfographic(ctx, boxTop, maxW) {
 
   ctx.font = `500 10px ${FONT_SANS}`
   ctx.fillStyle = PAPER
-  const oneSignal = 'One signal. Their whole campaign structure visible.'
+  const oneSignal = 'From scattered signals to one clear story.'
   ctx.fillText(oneSignal, x0 + w / 2 - ctx.measureText(oneSignal).width / 2, graphTop - 4)
 
   const trioY = boxTop + boxH - 52
@@ -591,7 +679,7 @@ function drawPlatformInfographic(ctx, boxTop, maxW) {
   ctx.font = `500 8px ${FONT_MONO}`
   ctx.letterSpacing = '1.8px'
   ctx.fillStyle = ACCENT_SOFT
-  ctx.fillText('THREATS REMOVED IN DAYS, NOT QUARTERS', x0 + 16, trioY - 2)
+  ctx.fillText('SIGNAL · GRAPH · RESPONSE', x0 + 16, trioY - 2)
   ctx.letterSpacing = '0px'
 }
 
@@ -606,32 +694,36 @@ function renderSlide(ctx, slide, index, total) {
       const topic = (slide.topicLabel || 'Your pillar').toUpperCase()
       drawEditorialHeader(ctx, `${AUTHOR.toUpperCase()} · ${topic.slice(0, 36)}`, index, total)
 
-      ctx.fillStyle = MUTED
-      ctx.font = `500 10px ${FONT_MONO}`
-      ctx.letterSpacing = '2.6px'
-      const pre = `A NOTE ON ${topic.slice(0, 40)}`
-      ctx.fillText(pre, PAD, CONTENT_TOP - 6)
-      ctx.letterSpacing = '0px'
-
-      let y = drawSplitHeadline(ctx, slide.text, maxW, CONTENT_TOP + 20, 48, 54)
+      const coverFont = 54
+      const coverGap = 62
+      const { primary, accent } = splitHeadlineForAccent(slide.text)
+      const nLines = countHeadlineLines(ctx, primary, accent, maxW, coverFont)
+      const headlineStart = verticalHeroBaseline(nLines, coverGap, coverFont)
+      let y = drawSplitHeadline(ctx, slide.text, maxW, headlineStart, coverFont, coverGap)
 
       if (slide.subdeck) {
-        y += 26
-        const barX = PAD
+        y += 40
+        const subFont = 24
+        const subLineH = 36
+        const barW = 4
         const textX = PAD + 18
-        const barTop = y - 4
-        const subLines = wrapText(ctx, slide.subdeck, maxW - 24)
-        const barH = Math.max(36, subLines.length * 28 + 8)
+        ctx.font = `400 ${subFont}px ${FONT_SANS}`
+        const subLines = wrapText(ctx, slide.subdeck, maxW - textX + PAD - 8)
+        const lineCount = subLines.length
+        const firstBaseline = y + subLineH
+        const lastBaseline = firstBaseline + (lineCount - 1) * subLineH
+        const midY = (firstBaseline + lastBaseline) / 2
+        const barH = Math.max(Math.round(subFont * 1.35), lineCount * subLineH + 8)
+        const barTop = midY - barH / 2
         ctx.fillStyle = ACCENT
-        ctx.fillRect(barX, barTop, 3, barH)
+        ctx.fillRect(PAD, barTop, barW, barH)
         ctx.fillStyle = PAPER
-        ctx.font = `400 22px ${FONT_SANS}`
-        let sy = y
+        let sy = firstBaseline
         for (const sl of subLines) {
           ctx.fillText(sl, textX, sy)
-          sy += 28
+          sy += subLineH
         }
-        y = sy + 16
+        y = lastBaseline + 28
       }
 
       drawEditorialFooter(ctx, { showScrollCue: true })
@@ -640,16 +732,18 @@ function renderSlide(ctx, slide, index, total) {
 
     case 'section': {
       drawEditorialHeader(ctx, slide.kicker || shiftKicker(1), index, total)
-      let y = drawSplitHeadline(ctx, slide.heading, maxW, CONTENT_TOP + 6, 42, 48)
-      y += 18
+      const hFont = 46
+      const hGap = 54
+      let y = drawSplitHeadline(ctx, slide.heading, maxW, CONTENT_TOP + 8, hFont, hGap)
+      y += 22
       if (slide.supporting) {
-        ctx.font = `400 21px ${FONT_SANS}`
+        ctx.font = `400 23px ${FONT_SANS}`
         ctx.fillStyle = PAPER
         for (const ln of wrapText(ctx, slide.supporting, maxW)) {
           ctx.fillText(ln, PAD, y)
-          y += 28
+          y += 30
         }
-        y += 14
+        y += 16
       }
       if (slide.leftCol && slide.rightCol) {
         drawCompareBox(ctx, y, maxW, slide.boxMeta, slide.leftCol, slide.rightCol)
@@ -657,12 +751,12 @@ function renderSlide(ctx, slide, index, total) {
       } else {
         hairlineH(ctx, PAD, SLIDE_W - PAD, y)
         y += 20
-        ctx.font = `400 20px ${FONT_SANS}`
+        ctx.font = `400 22px ${FONT_SANS}`
         for (let idx = 0; idx < slide.items.length; idx++) {
           const item = slide.items[idx]
           const itemText = typeof item === 'string' ? item : item.text
           const itemCite = typeof item === 'string' ? null : item.cite
-          for (const il of wrapText(ctx, sliceForSlide(itemText, 160), maxW - 8)) {
+          for (const il of wrapText(ctx, slideCopy(itemText, 420, 920), maxW - 8)) {
             ctx.fillText(il, PAD, y)
             y += 28
           }
@@ -671,7 +765,7 @@ function renderSlide(ctx, slide, index, total) {
             ctx.font = `italic 14px ${FONT_SANS}`
             ctx.fillText(`↳ ${itemCite}`, PAD, y + 4)
             ctx.fillStyle = PAPER
-            ctx.font = `400 20px ${FONT_SANS}`
+            ctx.font = `400 22px ${FONT_SANS}`
             y += 24
           }
           y += 12
@@ -684,8 +778,8 @@ function renderSlide(ctx, slide, index, total) {
 
     case 'bullets': {
       drawEditorialHeader(ctx, slide.kicker || shiftKicker(1), index, total)
-      let y = drawSplitHeadline(ctx, slide.title, maxW, CONTENT_TOP + 6, 40, 46)
-      y += 20
+      let y = drawSplitHeadline(ctx, slide.title, maxW, CONTENT_TOP + 6, 44, 52)
+      y += 22
       hairlineH(ctx, PAD, SLIDE_W - PAD, y)
       y += 22
 
@@ -703,11 +797,11 @@ function renderSlide(ctx, slide, index, total) {
         ctx.fillText(String(idx + 1).padStart(2, '0'), PAD + boxPad, iy)
         ctx.letterSpacing = '0px'
         ctx.fillStyle = PAPER
-        ctx.font = `400 21px ${FONT_SANS}`
-        const short = sliceForSlide(itemText, 130)
+        ctx.font = `400 23px ${FONT_SANS}`
+        const short = slideCopy(itemText, 360, 880)
         for (const il of wrapText(ctx, short, innerW - 36)) {
           ctx.fillText(il, PAD + boxPad + 36, iy)
-          iy += 28
+          iy += 30
         }
         if (itemCite) {
           ctx.fillStyle = ACCENT_SOFT
@@ -715,7 +809,7 @@ function renderSlide(ctx, slide, index, total) {
           ctx.fillText(`↳ ${itemCite}`, PAD + boxPad + 36, iy + 2)
           iy += 22
           ctx.fillStyle = PAPER
-          ctx.font = `400 21px ${FONT_SANS}`
+          ctx.font = `400 23px ${FONT_SANS}`
         }
         iy += 14
         if (iy > FOOTER_TOP - 120) break
@@ -732,36 +826,24 @@ function renderSlide(ctx, slide, index, total) {
 
     case 'quote': {
       drawEditorialHeader(ctx, slide.kicker || 'SHIFT · PERSPECTIVE', index, total)
-      let y = drawSplitHeadline(ctx, sliceForSlide(slide.text, 90), maxW, CONTENT_TOP + 10, 40, 46)
-      y += 20
-      ctx.font = `400 22px ${FONT_SANS}`
-      ctx.fillStyle = PAPER
-      const rest = slide.text.length > 90 ? slide.text.slice(90) : slide.text
-      for (const ln of wrapText(ctx, sliceForSlide(rest, 320), maxW)) {
-        ctx.fillText(ln, PAD, y)
-        y += 30
-      }
-      y += 16
-      ctx.fillStyle = ACCENT
-      ctx.fillRect(PAD, y, 3, 44)
-      ctx.fillStyle = MUTED
-      ctx.font = `500 12px ${FONT_MONO}`
-      ctx.letterSpacing = '2px'
-      ctx.fillText('— OPERATOR NOTE', PAD + 14, y + 16)
-      ctx.letterSpacing = '0px'
+      const qFont = 46
+      const qGap = 52
+      const { primary, accent } = splitHeadlineForQuote(slide.text)
+      const nLines = countHeadlineLines(ctx, primary, accent, maxW, qFont)
+      const startY = verticalHeroBaseline(nLines, qGap, qFont)
+      drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, qFont, qGap)
       drawEditorialFooter(ctx)
       break
     }
 
     case 'cta': {
       drawEditorialHeader(ctx, slide.kicker || 'YOUR TURN', index, total)
-      let y = drawSplitHeadline(ctx, slide.text, maxW, CONTENT_TOP + 36, 38, 44)
-      y += 32
-      ctx.fillStyle = ACCENT_SOFT
-      ctx.font = `500 10px ${FONT_MONO}`
-      ctx.letterSpacing = '1.8px'
-      ctx.fillText('DWELL + COMMENT DEPTH BEAT VANITY REACH — MAKE IT EASY TO DISAGREE', PAD, y)
-      ctx.letterSpacing = '0px'
+      const cFont = 44
+      const cGap = 50
+      const { primary, accent } = splitHeadlineForAccent(slide.text)
+      const nLines = countHeadlineLines(ctx, primary, accent, maxW, cFont)
+      const startY = verticalHeroBaseline(nLines, cGap, cFont)
+      drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, cFont, cGap)
       drawEditorialFooter(ctx)
       break
     }
@@ -769,26 +851,26 @@ function renderSlide(ctx, slide, index, total) {
     case 'platform': {
       drawEditorialHeader(ctx, 'THE PLATFORM', index, total, { monoRight: true })
       ctx.fillStyle = PAPER
-      ctx.font = `700 36px ${FONT_SANS}`
+      ctx.font = `700 38px ${FONT_SANS}`
       let y = CONTENT_TOP + 4
       const m = slide.titleMain || ''
       const a = slide.titleAccent || ''
       for (const line of wrapText(ctx, m, maxW)) {
         ctx.fillText(line, PAD, y)
-        y += 42
+        y += 44
       }
       ctx.fillStyle = ACCENT
-      ctx.font = `700 36px ${FONT_SANS}`
+      ctx.font = `700 38px ${FONT_SANS}`
       for (const line of wrapText(ctx, a, maxW)) {
         ctx.fillText(line, PAD, y)
-        y += 42
+        y += 44
       }
       ctx.fillStyle = PAPER
-      ctx.font = `400 20px ${FONT_SANS}`
+      ctx.font = `400 22px ${FONT_SANS}`
       y += 8
       for (const ln of wrapText(ctx, slide.body || '', maxW)) {
         ctx.fillText(ln, PAD, y)
-        y += 28
+        y += 30
       }
       y += 10
       drawPlatformInfographic(ctx, y, maxW)
@@ -796,20 +878,34 @@ function renderSlide(ctx, slide, index, total) {
       if (slide.trio && slide.trio.length === 3) {
         const tw = (maxW - 32) / 3
         const xb = PAD
-        hairlineV(ctx, xb + tw + 16, trioTop, trioTop + 72)
-        hairlineV(ctx, xb + (tw + 16) * 2, trioTop, trioTop + 72)
+        const trioLineGap = 19
+        const trioBottomCap = FOOTER_TOP - 18
+        const maxTrioLines = Math.max(
+          3,
+          Math.min(14, Math.floor((trioBottomCap - trioTop - 52) / trioLineGap)),
+        )
+        let maxColLines = 0
+        const trioWrapped = slide.trio.map((t) => {
+          ctx.font = `400 15px ${FONT_SANS}`
+          const subLines = wrapText(ctx, t.sub || '', tw - 6)
+          const n = Math.min(maxTrioLines, subLines.length)
+          maxColLines = Math.max(maxColLines, n)
+          return { t, subLines, n }
+        })
+        const trioRailH = 52 + maxColLines * trioLineGap + 8
+        hairlineV(ctx, xb + tw + 16, trioTop, trioTop + trioRailH)
+        hairlineV(ctx, xb + (tw + 16) * 2, trioTop, trioTop + trioRailH)
         let tx = xb + 8
-        for (const t of slide.trio) {
+        for (const { t, subLines, n } of trioWrapped) {
           ctx.fillStyle = PAPER
-          ctx.font = `700 22px ${FONT_SANS}`
+          ctx.font = `700 18px ${FONT_SANS}`
           ctx.fillText(t.title, tx, trioTop + 22)
-          ctx.font = `400 14px ${FONT_SANS}`
+          ctx.font = `400 15px ${FONT_SANS}`
           ctx.fillStyle = MUTED
-          let subY = trioTop + 46
-          const subLines = wrapText(ctx, t.sub || '', tw - 4)
-          for (let si = 0; si < Math.min(2, subLines.length); si++) {
+          let subY = trioTop + 48
+          for (let si = 0; si < n; si++) {
             ctx.fillText(subLines[si], tx, subY)
-            subY += 18
+            subY += trioLineGap
           }
           ctx.fillStyle = PAPER
           tx += tw + 16
@@ -824,16 +920,16 @@ function renderSlide(ctx, slide, index, total) {
       let y = CONTENT_TOP + 8
       drawStrikeLabel(ctx, slide.strike || '', PAD, y, maxW)
       y += 36
-      y = drawSplitHeadline(ctx, slide.headline || 'Welcome to Digital Trust.', maxW, y, 40, 44)
-      y += 16
-      ctx.font = `400 21px ${FONT_SANS}`
+      y = drawSplitHeadline(ctx, slide.headline || 'Welcome to Digital Trust.', maxW, y, 44, 50)
+      y += 18
+      ctx.font = `400 22px ${FONT_SANS}`
       ctx.fillStyle = PAPER
       for (const ln of wrapText(ctx, slide.body || '', maxW)) {
         ctx.fillText(ln, PAD, y)
-        y += 28
+        y += 30
       }
       y += 22
-      drawThreeColGrid(ctx, y, maxW, slide.cols || [], 108)
+      drawThreeColGrid(ctx, y, maxW, slide.cols || [], FOOTER_TOP - 14)
       drawEditorialFooter(ctx)
       break
     }
@@ -841,13 +937,13 @@ function renderSlide(ctx, slide, index, total) {
     case 'closer': {
       drawEditorialHeader(ctx, (slide.topicLabel || 'PREM IYER').toUpperCase().slice(0, 32), index, total)
       let y = CONTENT_TOP + 4
-      y = drawSplitHeadline(ctx, slide.text || '', maxW, y, 40, 44)
-      y += 14
-      ctx.font = `400 20px ${FONT_SANS}`
+      y = drawSplitHeadline(ctx, slide.text || '', maxW, y, 44, 50)
+      y += 16
+      ctx.font = `400 22px ${FONT_SANS}`
       ctx.fillStyle = PAPER
       for (const ln of wrapText(ctx, slide.sub || '', maxW)) {
         ctx.fillText(ln, PAD, y)
-        y += 28
+        y += 30
       }
       y += 18
       hairlineH(ctx, PAD, SLIDE_W - PAD, y)

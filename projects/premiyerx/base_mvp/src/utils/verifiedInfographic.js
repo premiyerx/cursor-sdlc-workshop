@@ -1,4 +1,5 @@
 import { extractClaimsFromText, getRegistry, getStaleStatus } from './dataRegistry'
+import { slideCopy } from './completeSentence'
 import { selectHeadlinesForTopic } from './newsCraft'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { rotateSlice } from './freshnessRotation'
@@ -19,7 +20,7 @@ function parseRegistryStat(dataPoint) {
   const value = numMatch ? numMatch[1] : '—'
   let context = claim
   if (numMatch) context = claim.replace(numMatch[0], '').replace(/^[,\s:-]+/, '').trim()
-  if (context.length > 52) context = `${context.slice(0, 49)}…`
+  if (context.length > 52) context = slideCopy(context, 48, 140)
 
   return {
     value,
@@ -109,10 +110,8 @@ function safeArrowLines(postText, limit = 2) {
     .slice(0, limit)
 }
 
-function truncateHeadline(title, max = 110) {
-  const t = (title || '').trim()
-  if (t.length <= max) return t
-  return `${t.slice(0, max - 1)}…`
+function truncateHeadline(title, softMax = 110, hardMax = 200) {
+  return slideCopy((title || '').trim(), softMax, hardMax)
 }
 
 function formatDisplayDate(isoDate) {

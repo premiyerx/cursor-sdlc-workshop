@@ -11,6 +11,7 @@ import ProgressRing from './ProgressRing'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import { saveImageToDevice, saveSuccessMessage } from '../utils/saveImage'
 import ActionFeedback from './ActionFeedback'
+import { slideCopy } from '../utils/completeSentence'
 
 const PALETTES = [
   { accent: '#3EDC81', dim: '#1a2e1a', bg2: '#0d1f0d' },
@@ -42,7 +43,7 @@ function StatGrid({ stats, hook, palette, postText }) {
   return (
     <>
       <text x="600" y="58" textAnchor="middle" fill={palette.accent} fontSize="20" fontWeight="800" fontFamily="Inter, sans-serif" letterSpacing="2">
-        {hook.length > 60 ? hook.slice(0, 57).toUpperCase() + '...' : hook.toUpperCase()}
+        {slideCopy(hook, 52, 120).toUpperCase()}
       </text>
       <line x1="350" y1="76" x2="850" y2="76" stroke={palette.accent} strokeWidth="1" opacity="0.25" />
       {displayStats.map((stat, i) => {
@@ -58,7 +59,7 @@ function StatGrid({ stats, hook, palette, postText }) {
             <rect x={100 + col * cellW + 8} y={140 + row * (cellH + 24)} width="4" height={cellH} rx="2" fill={palette.accent} opacity="0.5" />
             <text x={cx} y={cy - 14} textAnchor="middle" fill="#f0f0f0" fontSize={rows > 1 ? '30' : '40'} fontWeight="800" fontFamily="Inter, sans-serif">{stat.value}</text>
             <text x={cx} y={cy + 16} textAnchor="middle" fill="#555" fontSize="10" fontFamily="Inter, sans-serif">
-              {stat.context.length > 48 ? stat.context.slice(0, 45) + '...' : stat.context}
+              {slideCopy(stat.context, 48, 130)}
             </text>
           </g>
         )
@@ -73,7 +74,7 @@ function BigNumberStack({ stats, hook, palette, postText }) {
   return (
     <>
       <text x="600" y="55" textAnchor="middle" fill={palette.accent} fontSize="20" fontWeight="800" fontFamily="Inter, sans-serif" letterSpacing="2">
-        {hook.length > 55 ? hook.slice(0, 52).toUpperCase() + '...' : hook.toUpperCase()}
+        {slideCopy(hook, 48, 120).toUpperCase()}
       </text>
       <line x1="380" y1="73" x2="820" y2="73" stroke={palette.accent} strokeWidth="1" opacity="0.25" />
       {displayStats.map((stat, i) => {
@@ -85,7 +86,7 @@ function BigNumberStack({ stats, hook, palette, postText }) {
             <text x="180" y={y + 55} textAnchor="middle" fill={palette.accent} fontSize="34" fontWeight="800" fontFamily="Inter, sans-serif">{stat.value}</text>
             <line x1="280" y1={y + 16} x2="280" y2={y + 74} stroke="#222" strokeWidth="1" />
             <text x="310" y={y + 50} fill="#888" fontSize="13" fontFamily="Inter, sans-serif">
-              {stat.context.length > 70 ? stat.context.slice(0, 67) + '...' : stat.context}
+              {slideCopy(stat.context, 68, 180)}
             </text>
           </g>
         )
@@ -99,7 +100,7 @@ function ListWithHeader({ arrowLines, hook, palette, postText }) {
   return (
     <>
       <text x="600" y="58" textAnchor="middle" fill={palette.accent} fontSize="20" fontWeight="800" fontFamily="Inter, sans-serif" letterSpacing="2">
-        {hook.length > 55 ? hook.slice(0, 52).toUpperCase() + '...' : hook.toUpperCase()}
+        {slideCopy(hook, 48, 120).toUpperCase()}
       </text>
       <line x1="350" y1="76" x2="850" y2="76" stroke={palette.accent} strokeWidth="1" opacity="0.25" />
       {arrowLines.slice(0, 6).map((line, i) => {
@@ -110,7 +111,7 @@ function ListWithHeader({ arrowLines, hook, palette, postText }) {
             <rect x="80" y={y} width="3" height="58" rx="1.5" fill={palette.accent} opacity="0.4" />
             <text x="120" y={y + 36} fill={palette.accent} fontSize="16" fontWeight="700" fontFamily="Inter, sans-serif">→</text>
             <text x="150" y={y + 36} fill="#ccc" fontSize="13" fontFamily="Inter, sans-serif">
-              {line.length > 80 ? line.slice(0, 77) + '...' : line}
+              {slideCopy(line, 78, 200)}
             </text>
           </g>
         )
@@ -125,7 +126,7 @@ function TimelineFlow({ arrowLines, hook, palette, postText }) {
   return (
     <>
       <text x="600" y="55" textAnchor="middle" fill={palette.accent} fontSize="20" fontWeight="800" fontFamily="Inter, sans-serif" letterSpacing="2">
-        {hook.length > 55 ? hook.slice(0, 52).toUpperCase() + '...' : hook.toUpperCase()}
+        {slideCopy(hook, 48, 120).toUpperCase()}
       </text>
       <line x1="380" y1="73" x2="820" y2="73" stroke={palette.accent} strokeWidth="1" opacity="0.25" />
       <line x1="155" y1="108" x2="155" y2={108 + items.length * 88} stroke="#222" strokeWidth="2" />
@@ -141,7 +142,7 @@ function TimelineFlow({ arrowLines, hook, palette, postText }) {
               {'STEP ' + (i + 1)}
             </text>
             <text x="216" y={y + 44} fill="#ccc" fontSize="13" fontFamily="Inter, sans-serif">
-              {item.length > 75 ? item.slice(0, 72) + '...' : item}
+              {slideCopy(item, 72, 180)}
             </text>
           </g>
         )
@@ -157,7 +158,7 @@ function Comparison({ stats, arrowLines, hook, palette, postText }) {
   return (
     <>
       <text x="600" y="55" textAnchor="middle" fill={palette.accent} fontSize="20" fontWeight="800" fontFamily="Inter, sans-serif" letterSpacing="2">
-        {hook.length > 55 ? hook.slice(0, 52).toUpperCase() + '...' : hook.toUpperCase()}
+        {slideCopy(hook, 48, 120).toUpperCase()}
       </text>
       <line x1="380" y1="73" x2="820" y2="73" stroke={palette.accent} strokeWidth="1" opacity="0.25" />
       <rect x="60" y="100" width="520" height="400" rx="18" fill="#111" stroke="#1a1a1a" strokeWidth="1" />
@@ -165,7 +166,7 @@ function Comparison({ stats, arrowLines, hook, palette, postText }) {
       {left.map((s, i) => (
         <g key={'l' + i}>
           <text x="320" y={210 + i * 110} textAnchor="middle" fill="#e17055" fontSize="34" fontWeight="800" fontFamily="Inter, sans-serif">{s.value}</text>
-          <text x="320" y={240 + i * 110} textAnchor="middle" fill="#555" fontSize="11" fontFamily="Inter, sans-serif">{s.context.slice(0, 45)}</text>
+          <text x="320" y={240 + i * 110} textAnchor="middle" fill="#555" fontSize="11" fontFamily="Inter, sans-serif">{slideCopy(s.context, 42, 120)}</text>
         </g>
       ))}
       <rect x="620" y="100" width="520" height="400" rx="18" fill={palette.bg2} stroke={palette.accent} strokeWidth="1" />
@@ -173,7 +174,7 @@ function Comparison({ stats, arrowLines, hook, palette, postText }) {
       {right.map((s, i) => (
         <g key={'r' + i}>
           <text x="880" y={210 + i * 110} textAnchor="middle" fill={palette.accent} fontSize="34" fontWeight="800" fontFamily="Inter, sans-serif">{s.value}</text>
-          <text x="880" y={240 + i * 110} textAnchor="middle" fill="rgba(62,220,129,0.7)" fontSize="11" fontFamily="Inter, sans-serif">{s.context.slice(0, 45)}</text>
+          <text x="880" y={240 + i * 110} textAnchor="middle" fill="rgba(62,220,129,0.7)" fontSize="11" fontFamily="Inter, sans-serif">{slideCopy(s.context, 42, 120)}</text>
         </g>
       ))}
       <SourceFooter text={postText} palette={palette} />
@@ -188,7 +189,7 @@ function FrameworkPillars({ keyPhrases, stats, hook, palette, postText }) {
   return (
     <>
       <text x="600" y="55" textAnchor="middle" fill={palette.accent} fontSize="20" fontWeight="800" fontFamily="Inter, sans-serif" letterSpacing="2">
-        {hook.length > 55 ? hook.slice(0, 52).toUpperCase() + '...' : hook.toUpperCase()}
+        {slideCopy(hook, 48, 120).toUpperCase()}
       </text>
       <line x1="380" y1="73" x2="820" y2="73" stroke={palette.accent} strokeWidth="1" opacity="0.25" />
       {displayPillars.map((pillar, i) => {
@@ -205,7 +206,7 @@ function FrameworkPillars({ keyPhrases, stats, hook, palette, postText }) {
               <text x={x + 180} y="260" textAnchor="middle" fill="#f0f0f0" fontSize="40" fontWeight="800" fontFamily="Inter, sans-serif">{stat.value}</text>
             )}
             {stat && (
-              <text x={x + 180} y="295" textAnchor="middle" fill="#555" fontSize="11" fontFamily="Inter, sans-serif">{stat.context.slice(0, 30)}</text>
+              <text x={x + 180} y="295" textAnchor="middle" fill="#555" fontSize="11" fontFamily="Inter, sans-serif">{slideCopy(stat.context, 28, 90)}</text>
             )}
           </g>
         )
