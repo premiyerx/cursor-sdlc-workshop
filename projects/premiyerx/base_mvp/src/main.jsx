@@ -68,6 +68,8 @@ function wireProductionUpdateChecks() {
   const go = () => {
     void reloadIfNewerBuildAvailable()
   }
+  // Run once on startup so a normal refresh (not only tab focus) can detect a newer deploy.
+  queueMicrotask(go)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') go()
   })

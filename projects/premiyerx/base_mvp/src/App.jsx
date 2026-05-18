@@ -567,9 +567,12 @@ export default function App() {
         <p className="footer-copy">© Prem Iyer 2026</p>
         <p
           className="footer-build"
-          title="When we ship a change, leave this tab or close the app and open it again—this date jumps forward once your phone has picked up the new version."
+          title={`Build ${typeof window !== 'undefined' && window.__LIDP_BUILD_STAMP__?.sha ? window.__LIDP_BUILD_STAMP__.sha : __DEPLOY_SHA__}. When we ship a change, switch away from this tab or reopen the app so this time can refresh.`}
         >
-          Last updated: {__BUILD_DATE__}
+          Last updated:{' '}
+          {typeof window !== 'undefined' && window.__LIDP_BUILD_STAMP__?.builtAt
+            ? window.__LIDP_BUILD_STAMP__.builtAt
+            : __BUILD_DATE__}
         </p>
       </footer>
     </div>
