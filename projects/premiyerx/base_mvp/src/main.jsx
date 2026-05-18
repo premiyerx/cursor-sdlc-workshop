@@ -9,12 +9,71 @@ createRoot(document.getElementById('root')).render(
   </StrictMode>,
 )
 
-/** Unregister old service workers so phones/browsers cannot stay stuck on an outdated bundle. */
+function appBuildFromDocument() {
+  return document.querySelector('meta[name="app-build"]')?.getAttribute('content')?.trim() || ''
+}
+
+async function clearSiteCachesAndSw() {
+  if ('caches' in window) {
+    try {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((k) => caches.delete(k)))
+    } catch {
+      /* ignore */
+    }
+  }
+  if ('serviceWorker' in navigator) {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(regs.map((r) => r.unregister()))
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** Re-fetch the HTML shell and reload when a newer deploy is live (PWA / home-screen installs). */
+async function reloadIfNewerBuildAvailable() {
+  const local = appBuildFromDocument()
+  if (!local || local === 'local') return
+  try {
+    const url = new URL('/', window.location.origin)
+    url.searchParams.set('_buildcheck', String(Date.now()))
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { Accept: 'text/html', 'Cache-Control': 'no-cache' },
+    })
+    const html = await res.text()
+    const m = html.match(/<meta\s+name="app-build"\s+content="([^"]*)"/i)
+    const remote = m?.[1]?.trim()
+    if (remote && remote !== local) {
+      await clearSiteCachesAndSw()
+      window.location.reload()
+    }
+  } catch {
+    /* offline or blocked */
+  }
+}
+
+function wireProductionUpdateChecks() {
+  const go = () => {
+    void reloadIfNewerBuildAvailable()
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') go()
+  })
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) go()
+  })
+  window.addEventListener('focus', go)
+}
+
+/** Unregister legacy service workers; keep caches clear so installs always pick up new hashed bundles. */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .getRegistrations()
-      .then((regs) => Promise.all(regs.map((r) => r.unregister())))
-      .catch(() => {})
+    clearSiteCachesAndSw().catch(() => {})
   })
 }
+
+wireProductionUpdateChecks()
