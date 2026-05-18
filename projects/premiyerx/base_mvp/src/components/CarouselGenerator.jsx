@@ -8,8 +8,8 @@ import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
 import TOPICS from '../data/postTemplates'
-import { getTopicNarrative } from '../data/topicNarratives'
-import { slideCopy, subdeckDuplicatesBullet, takeawayCopy, firstSentence } from '../utils/completeSentence'
+import { getTopicNarrative, CAROUSEL_CTA_BANK } from '../data/topicNarratives'
+import { slideCopy, subdeckDuplicatesBullet, takeawayCopy, firstSentence, balanceParentheses } from '../utils/completeSentence'
 
 const SLIDE_W = 1080
 const SLIDE_H = 1080
@@ -45,36 +45,36 @@ const CAROUSEL_TYPE = {
   sectionSupportingLineH: 27,
   sectionList: 17,
   sectionListLineH: 26,
-  bulletsTitle: 50,
-  bulletsTitleGap: 56,
-  bulletsItem: 17,
-  bulletsItemLineH: 26,
+  bulletsTitle: 56,
+  bulletsTitleGap: 62,
+  bulletsItem: 22,
+  bulletsItemLineH: 32,
   bulletsIndex: 10,
   quoteDisplay: 62,
   quoteLineGap: 68,
   ctaDisplay: 54,
   ctaLineGap: 60,
-  platformDeck: 48,
-  platformDeckGap: 54,
-  platformBody: 17,
-  platformBodyLineH: 27,
-  trioTitle: 15,
-  trioSub: 13,
-  trioLineGap: 16,
+  platformDeck: 52,
+  platformDeckGap: 58,
+  platformBody: 20,
+  platformBodyLineH: 31,
+  trioTitle: 17,
+  trioSub: 16,
+  trioLineGap: 20,
   pillarDisplay: 50,
   pillarLineGap: 56,
   pillarBody: 17,
   pillarBodyLineH: 27,
-  pillarColLabel: 9,
-  pillarColBody: 13,
-  pillarColLineGap: 18,
+  pillarColLabel: 11,
+  pillarColBody: 16,
+  pillarColLineGap: 22,
   closerDisplay: 48,
   closerLineGap: 54,
   closerSub: 17,
   closerSubLineH: 27,
   closerStatXL: 58,
   closerStatL: 44,
-  closerMicro: 8,
+  closerMicro: 11,
   headerMono: 10,
   compareMeta: 8,
   compareLabel: 8,
@@ -95,7 +95,7 @@ const SHIFT_LABELS = [
 ]
 
 const STRIKE_BY_TOPIC = {
-  cursor: 'AUTOCOMPLETE — COPY/PASTE — TOOL HOPPING',
+  cursor: 'LINE-ONLY HELP — NO REPO-WIDE CONTEXT — TOOL-CHAIN GAPS',
   investment: 'HYPE — FOMO — DECKS WITHOUT OWNERS',
   cio: 'STRATEGY THEATER — PILOTS — SHELFWARE',
   roi: 'VANITY METRICS — BENCHMARKS — NO DECISION',
@@ -295,6 +295,76 @@ function buildTrioAndPillarCopy({
   return { trioSubs: trioSubs.slice(0, 3), colPick: colPick.slice(0, 3) }
 }
 
+const BORING_CTA_RE = /bottom-up\s+adoption|top-down\s+mandate/i
+
+function buildKeywordCells(narrative, shortTopic) {
+  const raw = narrative.platformLegendCells
+  if (Array.isArray(raw) && raw.length > 0) {
+    const out = raw
+      .map((s) =>
+        String(s || '')
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z0-9 ]/g, '')
+          .slice(0, 6)
+          .trim(),
+      )
+      .filter(Boolean)
+    const pad = ['THEMES', 'SCOPE', 'PROOF', 'NEXT', 'RISK', 'BUILD', 'SHIP', 'EDGE']
+    let guard = 0
+    while (out.length < 8 && guard < 24) {
+      out.push(pad[out.length % pad.length])
+      guard += 1
+    }
+    return out.slice(0, 8)
+  }
+  return eightGraphicCells(shortTopic, narrative.signalLabel)
+}
+
+function buildCarouselTrioSubs(narrative, fallbackArgs) {
+  const T = narrative.carouselTrio
+  if (T?.roadmap && T?.ship && T?.prove) {
+    return [
+      takeawayCopy(T.roadmap, 200, 320),
+      takeawayCopy(T.ship, 200, 320),
+      takeawayCopy(T.prove, 200, 320),
+    ]
+  }
+  return buildTrioAndPillarCopy(fallbackArgs).trioSubs
+}
+
+function buildCarouselPillarCols(narrative, fallbackArgs) {
+  const cols = narrative.carouselPillarCols
+  if (Array.isArray(cols) && cols.length >= 3) {
+    return cols.slice(0, 3).map((c) => takeawayCopy(c, 200, 320))
+  }
+  return buildTrioAndPillarCopy(fallbackArgs).colPick
+}
+
+function pickVariedCta(ctaFromPost, { headlineGuard, narrative, topicId, hook, postText }) {
+  const boring = BORING_CTA_RE
+  const cand = (ctaFromPost || '').replace(/\s+/g, ' ').trim()
+  if (cand.length > 22 && !boring.test(cand) && !headlineGuard.has(cand)) return cand
+
+  const bank = [...(narrative.carouselCtas || []), ...CAROUSEL_CTA_BANK].map((q) =>
+    (q || '').replace(/\s+/g, ' ').trim(),
+  ).filter(Boolean)
+  if (!bank.length) return cand
+
+  const seed = fnv1a(`${topicId}:${hook.slice(0, 56)}:${(postText || '').slice(0, 200)}`) >>> 0
+  const rng = mulberry32(seed || 0xabcf3311)
+  const tried = new Set()
+  for (let k = 0; k < bank.length * 4; k++) {
+    const q = bank[Math.floor(rng() * bank.length) % bank.length]
+    if (!q || tried.has(q)) continue
+    tried.add(q)
+    if (headlineGuard.has(q) || boring.test(q)) continue
+    return q
+  }
+  const escape = bank.find((q) => !boring.test(q))
+  return escape || bank[0]
+}
+
 /** Decorative 8 cells — letters from topic + signal (design only; not standalone “meaning”). */
 function eightGraphicCells(topicLabel, signalLabel) {
   const raw = `${topicLabel} ${signalLabel || ''}`.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
@@ -311,14 +381,14 @@ function platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard) {
   let primary = ''
   let accent = ''
   if (h.length >= 36) {
-    const { primary: p, accent: a } = splitHeadlineForAccent(h)
+    const { primary: p, accent: a } = headlineSplitForCanvas(h)
     primary = p || h
     accent = a && a.length > 6 ? a : shortTopic
   } else if (h.length >= 12) {
     primary = h
     accent = shortTopic
   } else {
-    const t = splitHeadlineForAccent(narrative.coreThesis || '')
+    const t = headlineSplitForCanvas(narrative.coreThesis || '')
     primary = t.primary || slideCopy(narrative.coreThesis, 72, 160)
     accent = t.accent || shortTopic || narrative.label
   }
@@ -330,7 +400,7 @@ function platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard) {
     const fb =
       narrative.hookDirections?.[0] ||
       `${narrative.label}: ${firstSentence(narrative.coreThesis, 92)}`
-    const sp = splitHeadlineForAccent(takeawayCopy(fb, 72, 118))
+    const sp = headlineSplitForCanvas(takeawayCopy(fb, 72, 118))
     primary = sp.primary || takeawayCopy(fb, 52, 86)
     accent = sp.accent && sp.accent.length > 4 ? sp.accent : shortTopic
   }
@@ -502,11 +572,18 @@ function parseIntoSlides(text, topicId = '') {
   }
 
   const hashtags = lines.filter((l) => l.trim().startsWith('#')).join(' ')
-  const cta = lines.find((l) => /\?$/.test(l.trim()) && !/^#/.test(l.trim()) && l.length > 20)
+  const ctaLine = lines.find((l) => /\?$/.test(l.trim()) && !/^#/.test(l.trim()) && l.length > 20)
 
-  if (cta && !headlineGuard.has(cta.trim())) {
-    slides.push({ type: 'cta', text: cta.trim(), kicker: 'YOUR TURN' })
-    headlineGuard.add(cta.trim())
+  const chosenCta = pickVariedCta(ctaLine, {
+    headlineGuard,
+    narrative,
+    topicId,
+    hook,
+    postText: text,
+  })
+  if (chosenCta && chosenCta.length > 18) {
+    slides.push({ type: 'cta', text: chosenCta, kicker: 'YOUR TURN' })
+    headlineGuard.add(chosenCta.trim())
   }
 
   const bodyCount = bullets.length + sections.reduce((n, s) => n + s.items.length, 0)
@@ -516,7 +593,7 @@ function parseIntoSlides(text, topicId = '') {
   const sectionsPath = sections.length >= 2
   const usedBulletLinesOnSlides =
     !sectionsPath && bullets.length > 0 ? bulletStringsShownOnBulletSlides(bullets) : []
-  const { trioSubs, colPick } = buildTrioAndPillarCopy({
+  const trioFallbackArgs = {
     narrative,
     standaloneStatements,
     hook,
@@ -524,14 +601,14 @@ function parseIntoSlides(text, topicId = '') {
     bullets,
     usedBulletLinesOnSlides,
     sectionsPath,
-  })
+  }
+  const trioSubs = buildCarouselTrioSubs(narrative, trioFallbackArgs)
+  const colPick = buildCarouselPillarCols(narrative, trioFallbackArgs)
 
   if (richEnough) {
     const narrativeRaw = pickPlatformNarrative(subdeck, hook, bullets)
     const titles = platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard)
     const shortTopic = topicShortLabel(topicLabel)
-    const bridgeCaption =
-      'Illustrative signal path — not proportional or live market data.'
     slides.push({
       type: 'platform',
       titleMain: titles.primary,
@@ -543,10 +620,11 @@ function parseIntoSlides(text, topicId = '') {
         { title: 'Prove', sub: trioSubs[2] },
       ],
       platformGraphic: {
-        keywordCells: eightGraphicCells(shortTopic, narrative.signalLabel),
+        keywordCells: buildKeywordCells(narrative, shortTopic),
         meshLabel: slideCopy(narrative.signalLabel, 40, 56).toUpperCase(),
-        bridgeCaption,
-        footMono: 'NEWS · REGISTRY · POST',
+        bridgeCaption:
+          'Themes from your week as nodes—illustrative sequence, not live market data.',
+        footMono: '',
       },
     })
   }
@@ -661,6 +739,13 @@ function splitHeadlineForQuote(raw) {
   return splitHeadlineForAccent(t)
 }
 
+function headlineSplitForCanvas(raw) {
+  const t = balanceParentheses((raw || '').replace(/\s+/g, ' ').trim())
+  if (!t) return { primary: '', accent: '' }
+  if (t.length > 76) return splitHeadlineForQuote(t)
+  return splitHeadlineForAccent(t)
+}
+
 function countHeadlineLines(ctx, primary, accent, maxW, fontPx) {
   ctx.font = `700 ${fontPx}px ${FONT_SANS}`
   const n1 = primary ? wrapText(ctx, primary, maxW).length : 0
@@ -771,7 +856,7 @@ function hairlineV(ctx, x, y1, y2) {
 }
 
 function drawSplitHeadline(ctx, fullText, maxW, startY, fontPx = 74, lineGap = 80) {
-  const { primary, accent } = splitHeadlineForAccent(fullText)
+  const { primary, accent } = headlineSplitForCanvas(fullText)
   return drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, fontPx, lineGap)
 }
 
@@ -893,9 +978,9 @@ function drawPlatformInfographic(ctx, boxTop, maxW, meta = null) {
   const keywordCells = meta?.keywordCells || eightGraphicCells('TOPIC', 'SIGNAL')
   const meshLabel = (meta?.meshLabel || 'TOPIC SIGNALS').slice(0, 52)
   const bridgeCaption = meta?.bridgeCaption
-    ? slideCopy(meta.bridgeCaption, 52, 120)
+    ? slideCopy(meta.bridgeCaption, 80, 220)
     : 'From your post to one clear story.'
-  const footMono = meta?.footMono || 'NEWS · REGISTRY · POST'
+  const footMono = typeof meta?.footMono === 'string' ? meta.footMono : ''
   ctx.strokeStyle = BOX_EDGE
   ctx.lineWidth = 1
   roundRect(ctx, x0, boxTop, w, boxH, 2)
@@ -905,7 +990,8 @@ function drawPlatformInfographic(ctx, boxTop, maxW, meta = null) {
   const n = 8
   const gap = 6
   const cellW = (w - 24 - (n - 1) * gap) / n
-  const labels = ['S', 'E', 'A', 'R', 'C', 'H', 'D', 'W']
+  const maxSymLen = Math.max(...keywordCells.map((c) => String(c || '').length), 1)
+  const cellFontPx = maxSymLen > 4 ? 11 : maxSymLen > 2 ? 12 : 14
   for (let i = 0; i < n; i++) {
     const cx = x0 + 12 + i * (cellW + gap)
     ctx.fillStyle = i % 2 === 0 ? '#111814' : '#0e1210'
@@ -915,16 +1001,18 @@ function drawPlatformInfographic(ctx, boxTop, maxW, meta = null) {
     ctx.lineWidth = 1
     ctx.stroke()
     ctx.fillStyle = ACCENT
-    ctx.font = `600 14px ${FONT_MONO}`
+    ctx.font = `600 ${cellFontPx}px ${FONT_MONO}`
     ctx.textAlign = 'center'
     ctx.fillText(keywordCells[i] || '·', cx + cellW / 2, bandY + 26)
     ctx.textAlign = 'left'
   }
 
-  ctx.font = `500 9px ${FONT_MONO}`
-  ctx.letterSpacing = '2.2px'
+  ctx.font = `500 10px ${FONT_MONO}`
+  ctx.letterSpacing = '2px'
   ctx.fillStyle = MUTED
-  ctx.fillText(meshLabel, x0 + w / 2 - ctx.measureText(meshLabel).width / 2, bandY + 58)
+  ctx.textAlign = 'center'
+  ctx.fillText(meshLabel, x0 + w / 2, bandY + 58)
+  ctx.textAlign = 'left'
   ctx.letterSpacing = '0px'
 
   const arrowY = bandY + 72
@@ -983,16 +1071,24 @@ function drawPlatformInfographic(ctx, boxTop, maxW, meta = null) {
 
   ctx.font = `500 10px ${FONT_SANS}`
   ctx.fillStyle = PAPER
-  ctx.fillText(bridgeCaption, x0 + w / 2 - ctx.measureText(bridgeCaption).width / 2, graphTop - 4)
+  ctx.textAlign = 'center'
+  const capLines = wrapText(ctx, bridgeCaption, w - 48).slice(0, 3)
+  let capY = graphTop - 6 - (capLines.length - 1) * 14
+  for (const ln of capLines) {
+    ctx.fillText(ln, x0 + w / 2, capY)
+    capY += 14
+  }
+  ctx.textAlign = 'left'
 
   const trioY = boxTop + boxH - 52
-  const tw = (w - 36) / 3
   hairlineH(ctx, x0 + 12, x0 + w - 12, trioY - 10)
-  ctx.font = `500 8px ${FONT_MONO}`
-  ctx.letterSpacing = '1.8px'
-  ctx.fillStyle = ACCENT_SOFT
-  ctx.fillText(footMono, x0 + 16, trioY - 2)
-  ctx.letterSpacing = '0px'
+  if (footMono.trim()) {
+    ctx.font = `500 8px ${FONT_MONO}`
+    ctx.letterSpacing = '1.8px'
+    ctx.fillStyle = ACCENT_SOFT
+    ctx.fillText(footMono, x0 + 16, trioY - 2)
+    ctx.letterSpacing = '0px'
+  }
 }
 
 function renderSlide(ctx, slide, index, total) {
@@ -1008,7 +1104,7 @@ function renderSlide(ctx, slide, index, total) {
 
       const coverFont = CAROUSEL_TYPE.coverDisplay
       const coverGap = CAROUSEL_TYPE.coverLineGap
-      const { primary, accent } = splitHeadlineForAccent(slide.text)
+      const { primary, accent } = headlineSplitForCanvas(slide.text)
       const nLines = countHeadlineLines(ctx, primary, accent, maxW, coverFont)
       const headlineStart = verticalHeroBaseline(nLines, coverGap, coverFont)
       let y = drawSplitHeadline(ctx, slide.text, maxW, headlineStart, coverFont, coverGap)
@@ -1117,7 +1213,7 @@ function renderSlide(ctx, slide, index, total) {
         ctx.letterSpacing = '0px'
         ctx.fillStyle = PAPER
         ctx.font = `400 ${CAROUSEL_TYPE.bulletsItem}px ${FONT_SANS}`
-        const short = takeawayCopy(itemText, 135, 190)
+        const short = takeawayCopy(itemText, 175, 260)
         for (const il of wrapText(ctx, short, innerW - 36)) {
           ctx.fillText(il, PAD + boxPad + 36, iy)
           iy += CAROUSEL_TYPE.bulletsItemLineH
@@ -1159,7 +1255,7 @@ function renderSlide(ctx, slide, index, total) {
       drawEditorialHeader(ctx, slide.kicker || 'YOUR TURN', index, total)
       const cFont = CAROUSEL_TYPE.ctaDisplay
       const cGap = CAROUSEL_TYPE.ctaLineGap
-      const { primary, accent } = splitHeadlineForAccent(slide.text)
+      const { primary, accent } = headlineSplitForCanvas(slide.text)
       const nLines = countHeadlineLines(ctx, primary, accent, maxW, cFont)
       const startY = verticalHeroBaseline(nLines, cGap, cFont)
       drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, cFont, cGap)
@@ -1240,7 +1336,7 @@ function renderSlide(ctx, slide, index, total) {
       drawEditorialHeader(ctx, pHdr ? `INSIGHT · ${pHdr}` : 'THE CATEGORY', index, total)
       let y = CONTENT_TOP + 8
       drawStrikeLabel(ctx, slide.strike || '', PAD, y, maxW)
-      y += 36
+      y += 52
       y = drawSplitHeadline(
         ctx,
         slide.headline || 'Welcome to Digital Trust.',
@@ -1288,8 +1384,8 @@ function renderSlide(ctx, slide, index, total) {
       const x1 = PAD
       const x2 = PAD + colW + 16
       const x3 = PAD + (colW + 16) * 2
-      hairlineV(ctx, x2 - 8, y, y + 100)
-      hairlineV(ctx, x3 - 8, y, y + 100)
+      hairlineV(ctx, x2 - 8, y, y + 118)
+      hairlineV(ctx, x3 - 8, y, y + 118)
 
       ctx.fillStyle = PAPER
       ctx.font = `700 ${CAROUSEL_TYPE.closerStatXL}px ${FONT_SANS}`
@@ -1301,19 +1397,30 @@ function renderSlide(ctx, slide, index, total) {
       ctx.font = `700 ${CAROUSEL_TYPE.closerStatL}px ${FONT_SANS}`
       ctx.fillText('Machine', x3, y + 40)
 
-      ctx.fillStyle = ACCENT_SOFT
-      ctx.font = `500 ${CAROUSEL_TYPE.closerMicro}px ${FONT_MONO}`
-      ctx.letterSpacing = '1.8px'
-      ctx.fillText((slide.statWord || 'modes').toUpperCase(), x1, y + 62)
-      ctx.fillText('SURFACES MONITORED', x2, y + 62)
-      ctx.fillText('RESPONSE LOOP', x3, y + 62)
+      const microPx = CAROUSEL_TYPE.closerMicro
+      const microLine = microPx + 5
+      ctx.font = `500 ${microPx}px ${FONT_MONO}`
+      ctx.letterSpacing = '1.2px'
+      const drawMicroCol = (x, labelText, bodyText) => {
+        const upper = wrapText(ctx, labelText, colW - 8).slice(0, 2)
+        const lower = wrapText(ctx, bodyText, colW - 8).slice(0, 3)
+        let yy = y + 56
+        ctx.fillStyle = ACCENT_SOFT
+        for (const ln of upper) {
+          ctx.fillText(ln, x, yy)
+          yy += microLine
+        }
+        yy += 2
+        ctx.fillStyle = ACCENT
+        for (const ln of lower) {
+          ctx.fillText(ln, x, yy)
+          yy += microLine
+        }
+      }
+      drawMicroCol(x1, (slide.statWord || 'modes').toUpperCase(), slide.statMicro || 'PLAN · SHIP · PROVE')
+      drawMicroCol(x2, 'SURFACES MONITORED', 'THREAD + PDF')
+      drawMicroCol(x3, 'RESPONSE LOOP', 'HOURS, NOT WEEKS')
       ctx.letterSpacing = '0px'
-      ctx.fillStyle = ACCENT
-      ctx.font = `500 ${CAROUSEL_TYPE.closerMicro}px ${FONT_MONO}`
-      const micro = slide.statMicro || 'PLAN · SHIP · PROVE'
-      ctx.fillText(micro, x1, y + 78)
-      ctx.fillText('THREAD + PDF', x2, y + 78)
-      ctx.fillText('HOURS, NOT WEEKS', x3, y + 78)
 
       ctx.textAlign = 'right'
       ctx.font = `600 15px ${FONT_MONO}`
@@ -1340,7 +1447,16 @@ function generateCarouselCaption(postText, topicId = '') {
   const hook = lines[0] || ''
   const reHook = lines.slice(1, 4).find((l) => /^\(/.test(l.trim()))
 
-  const cta = lines.find((l) => /\?$/.test(l.trim()) && !/^#/.test(l.trim()) && l.length > 20)
+  const ctaLine = lines.find((l) => /\?$/.test(l.trim()) && !/^#/.test(l.trim()) && l.length > 20)
+  const narrativeCap = getTopicNarrative(topicId)
+  const captionGuard = createHeadlineGuard()
+  const ctaForCaption = pickVariedCta(ctaLine, {
+    headlineGuard: captionGuard,
+    narrative: narrativeCap,
+    topicId,
+    hook,
+    postText,
+  })
   const hashtags = lines.filter((l) => l.trim().startsWith('#')).join(' ').trim()
 
   const dataPoints = []
@@ -1394,8 +1510,8 @@ function generateCarouselCaption(postText, topicId = '') {
     `If you had to cut this to 3 slides, what stays?\n\n`,
   ]
 
-  if (cta) {
-    caption += `${cta.trim()}\n\n`
+  if (ctaForCaption) {
+    caption += `${ctaForCaption.trim()}\n\n`
   } else {
     caption += fallbackQuestions[Math.floor(captionRng() * fallbackQuestions.length) % fallbackQuestions.length]
   }

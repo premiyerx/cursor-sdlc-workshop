@@ -64,9 +64,15 @@ const SCROLL_STOPPERS = [
 
 const COMMENT_MAGNETS = [
   'Ask for a specific artifact: "What metric does YOUR board actually track?"',
-  'Offer two options in the question: "Bottom-up adoption or top-down mandate — which won in your org?"',
   'Invite a counterexample respectfully: "Where has this NOT worked for you?"',
   'Invite a threaded reply: "Push back if you disagree—what nuance am I missing for your industry?"',
+  'Ask for a single workflow: "Which one process would you automate first if you trusted the audit trail?"',
+  'Surface procurement reality: "What would unblock a wider rollout at your company—security, cost, or change management?"',
+  'Ask for receipts: "What evidence would change your mind on this in the next 90 days?"',
+  'Compare two failure modes: "Where do you see pilots die first—policy, latency, or trust?"',
+  'Ask for a metric tradeoff: "If you could only move one number this quarter, which would it be?"',
+  'Invite a scenario: "What would you do differently if the tool understood your whole repo, not just the current file?"',
+  'Ask for scope: "What would you refuse to let an agent touch without a human in the loop?"',
 ]
 
 /**
@@ -98,6 +104,7 @@ export function buildViralCraftBlock(topicId) {
     `- Comment magnet: ${comment}`,
     '- Do NOT sound like a generic LinkedIn guru, life coach, or engagement bait ("Agree?", "Thoughts?", "Comment YES").',
     '- Sound like a peer operator who invests, sells to CxOs, and has seen rollouts — not a motivational poster.',
+    '- End with a fresh closing question: avoid repeating "bottom-up adoption or top-down mandate" and other stock forks across posts; vary the angle (metric, scope, failure mode, procurement, trust).',
     '',
   ].join('\n')
 }

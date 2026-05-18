@@ -125,3 +125,15 @@ export function takeawayCopy(text, softMax = 118, hardMax = 158) {
   if (sp > 52) return t.slice(0, sp).trim()
   return h.trim()
 }
+
+/** Close unmatched '(' so carousel headlines never end on a dangling parenthesis. */
+export function balanceParentheses(text) {
+  const t = norm(text)
+  if (!t) return ''
+  let depth = 0
+  for (const ch of t) {
+    if (ch === '(') depth++
+    else if (ch === ')') depth = Math.max(0, depth - 1)
+  }
+  return depth > 0 ? `${t}${')'.repeat(depth)}` : t
+}

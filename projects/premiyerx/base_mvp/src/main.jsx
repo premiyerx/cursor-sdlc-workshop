@@ -1,13 +1,21 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { restoreApiKeysFromVault } from './utils/apiKeyVault'
 import App from './App.jsx'
 import './index.css'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+restoreApiKeysFromVault()
+  .catch(() => {
+    /* offline / private mode — app still loads */
+  })
+  .finally(() => {
+    createRoot(document.getElementById('root')).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    )
+    wireProductionUpdateChecks()
+  })
 
 function appBuildFromDocument() {
   return document.querySelector('meta[name="app-build"]')?.getAttribute('content')?.trim() || ''
@@ -68,12 +76,3 @@ function wireProductionUpdateChecks() {
   })
   window.addEventListener('focus', go)
 }
-
-/** Unregister legacy service workers; keep caches clear so installs always pick up new hashed bundles. */
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    clearSiteCachesAndSw().catch(() => {})
-  })
-}
-
-wireProductionUpdateChecks()

@@ -6,6 +6,7 @@ import { mulberry32 } from './generationVariety'
 import { pickFromPool } from './freshnessRotation'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { buildNewsroomAlgorithmLine } from '../data/linkedinAlgorithm2026'
+import { getOpenAiKey } from './openaiKey'
 
 const NEWSPAPER_LAYOUTS = [
   {
@@ -288,7 +289,7 @@ export async function generateNewsroomImage({
   apiKey,
   onProgress,
 }) {
-  const key = (apiKey || (typeof localStorage !== 'undefined' ? localStorage.getItem('openai_key') : '') || '').trim()
+  const key = (apiKey || getOpenAiKey() || '').trim()
   if (!key) {
     return { ok: false, error: 'Add your OpenAI key in Settings first.' }
   }

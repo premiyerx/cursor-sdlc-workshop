@@ -1,14 +1,50 @@
 /**
  * Priority pillar briefs — what each topic must argue, who it's for, and how news should land.
  * Used by newsCraft + AI prompts to keep output fresh and on-message.
+ * `carouselTrio`, `carouselPillarCols`, `platformLegendCells`, and `carouselCtas` feed the PDF carousel
+ * so Roadmap / Ship / Prove and pillar columns stay readable and on-theme.
  */
+
+/** End-of-post questions when the draft reuses the same CTA too often (carousel slide 4). */
+export const CAROUSEL_CTA_BANK = [
+  'Which single workflow would you trust an agent to own end-to-end in the next 90 days?',
+  'Where does your org still default to line-only help instead of repo-wide context?',
+  'What would change your mind on an AI IDE: speed, security review, or procurement terms?',
+  'If you froze new tools for a quarter, what would still be true about how your team ships?',
+  'Who owns the outcome when an agent touches production: platform, security, or the squad lead?',
+  'What is the one metric you would show a skeptical CFO before expanding seats?',
+  'When a pilot succeeds, what breaks first at scale: policy, latency, or trust?',
+  'Which vendor claim would you demand receipts for before the next budget cycle?',
+  'How do you decide between best-in-class models vs. one standardized stack?',
+  'What is the smallest proof you would accept before rolling wider to adjacent teams?',
+  'Where have you seen AI tooling help retention—not just throughput?',
+  'What would you stop doing manually if the IDE understood your whole repo tomorrow?',
+]
+
+const DEFAULT_PLATFORM_LEGEND = ['THEMES', 'SCOPE', 'SPEED', 'RISK', 'CODE', 'SHIP', 'PROOF', 'NEXT']
+
+const DEFAULT_CAROUSEL_TRIO = {
+  roadmap:
+    'Roadmap the change: name the quarter where planning and review get faster when the tool understands the whole repo—not just the current line.',
+  ship:
+    'Ship with owners: fewer handoffs, clearer diffs, and releases that survive real users—not a chat tab guessing without context.',
+  prove:
+    'Prove it on outcomes: cycle time, rework, incidents, and stakeholder trust—not slideware hours or one cherry-picked demo.',
+}
+
+const DEFAULT_PILLAR_COLS = [
+  'External signals: what customers, candidates, and critics see in public channels before your release notes say anything.',
+  'Entity-level surfaces: brands, people, products, and launches each need coherent facts, tone, and owners.',
+  'AI-native delivery: agents and automation need an audit trail procurement and security can defend.',
+]
+
 export const TOPIC_NARRATIVES = {
   cursor: {
     label: 'Cursor vs. the field',
     signalLabel: 'What moved in AI coding this week',
     audience: 'VPs of Engineering, platform leads, and skeptical staff engineers choosing tools',
     coreThesis:
-      'Cursor wins because it covers the full SDLC — not autocomplete — with codebase-wide reasoning, model choice, and runs that are faster and cheaper at comparable depth than narrow copilots.',
+      'Cursor wins because it covers the full SDLC — not autocomplete only — with codebase-wide reasoning, model choice, and runs that are faster and cheaper at comparable depth than narrow copilots.',
     competitiveFrame:
       'Contrast narrow copilots (line completion), chat-in-a-tab workflows, and agent hype without audit trails — vs. full-repo context, agentic tasks, and enterprise rollout reality.',
     newsLenses: [
@@ -18,11 +54,31 @@ export const TOPIC_NARRATIVES = {
       'Model-neutral stacks and avoiding vendor lock-in on inference',
     ],
     hookDirections: [
-      'Lead with a competitive gap the headlines expose (speed, context, or cost)',
-      'Open on what changed in the last 7 days for teams evaluating AI IDEs',
-      'Frame as "what PE/boards are asking" vs. "what engineers actually use"',
+      'Lead with a competitive gap the headlines surface: speed, context, or cost.',
+      'Open on what changed in the last 7 days for teams evaluating AI IDEs.',
+      'Frame as what PE and boards are asking versus what engineers actually use day to day.',
     ],
     avoid: ['Generic "AI will replace developers" fear posts', 'Unsourced win claims about any vendor'],
+    platformLegendCells: ['SIGNAL', 'SCOPE', 'CONTEXT', 'RISK', 'BUILD', 'SHIP', 'PROOF', 'NEXT'],
+    carouselTrio: {
+      roadmap:
+        'Roadmap: pick the next two quarters where repo-wide context changes planning, design review, and risk answers—not where you add another autocomplete.',
+      ship:
+        'Ship: multi-file edits, agents, and consistent patterns across services so merged means production-ready—not a side chat guessing file by file.',
+      prove:
+        'Prove: adoption, incidents avoided, cycle time, and stakeholder trust—not demo theater, cherry metrics, or vendor scorecards alone.',
+    },
+    carouselPillarCols: [
+      'External reality: what the market sees in social, search, and forums before your changelog narrates the story.',
+      'Entity-level exposure: brands, leaders, products, and launches each need one coherent message and one accountable owner.',
+      'AI-native delivery: when agents touch code or customers, you need traceability security and procurement can sign.',
+    ],
+    carouselCtas: [
+      'Which constraint would you lift first: model choice, audit trails, or rollout playbooks?',
+      'If procurement ran the pilot, who owns the outcome when it hits production?',
+      'What would make you standardize on one stack instead of best-of-breed chaos?',
+      'Where is line-only copilot help still costing you rework this quarter?',
+    ],
   },
   investment: {
     label: 'VC & PE × AI SDLC',
@@ -44,6 +100,10 @@ export const TOPIC_NARRATIVES = {
       'Name the second-order effect of a headline (hiring, M&A, infra spend)',
     ],
     avoid: ['Invented round sizes or dates', 'Ticker advice or stock picks'],
+    platformLegendCells: DEFAULT_PLATFORM_LEGEND,
+    carouselTrio: { ...DEFAULT_CAROUSEL_TRIO },
+    carouselPillarCols: [...DEFAULT_PILLAR_COLS],
+    carouselCtas: [],
   },
   cio: {
     label: 'CIO & VP Engineering stakes',
@@ -60,11 +120,15 @@ export const TOPIC_NARRATIVES = {
       'Gartner/McKinsey/Deloitte-style enterprise adoption signals',
     ],
     hookDirections: [
-      'Lead with a leadership dilemma surfaced in this week\'s news',
+      "Lead with a leadership dilemma surfaced in this week's news",
       'Open on a governance or security tension executives are misreading',
-      'Frame as "the meeting after the pilot succeeds" — scale problems',
+      'Frame as the meeting after the pilot succeeds — scale problems',
     ],
     avoid: ['Talking down to practitioners', 'Policy jargon without a concrete move'],
+    platformLegendCells: DEFAULT_PLATFORM_LEGEND,
+    carouselTrio: { ...DEFAULT_CAROUSEL_TRIO },
+    carouselPillarCols: [...DEFAULT_PILLAR_COLS],
+    carouselCtas: [],
   },
   roi: {
     label: 'ROI on an AI-led SDLC',
@@ -86,6 +150,10 @@ export const TOPIC_NARRATIVES = {
       'Contrast vanity metrics (LOC, commits) vs. business outcomes',
     ],
     avoid: ['Fabricated TEI numbers', 'Guaranteed ROI without hedging'],
+    platformLegendCells: DEFAULT_PLATFORM_LEGEND,
+    carouselTrio: { ...DEFAULT_CAROUSEL_TRIO },
+    carouselPillarCols: [...DEFAULT_PILLAR_COLS],
+    carouselCtas: [],
   },
 }
 

@@ -12,6 +12,7 @@ import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import { saveImageToDevice, saveSuccessMessage } from '../utils/saveImage'
 import ActionFeedback from './ActionFeedback'
 import { slideCopy } from '../utils/completeSentence'
+import { vaultGetSync } from '../utils/apiKeyVault'
 
 const PALETTES = [
   { accent: '#3EDC81', dim: '#1a2e1a', bg2: '#0d1f0d' },
@@ -237,7 +238,7 @@ function renderLayout(layout, parsed, palette, postText) {
 }
 
 function unsplashAccessKey() {
-  return (import.meta.env.VITE_UNSPLASH_ACCESS_KEY || localStorage.getItem('unsplash_access_key') || '').trim()
+  return (import.meta.env.VITE_UNSPLASH_ACCESS_KEY || vaultGetSync('unsplash_access_key') || '').trim()
 }
 
 async function tryUnsplashPhoto(parsed, topic) {
@@ -260,7 +261,7 @@ async function tryUnsplashPhoto(parsed, topic) {
 }
 
 async function tryDalleBanner(parsed, topic, topicId, postText) {
-  const apiKey = (localStorage.getItem('openai_key') || '').trim()
+  const apiKey = getOpenAiKey().trim()
   if (!apiKey) return null
   const verified = assembleVerifiedStats(postText, topicId, 3)
   const metrics = verified.map((s) => `${s.value} (${s.source})`).join(', ')

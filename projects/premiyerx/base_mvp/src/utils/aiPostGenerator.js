@@ -5,8 +5,36 @@ import { buildVarietyEnvelope, recordGeneratedHook } from './generationVariety'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { bumpRefreshSeed } from './freshnessRotation'
 import { getOpenAiKey, hasOpenAiKey } from './openaiKey'
+import {
+  COMPARE_TEXT_MODEL_IDS,
+  DEFAULT_TEXT_MODEL_ID,
+  TEXT_MODEL_PROFILES,
+  getTextModelProfile,
+} from '../data/textModelProfiles'
+import { generateRawCompletion, getApiKeyForProfile } from './llmPostClient'
 
 export { hasOpenAiKey, getOpenAiKey }
+export { DEFAULT_TEXT_MODEL_ID, getTextModelProfile, TEXT_MODEL_PROFILES } from '../data/textModelProfiles'
+
+function keyLooksValid(profile, key) {
+  const k = (key || '').trim()
+  if (!k) return false
+  if (profile.keyStorage === 'gemini') return k.length >= 16
+  return k.length >= 20
+}
+
+export function hasApiKeyForModelId(modelId) {
+  const p = getTextModelProfile(modelId)
+  return keyLooksValid(p, getApiKeyForProfile(p))
+}
+
+export function canRunCompareAll() {
+  return TEXT_MODEL_PROFILES.every((p) => keyLooksValid(p, getApiKeyForProfile(p)))
+}
+
+export function describeMissingCompareKeys() {
+  return TEXT_MODEL_PROFILES.filter((p) => !keyLooksValid(p, getApiKeyForProfile(p))).map((p) => p.keyHint)
+}
 
 /** Strip common assistant wrappers so section headers parse cleanly. */
 function stripAssistantPreamble(text) {
@@ -238,15 +266,8 @@ FIRST_COMMENT:
 [15+ words for a first comment]`
 }
 
-/**
- * Generate a fresh AI post grounded in live headlines. Used by main Generate + AI panel.
- * Optional onProgress(pct, stage) reports real pipeline steps only.
- */
-export async function generateAIPost(topicId, options = {}) {
+async function loadSharedGenerationContext(topicId, options) {
   const report = (pct, stage) => options.onProgress?.(pct, stage)
-  const apiKey = (options.apiKey || localStorage.getItem('openai_key') || '').trim()
-  if (!apiKey) throw new Error('OpenAI API key required')
-
   const topic = TOPICS.find((t) => t.id === topicId)
   if (!topic) throw new Error('Unknown topic')
 
@@ -272,35 +293,99 @@ export async function generateAIPost(topicId, options = {}) {
   report(44, 'Applying your voice profile…')
   const userPrompt = buildUserPrompt(topic, topicId, realtimeContext, options.customAngle || '')
 
-  report(58, 'Writing your post…')
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.96,
-      top_p: 0.9,
-      presence_penalty: 0.7,
-      frequency_penalty: 0.5,
-      max_tokens: 1200,
-    }),
-  })
+  return { topic, systemPrompt, userPrompt, realtimeData, seed }
+}
 
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}))
-    throw new Error(errData.error?.message || `API error: ${response.status}`)
+/**
+ * Generate a fresh AI post grounded in live headlines. Used by main Generate + AI panel.
+ * Optional onProgress(pct, stage) reports real pipeline steps only.
+ * @param {string} topicId
+ * @param {{ customAngle?: string, onProgress?: function, textModelId?: string, apiKey?: string }} options
+ */
+export async function generateAIPost(topicId, options = {}) {
+  const report = (pct, stage) => options.onProgress?.(pct, stage)
+  const profile = getTextModelProfile(options.textModelId || DEFAULT_TEXT_MODEL_ID)
+  const apiKey = (options.apiKey || '').trim() || getApiKeyForProfile(profile)
+  if (!keyLooksValid(profile, apiKey)) {
+    throw new Error(`Add your ${profile.keyHint} in Settings.`)
   }
 
-  const data = await response.json()
+  const ctx = await loadSharedGenerationContext(topicId, options)
+  report(58, `Writing with ${profile.label}…`)
+  const raw = await generateRawCompletion(profile, {
+    systemPrompt: ctx.systemPrompt,
+    userPrompt: ctx.userPrompt,
+    apiKey,
+  })
   report(92, 'Polishing your post…')
-  const post = parseAIOutput(data.choices[0].message.content)
+  const post = parseAIOutput(raw)
   report(100, 'Post ready')
-  return { post, topic, usedAI: true, realtimeData, seed }
+  return { post, topic: ctx.topic, usedAI: true, realtimeData: ctx.realtimeData, seed: ctx.seed, textModel: profile }
+}
+
+/**
+ * Same headlines + prompt for all three providers; runs requests in parallel.
+ */
+export async function generateAIPostCompareAll(topicId, options = {}) {
+  const report = (pct, stage) => options.onProgress?.(pct, stage)
+  const missing = describeMissingCompareKeys()
+  if (missing.length) {
+    throw new Error(`Compare all three requires each provider’s API key. Still need: ${missing.join(' · ')}`)
+  }
+
+  const ctx = await loadSharedGenerationContext(topicId, options)
+  const profiles = COMPARE_TEXT_MODEL_IDS.map((id) => getTextModelProfile(id))
+  report(52, 'Running GPT 5.5, Claude Opus 4.7, and Gemini in parallel…')
+
+  const settled = await Promise.allSettled(
+    profiles.map((profile) =>
+      generateRawCompletion(profile, {
+        systemPrompt: ctx.systemPrompt,
+        userPrompt: ctx.userPrompt,
+        apiKey: getApiKeyForProfile(profile),
+      }),
+    ),
+  )
+
+  const variants = settled.map((s, i) => {
+    const profile = profiles[i]
+    if (s.status === 'fulfilled') {
+      try {
+        return {
+          id: profile.id,
+          label: profile.label,
+          shortLabel: profile.shortLabel,
+          provider: profile.provider,
+          post: parseAIOutput(s.value),
+          error: null,
+        }
+      } catch (e) {
+        return {
+          id: profile.id,
+          label: profile.label,
+          shortLabel: profile.shortLabel,
+          provider: profile.provider,
+          post: null,
+          error: e?.message || 'Could not parse model output.',
+        }
+      }
+    }
+    return {
+      id: profile.id,
+      label: profile.label,
+      shortLabel: profile.shortLabel,
+      provider: profile.provider,
+      post: null,
+      error: s.reason?.message || 'Request failed',
+    }
+  })
+
+  report(100, 'All model runs finished')
+  return {
+    variants,
+    topic: ctx.topic,
+    usedAI: true,
+    realtimeData: ctx.realtimeData,
+    seed: ctx.seed,
+  }
 }
