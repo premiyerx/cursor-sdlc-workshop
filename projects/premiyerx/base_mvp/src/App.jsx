@@ -465,9 +465,9 @@ export default function App() {
         <p className="footer-copy">© Prem Iyer 2026</p>
         <p
           className="footer-build"
-          title="Build stamp: git short SHA on Vercel Git deploys, else Vercel deployment id prefix; local dev shows git or “local”."
+          title="When we ship a change, leave this tab or close the app and open it again—this date jumps forward once your phone has picked up the new version."
         >
-          Deploy: {__DEPLOY_SHA__}
+          Last updated: {__BUILD_DATE__}
         </p>
       </footer>
     </div>

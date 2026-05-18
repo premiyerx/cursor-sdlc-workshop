@@ -23,6 +23,17 @@ function resolveDeploySha() {
 
 const deploySha = resolveDeploySha()
 
+/** Shown in the footer so non-developers know when this bundle was built (UTC). */
+const buildDateLabel = new Date().toLocaleString('en-US', {
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'UTC',
+  timeZoneName: 'short',
+})
+
 /** Stamp index.html + manifest so PWAs and phones can detect new production deploys. */
 function buildStampPlugin(stamp) {
   const safe = String(stamp).replace(/"/g, '')
@@ -51,5 +62,6 @@ export default defineConfig({
   server: { port: 5180 },
   define: {
     __DEPLOY_SHA__: JSON.stringify(deploySha),
+    __BUILD_DATE__: JSON.stringify(buildDateLabel),
   },
 })
