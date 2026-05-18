@@ -153,6 +153,7 @@ export function buildHeadlineInfographicModel({ postText, topicId, topicLabel, r
   return {
     topicLabel: topicLabel || narrative.label,
     topicBadge: narrative.signalLabel,
+    topicFocusLine: slideCopy(narrative.coreThesis, 88, 200),
     hook: truncateHeadline(hook, 72),
     leadHeadline: lead
       ? {

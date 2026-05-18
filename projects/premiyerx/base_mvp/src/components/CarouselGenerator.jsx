@@ -8,6 +8,7 @@ import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
 import TOPICS from '../data/postTemplates'
+import { getTopicNarrative } from '../data/topicNarratives'
 import { slideCopy, subdeckDuplicatesBullet } from '../utils/completeSentence'
 
 const SLIDE_W = 1080
@@ -89,12 +90,116 @@ function pickPlatformNarrative(subdeck, hook, bullets) {
   return hook || b0
 }
 
+function topicShortLabel(topicLabel) {
+  return (topicLabel.split(':')[0] || topicLabel).trim()
+}
+
+/** Decorative 8 cells — letters from topic + signal (design only; not standalone “meaning”). */
+function eightGraphicCells(topicLabel, signalLabel) {
+  const raw = `${topicLabel} ${signalLabel || ''}`.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+  const out = []
+  for (let i = 0; i < raw.length && out.length < 8; i++) out.push(raw[i])
+  while (out.length < 8) out.push('·')
+  return out.slice(0, 8)
+}
+
+/** Platform hero lines come from the post hook + topic label — not fixed marketing slogans. */
+function platformTitlesFromPost(hook, narrative, topicLabel) {
+  const h = (hook || '').replace(/\s+/g, ' ').trim()
+  const shortTopic = topicShortLabel(topicLabel)
+  if (h.length >= 36) {
+    const { primary, accent } = splitHeadlineForAccent(h)
+    if (accent && accent.length > 6) return { primary: primary || h, accent }
+  }
+  if (h.length >= 12) return { primary: h, accent: shortTopic }
+  const t = splitHeadlineForAccent(narrative.coreThesis || '')
+  return {
+    primary: t.primary || slideCopy(narrative.coreThesis, 72, 160),
+    accent: t.accent || shortTopic || narrative.label,
+  }
+}
+
+/** Trio lines: post bullets first; otherwise topic news lenses (always on-pillar). */
+function trioLinesFromPostAndTopic(btList, narrative) {
+  const lenses = (narrative.newsLenses || []).map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  return [
+    btList[0] || lenses[0] || slideCopy(narrative.coreThesis, 120, 280),
+    btList[1] || lenses[1] || slideCopy(narrative.competitiveFrame, 120, 280),
+    btList[2] || lenses[2] || slideCopy(narrative.audience ? `Who this is for: ${narrative.audience}` : narrative.coreThesis, 120, 280),
+  ]
+}
+
+/** Pillar column bodies: bullets first, then narrative lenses — never generic off-topic filler. */
+function pillarColumnTexts(bulletStrings, narrative) {
+  const lenses = (narrative.newsLenses || []).map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  const thesis = narrative.coreThesis.replace(/\s+/g, ' ').trim()
+  const frame = narrative.competitiveFrame.replace(/\s+/g, ' ').trim()
+  const seen = new Set()
+  const pick = []
+  for (const b of bulletStrings) {
+    const t = (b || '').trim()
+    if (t.length < 24) continue
+    const key = t.slice(0, 52).toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    pick.push(t)
+    if (pick.length >= 3) return pick
+  }
+  for (const lens of lenses) {
+    if (pick.length >= 3) break
+    const t = lens.trim()
+    if (t.length < 24) continue
+    const key = t.slice(0, 52).toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    pick.push(t)
+  }
+  const fall = [thesis, frame, (narrative.audience || '').trim() || thesis, narrative.label]
+  for (const f of fall) {
+    if (pick.length >= 3) break
+    const t = (f || '').trim()
+    if (t.length < 20) continue
+    const key = t.slice(0, 52).toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    pick.push(t)
+  }
+  while (pick.length < 3) pick.push(thesis)
+  return pick.slice(0, 3)
+}
+
+function pillarBodyFallback(subdeck, standaloneStatements, narrative) {
+  const sd = (subdeck || '').replace(/\s+/g, ' ').trim()
+  if (sd.length > 40) return sd
+  const st = standaloneStatements.find((s) => s.length > 45)
+  if (st) return st
+  return narrative.coreThesis
+}
+
+function topicBoxMeta(narrative) {
+  const parts = (narrative.newsLenses || [])
+    .slice(0, 3)
+    .map((s) =>
+      s
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .slice(0, 3)
+        .join(' ')
+        .toUpperCase(),
+    )
+    .filter(Boolean)
+  if (parts.length >= 2) return parts.join(' — ')
+  return slideCopy((narrative.signalLabel || 'TOPIC SIGNAL').toUpperCase(), 28, 48).replace(/\s+/g, ' — ')
+}
+
 function parseIntoSlides(text, topicId = '') {
   if (!text) return []
   const lines = text.split('\n').filter((l) => l.trim())
   const slides = []
   const hook = lines[0] || ''
   const topicLabel = getTopicLabel(topicId)
+  const narrative = getTopicNarrative(topicId)
   let subdeck = ''
   const parenLine = lines.slice(1, 6).find((l) => /^\([^)]{12,}\)/.test(l.trim()))
   if (parenLine) subdeck = parenLine.replace(/^\(|\)\s*$|\)$/g, '').trim()
@@ -167,7 +272,7 @@ function parseIntoSlides(text, topicId = '') {
         cites: [...new Set(cites)],
         kicker: shiftKicker(++shiftCounter),
         supporting: slideCopy(t0, 280),
-        boxMeta: 'INSIDE — PIPELINE — OPEN MARKET',
+        boxMeta: topicBoxMeta(narrative),
         leftCol: t0
           ? { title: 'THE CONSTRAINT', body: slideCopy(t0, 320) }
           : null,
@@ -213,55 +318,36 @@ function parseIntoSlides(text, topicId = '') {
   if (richEnough) {
     const btList = allBulletStrings(bullets)
     const narrativeRaw = pickPlatformNarrative(subdeck, hook, bullets)
+    const titles = platformTitlesFromPost(hook, narrative, topicLabel)
+    const trioSubs = trioLinesFromPostAndTopic(btList, narrative)
+    const shortTopic = topicShortLabel(topicLabel)
     slides.push({
       type: 'platform',
-      titleMain: 'One narrative across every execution surface.',
-      titleAccent: 'At machine speed.',
+      titleMain: titles.primary,
+      titleAccent: titles.accent,
       body: slideCopy(narrativeRaw, 380),
       trio: [
-        {
-          title: 'Roadmap',
-          sub: slideCopy(btList[0] || 'Clarity on what to instrument before you scale spend.', 720),
-        },
-        {
-          title: 'Ship',
-          sub: slideCopy(btList[1] || 'Tight loops: smaller batches, measurable risk reduction each week.', 720),
-        },
-        {
-          title: 'Prove',
-          sub: slideCopy(btList[2] || 'Receipts leaders trust: citations, deltas, and owner names.', 720),
-        },
+        { title: 'Roadmap', sub: slideCopy(trioSubs[0], 720) },
+        { title: 'Ship', sub: slideCopy(trioSubs[1], 720) },
+        { title: 'Prove', sub: slideCopy(trioSubs[2], 720) },
       ],
+      platformGraphic: {
+        keywordCells: eightGraphicCells(shortTopic, narrative.signalLabel),
+        meshLabel: slideCopy(narrative.signalLabel, 40, 56).toUpperCase(),
+        bridgeCaption: slideCopy(narrativeRaw || narrative.coreThesis, 72, 140),
+        footMono: 'NEWS · REGISTRY · POST',
+      },
     })
   }
 
-  const fallPillar = [
-    'Presence across channels buyers scan before they trust a vendor.',
-    'Risk shows up across brands, teams, products, and agents — not only in tickets.',
-    'Automation without receipts becomes liability at machine speed in production.',
-  ]
-  const seenCol = new Set()
-  const colPick = []
-  for (const b of [...allBulletStrings(bullets), ...fallPillar]) {
-    const key = b.slice(0, 56).toLowerCase()
-    if (seenCol.has(key)) continue
-    seenCol.add(key)
-    colPick.push(b)
-    if (colPick.length >= 3) break
-  }
-  while (colPick.length < 3) colPick.push(fallPillar[colPick.length])
+  const colPick = pillarColumnTexts(allBulletStrings(bullets), narrative)
 
-  const topicShort = (topicLabel.split(':')[0] || topicLabel).trim().slice(0, 44)
+  const topicShort = topicShortLabel(topicLabel).slice(0, 44)
   slides.push({
     type: 'pillar',
     strike: STRIKE_BY_TOPIC[topicId] || 'HYPE — PILOTS — SLIDEWARE',
     headline: `Welcome to ${topicShort}.`,
-    body: slideCopy(
-      standaloneStatements[0] ||
-        subdeck ||
-        'Cybersecurity is converging on one outcome: securing how you show up in the world — not just what you run internally.',
-      420,
-    ),
+    body: slideCopy(pillarBodyFallback(subdeck, standaloneStatements, narrative), 420),
     cols: [
       { label: 'EXTERNAL', text: slideCopy(colPick[0], 560) },
       { label: 'ENTITY-LEVEL', text: slideCopy(colPick[1], 560) },
@@ -271,11 +357,12 @@ function parseIntoSlides(text, topicId = '') {
 
   const allCites = findCitations(text)
   const statN = Math.min(5, Math.max(3, Math.ceil(bullets.length / 2) || 3))
+  const closerPrimary = slideCopy(`${narrative.label}: ${narrative.coreThesis}`.replace(/\s+/g, ' ').trim(), 120, 280)
+  const closerSub = slideCopy(narrative.competitiveFrame, 200, 360)
   slides.push({
     type: 'closer',
-    text: 'The Agentic Software Transformation Playbook.',
-    sub:
-      'We package how teams show up in the market — protecting narrative, proof, and velocity on the agentic internet.',
+    text: closerPrimary,
+    sub: closerSub,
     hashtags,
     allCites,
     topicLabel,
@@ -284,7 +371,8 @@ function parseIntoSlides(text, topicId = '') {
     statMicro: 'PLAN · SHIP · MEASURE · GOVERN · AGENT',
   })
 
-  return slides
+  const topicRail = topicShortLabel(topicLabel).toUpperCase().slice(0, 40)
+  return slides.map((s) => ({ ...s, topicRail }))
 }
 
 function generateBulletTitles(bullets, hook) {
@@ -413,7 +501,7 @@ function drawEditorialHeader(ctx, kickerLeft, slideIndex, total, { monoRight = t
   ctx.textAlign = 'left'
 }
 
-function drawEditorialFooter(ctx, { showScrollCue = false } = {}) {
+function drawEditorialFooter(ctx, { showScrollCue = false, railText = PLATFORM_RAIL } = {}) {
   const railY = FOOTER_TOP + 18
   const markY = FOOTER_TOP + 4
   if (showScrollCue) {
@@ -439,7 +527,8 @@ function drawEditorialFooter(ctx, { showScrollCue = false } = {}) {
   ctx.font = `500 9px ${FONT_MONO}`
   ctx.letterSpacing = '2.4px'
   ctx.fillStyle = MUTED
-  ctx.fillText(PLATFORM_RAIL, SLIDE_W - SIDE, railY)
+  const rail = (railText || PLATFORM_RAIL).toUpperCase().slice(0, 42)
+  ctx.fillText(rail, SLIDE_W - SIDE, railY)
   ctx.letterSpacing = '0px'
   ctx.textAlign = 'left'
 }
@@ -578,10 +667,16 @@ function drawThreeColGrid(ctx, topY, maxW, cols, bottomLimit = FOOTER_TOP - 14) 
   }
 }
 
-function drawPlatformInfographic(ctx, boxTop, maxW) {
+function drawPlatformInfographic(ctx, boxTop, maxW, meta = null) {
   const x0 = PAD
   const w = maxW
   const boxH = 300
+  const keywordCells = meta?.keywordCells || eightGraphicCells('TOPIC', 'SIGNAL')
+  const meshLabel = (meta?.meshLabel || 'TOPIC SIGNALS').slice(0, 52)
+  const bridgeCaption = meta?.bridgeCaption
+    ? slideCopy(meta.bridgeCaption, 52, 120)
+    : 'From your post to one clear story.'
+  const footMono = meta?.footMono || 'NEWS · REGISTRY · POST'
   ctx.strokeStyle = BOX_EDGE
   ctx.lineWidth = 1
   roundRect(ctx, x0, boxTop, w, boxH, 2)
@@ -603,15 +698,14 @@ function drawPlatformInfographic(ctx, boxTop, maxW) {
     ctx.fillStyle = ACCENT
     ctx.font = `600 14px ${FONT_MONO}`
     ctx.textAlign = 'center'
-    ctx.fillText(labels[i] || '·', cx + cellW / 2, bandY + 26)
+    ctx.fillText(keywordCells[i] || '·', cx + cellW / 2, bandY + 26)
     ctx.textAlign = 'left'
   }
 
   ctx.font = `500 9px ${FONT_MONO}`
   ctx.letterSpacing = '2.2px'
   ctx.fillStyle = MUTED
-  const cap = 'MULTI-SURFACE SIGNAL MESH'
-  ctx.fillText(cap, x0 + w / 2 - ctx.measureText(cap).width / 2, bandY + 58)
+  ctx.fillText(meshLabel, x0 + w / 2 - ctx.measureText(meshLabel).width / 2, bandY + 58)
   ctx.letterSpacing = '0px'
 
   const arrowY = bandY + 72
@@ -670,8 +764,7 @@ function drawPlatformInfographic(ctx, boxTop, maxW) {
 
   ctx.font = `500 10px ${FONT_SANS}`
   ctx.fillStyle = PAPER
-  const oneSignal = 'From scattered signals to one clear story.'
-  ctx.fillText(oneSignal, x0 + w / 2 - ctx.measureText(oneSignal).width / 2, graphTop - 4)
+  ctx.fillText(bridgeCaption, x0 + w / 2 - ctx.measureText(bridgeCaption).width / 2, graphTop - 4)
 
   const trioY = boxTop + boxH - 52
   const tw = (w - 36) / 3
@@ -679,7 +772,7 @@ function drawPlatformInfographic(ctx, boxTop, maxW) {
   ctx.font = `500 8px ${FONT_MONO}`
   ctx.letterSpacing = '1.8px'
   ctx.fillStyle = ACCENT_SOFT
-  ctx.fillText('SIGNAL · GRAPH · RESPONSE', x0 + 16, trioY - 2)
+  ctx.fillText(footMono, x0 + 16, trioY - 2)
   ctx.letterSpacing = '0px'
 }
 
@@ -726,7 +819,7 @@ function renderSlide(ctx, slide, index, total) {
         y = lastBaseline + 28
       }
 
-      drawEditorialFooter(ctx, { showScrollCue: true })
+      drawEditorialFooter(ctx, { showScrollCue: true, railText: slide.topicRail })
       break
     }
 
@@ -772,7 +865,7 @@ function renderSlide(ctx, slide, index, total) {
           if (y > FOOTER_TOP - 100) break
         }
       }
-      drawEditorialFooter(ctx)
+      drawEditorialFooter(ctx, { railText: slide.topicRail })
       break
     }
 
@@ -820,7 +913,7 @@ function renderSlide(ctx, slide, index, total) {
       roundRect(ctx, PAD, innerTop, maxW, boxH, 2)
       ctx.stroke()
 
-      drawEditorialFooter(ctx)
+      drawEditorialFooter(ctx, { railText: slide.topicRail })
       break
     }
 
@@ -832,7 +925,7 @@ function renderSlide(ctx, slide, index, total) {
       const nLines = countHeadlineLines(ctx, primary, accent, maxW, qFont)
       const startY = verticalHeroBaseline(nLines, qGap, qFont)
       drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, qFont, qGap)
-      drawEditorialFooter(ctx)
+      drawEditorialFooter(ctx, { railText: slide.topicRail })
       break
     }
 
@@ -844,12 +937,13 @@ function renderSlide(ctx, slide, index, total) {
       const nLines = countHeadlineLines(ctx, primary, accent, maxW, cFont)
       const startY = verticalHeroBaseline(nLines, cGap, cFont)
       drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, cFont, cGap)
-      drawEditorialFooter(ctx)
+      drawEditorialFooter(ctx, { railText: slide.topicRail })
       break
     }
 
     case 'platform': {
-      drawEditorialHeader(ctx, 'THE PLATFORM', index, total, { monoRight: true })
+      const topicHdr = (slide.topicRail || 'TOPIC').slice(0, 32)
+      drawEditorialHeader(ctx, `INSIGHT · ${topicHdr}`, index, total, { monoRight: true })
       ctx.fillStyle = PAPER
       ctx.font = `700 38px ${FONT_SANS}`
       let y = CONTENT_TOP + 4
@@ -873,7 +967,7 @@ function renderSlide(ctx, slide, index, total) {
         y += 30
       }
       y += 10
-      drawPlatformInfographic(ctx, y, maxW)
+      drawPlatformInfographic(ctx, y, maxW, slide.platformGraphic || null)
       const trioTop = y + 300 + 14
       if (slide.trio && slide.trio.length === 3) {
         const tw = (maxW - 32) / 3
@@ -911,12 +1005,13 @@ function renderSlide(ctx, slide, index, total) {
           tx += tw + 16
         }
       }
-      drawEditorialFooter(ctx)
+      drawEditorialFooter(ctx, { railText: slide.topicRail })
       break
     }
 
     case 'pillar': {
-      drawEditorialHeader(ctx, 'THE CATEGORY', index, total)
+      const pHdr = (slide.topicRail || '').slice(0, 28)
+      drawEditorialHeader(ctx, pHdr ? `INSIGHT · ${pHdr}` : 'THE CATEGORY', index, total)
       let y = CONTENT_TOP + 8
       drawStrikeLabel(ctx, slide.strike || '', PAD, y, maxW)
       y += 36
@@ -930,7 +1025,7 @@ function renderSlide(ctx, slide, index, total) {
       }
       y += 22
       drawThreeColGrid(ctx, y, maxW, slide.cols || [], FOOTER_TOP - 14)
-      drawEditorialFooter(ctx)
+      drawEditorialFooter(ctx, { railText: slide.topicRail })
       break
     }
 
@@ -986,7 +1081,7 @@ function renderSlide(ctx, slide, index, total) {
       ctx.fillText('linkedin.com/in/premiyer →', SLIDE_W - SIDE, FOOTER_TOP - 48)
       ctx.textAlign = 'left'
 
-      drawEditorialFooter(ctx)
+      drawEditorialFooter(ctx, { railText: slide.topicRail })
       break
     }
 
@@ -995,7 +1090,7 @@ function renderSlide(ctx, slide, index, total) {
       ctx.fillStyle = PAPER
       ctx.font = `400 28px ${FONT_SANS}`
       ctx.fillText('Slide', PAD, CONTENT_TOP + 40)
-      drawEditorialFooter(ctx)
+      drawEditorialFooter(ctx, { railText: slide.topicRail })
   }
 }
 
@@ -1027,7 +1122,11 @@ function generateCarouselCaption(postText, topicId = '') {
   ]
   const bridge = bridgeTemplates[Math.floor(captionRng() * bridgeTemplates.length) % bridgeTemplates.length]
 
-  let caption = `${hook}\n\n`
+  let caption = ''
+  if (topicId) {
+    caption += `Topic: ${getTopicLabel(topicId)}.\n\n`
+  }
+  caption += `${hook}\n\n`
 
   if (reHook) {
     caption += `${reHook.trim()}\n\n`
@@ -1154,8 +1253,10 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
       {previewSlides.length > 0 && (
         <div className="carousel-preview">
           <p className="carousel-preview-explainer">
-            <strong>Live preview</strong> — same 1080×1080 canvas as the PDF (use ← → to swipe). One clear beat per
-            slide for dwell; the caption below still carries hook, proof, and a sharp question for the feed.
+            <strong>Live preview</strong> — same 1080×1080 canvas as the PDF (use ← → to swipe). Slides are parsed
+            from <strong>your post</strong> and anchored to <strong>{getTopicLabel(topicId) || 'the topic you picked'}</strong>{' '}
+            (headlines and stats still come from the same topic in the infographic). Decorative layout only — no
+            unrelated “template” storylines.
           </p>
           <img
             src={previewSlides[previewIndex]}

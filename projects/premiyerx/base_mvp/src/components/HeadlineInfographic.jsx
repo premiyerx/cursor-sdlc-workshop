@@ -83,6 +83,7 @@ export default function HeadlineInfographic({ model, palette }) {
   const {
     topicLabel,
     topicBadge,
+    topicFocusLine,
     hook,
     leadHeadline,
     verifiedStats,
@@ -109,6 +110,11 @@ export default function HeadlineInfographic({ model, palette }) {
       <text x="56" y="42" fill={palette.accent} fontSize="10" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="2.5">
         {topicLabel.toUpperCase().slice(0, 38)}
       </text>
+      {topicFocusLine ? (
+        <text x="56" y="56" fill="#666" fontSize="9" fontFamily="Inter, sans-serif" letterSpacing="0.2">
+          {topicFocusLine}
+        </text>
+      ) : null}
       <text x="1144" y="42" textAnchor="end" fill="#555" fontSize="9" fontFamily="Inter, sans-serif">
         {displayDate}
       </text>
