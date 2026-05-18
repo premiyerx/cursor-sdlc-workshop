@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react'
 
-function pad2(n) {
-  return String(n).padStart(2, '0')
-}
-
-/** Unambiguous UTC wall time (avoids "2:19 PM" vs local confusion). */
+/** Strict UTC instant (always ends with Z — never 12-hour “PM”). */
 export function formatUtcIsoInstant(iso) {
   const d = new Date(iso)
   if (!Number.isFinite(d.getTime())) return ''
-  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} UTC`
+  return d.toISOString()
 }
 
 function readStampFromDocument() {

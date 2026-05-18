@@ -38,6 +38,14 @@ const buildDateLabel = buildInstant.toLocaleString('en-US', {
 
 const builtAtIso = buildInstant.toISOString()
 
+function escapeHtmlText(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 /** Stamp index.html + manifest so PWAs and phones can detect new production deploys. */
 function buildStampPlugin({ sha, builtAt, builtAtIso: iso }) {
   const safeSha = String(sha).replace(/"/g, '')
@@ -45,16 +53,23 @@ function buildStampPlugin({ sha, builtAt, builtAtIso: iso }) {
   const safeIso = String(iso).replace(/"/g, '')
   // Inline object so the footer can read it before / alongside the module bundle (avoids stale cached JS showing an old build time).
   const inlineStamp = JSON.stringify({ sha, builtAt, iso: safeIso }).replace(/</g, '\\u003c')
+  const srvLine = escapeHtmlText(`srv ${safeSha} · ${safeIso}`)
   return {
     name: 'lidp-build-stamp',
     transformIndexHtml: {
       order: 'pre',
       handler(html) {
         if (html.includes('name="app-build"')) return html
-        return html.replace(
+        let out = html.replace(
           '</head>',
           `    <meta name="app-build" content="${safeSha}" />\n    <meta name="app-built-at" content="${safeBuiltAt}" />\n    <meta name="app-built-at-iso" content="${safeIso}" />\n    <script>window.__LIDP_BUILD_STAMP__=${inlineStamp}</script>\n  </head>`,
         )
+        // Plain HTML (not React): proves which deploy this HTML file came from even if JS bundles are cached.
+        out = out.replace(
+          '<div id="root"></div>',
+          `    <p id="lidp-srv-deploy" class="lidp-srv-deploy" aria-hidden="true">${srvLine}</p>\n    <div id="root"></div>`,
+        )
+        return out
       },
     },
     closeBundle() {

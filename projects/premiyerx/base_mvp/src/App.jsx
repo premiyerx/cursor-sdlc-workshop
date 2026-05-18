@@ -569,9 +569,14 @@ export default function App() {
         <p className="footer-copy">© Prem Iyer 2026</p>
         <p
           className="footer-build"
-          title={`Build ${footerBuildSha || __DEPLOY_SHA__}. Time is UTC (24h). If this looks old, hard-refresh (Ctrl+Shift+R) or clear site data for this URL.`}
+          title={`Host ${typeof window !== 'undefined' ? window.location.host : ''}. Build ${footerBuildSha || __DEPLOY_SHA__}. This line should match the tiny “srv …” stamp bottom-right (from server HTML). If not, add ?resetcache once.`}
         >
           Last updated: {footerBuildTime} · build {footerBuildSha || __DEPLOY_SHA__}
+        </p>
+        <p className="footer-build-hint" role="note">
+          Host <span className="footer-mono">{typeof window !== 'undefined' ? window.location.host : ''}</span>. If
+          this line does not match the small <span className="footer-mono">srv …</span> stamp in the corner, visit the
+          same page with <span className="footer-mono">?resetcache</span> once (then remove it).
         </p>
       </footer>
     </div>
