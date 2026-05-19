@@ -307,7 +307,7 @@ export async function generateAIPost(topicId, options = {}) {
   const profile = getTextModelProfile(options.textModelId || DEFAULT_TEXT_MODEL_ID)
   const apiKey = (options.apiKey || '').trim() || getApiKeyForProfile(profile)
   if (!keyLooksValid(profile, apiKey)) {
-    throw new Error(`Add your ${profile.keyHint} in Settings.`)
+    throw new Error(`Add your ${profile.keyHint} in the API keys section at the top of the page.`)
   }
 
   const ctx = await loadSharedGenerationContext(topicId, options)

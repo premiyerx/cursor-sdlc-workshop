@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 /**
  * Progressive disclosure panel — collapsed by default for long create flows.
  */
 export default function CollapsibleSection({
+  id,
   title,
   badge,
   hint,
@@ -13,8 +14,18 @@ export default function CollapsibleSection({
 }) {
   const [open, setOpen] = useState(defaultOpen)
 
+  useEffect(() => {
+    if (!id || typeof window === 'undefined') return
+    const match = () => {
+      if (window.location.hash === `#${id}`) setOpen(true)
+    }
+    match()
+    window.addEventListener('hashchange', match)
+    return () => window.removeEventListener('hashchange', match)
+  }, [id])
+
   return (
-    <section className={`collapsible-section ${open ? 'is-open' : ''} ${className}`.trim()}>
+    <section id={id} className={`collapsible-section ${open ? 'is-open' : ''} ${className}`.trim()}>
       <button
         type="button"
         className="collapsible-toggle"
