@@ -144,7 +144,7 @@ export default function AIGenerator({
         <p className="ai-keys-sub">
           OpenAI, Anthropic (Claude), and Google (Gemini from AI Studio) are separate fields.{' '}
           <strong className="ai-keys-legend-saved">Green</strong> row = key on file;{' '}
-          <strong className="ai-keys-legend-miss">Orange</strong> row = still empty. On a phone, scroll this panel — all
+          <strong className="ai-keys-legend-miss">Red</strong> row = still empty. On a phone, scroll this panel — all
           three are here.
         </p>
 

@@ -2,7 +2,7 @@
  * Bump CACHE_VERSION after meaningful app updates so clients drop old cached assets.
  * HTML navigations are never cached so new index.html (and hashed JS/CSS) loads after deploy.
  */
-const CACHE_VERSION = 'v13-key-status-ui'
+const CACHE_VERSION = 'v14-rose-missing'
 const CACHE_NAME = `lidp-assets-${CACHE_VERSION}`
 
 self.addEventListener('install', (event) => {

@@ -3504,7 +3504,7 @@ body {
 }
 
 .ai-keys-sub strong.ai-keys-legend-miss {
-  color: #fb923c;
+  color: #fb7185;
 }
 
 .ai-key-block {
@@ -3526,9 +3526,9 @@ body {
 }
 
 .ai-key-block--missing {
-  border-left-color: #f97316;
-  background: rgba(249, 115, 22, 0.09);
-  border-color: rgba(249, 115, 22, 0.5);
+  border-left-color: #e11d48;
+  background: rgba(244, 63, 94, 0.08);
+  border-color: rgba(244, 63, 94, 0.42);
 }
 
 .ai-key-block-head {
@@ -3556,7 +3556,7 @@ body {
 }
 
 .ai-key-block--missing .ai-key-provider-label {
-  color: #fed7aa;
+  color: #fecdd3;
 }
 
 .ai-key-state {
@@ -3596,10 +3596,10 @@ body {
 
 .ai-key-state--missing {
   color: #fff;
-  background: linear-gradient(180deg, #fb923c 0%, #ea580c 100%);
+  background: linear-gradient(180deg, #fb7185 0%, #e11d48 100%);
   box-shadow:
-    0 0 0 1px rgba(234, 88, 12, 0.55),
-    0 2px 8px rgba(234, 88, 12, 0.22);
+    0 0 0 1px rgba(225, 29, 72, 0.5),
+    0 2px 8px rgba(225, 29, 72, 0.22);
 }
 
 .ai-input--key-saved {
@@ -3608,8 +3608,8 @@ body {
 }
 
 .ai-input--key-missing {
-  border-color: rgba(249, 115, 22, 0.85) !important;
-  background: rgba(28, 18, 8, 0.75);
+  border-color: rgba(244, 63, 94, 0.82) !important;
+  background: rgba(28, 8, 14, 0.72);
 }
 
 .ai-key-block--saved .ai-input--key-saved:focus {
@@ -3618,8 +3618,8 @@ body {
 }
 
 .ai-key-block--missing .ai-input--key-missing:focus {
-  border-color: #fdba74 !important;
-  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.28);
+  border-color: #fda4af !important;
+  box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.28);
 }
 
 .ai-input--key-saved::placeholder,
