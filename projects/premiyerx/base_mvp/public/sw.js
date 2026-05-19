@@ -2,7 +2,7 @@
  * Bump CACHE_VERSION after meaningful app updates so clients drop old cached assets.
  * HTML navigations are never cached so new index.html (and hashed JS/CSS) loads after deploy.
  */
-const CACHE_VERSION = 'v22-editorial-infographic-llm'
+const CACHE_VERSION = 'v23-openai-strict-sampling-fix'
 const CACHE_NAME = `lidp-assets-${CACHE_VERSION}`
 
 self.addEventListener('install', (event) => {

@@ -1,28 +1,36 @@
 import { getOpenAiKey } from './openaiKey.js'
 import { getAnthropicKey, getGeminiKey } from './llmProviderKeys.js'
 
-/** Newer OpenAI chat models reject `max_tokens` and require `max_completion_tokens`. */
-function openAiTokenCapFields(model, value) {
-  const m = String(model || '').toLowerCase()
-  if (m.includes('gpt-5') || /^o[0-9]/.test(m) || m.startsWith('o1') || m.startsWith('o3')) {
-    return { max_completion_tokens: value }
-  }
-  return { max_tokens: value }
+/**
+ * GPT-5.x and o-series: use `max_completion_tokens` and do **not** send temperature / top_p / penalties
+ * (API returns 400, e.g. "temperature does not support 0.96 … only the default (1)").
+ * Single source of truth so token-cap logic and sampling logic never drift.
+ */
+function openAiNewChatFamily(model) {
+  const m = String(model ?? '').trim().toLowerCase()
+  if (!m) return false
+  if (m.includes('gpt-5')) return true
+  if (/^o[0-9]/.test(m) || m.startsWith('o1') || m.startsWith('o3')) return true
+  return false
 }
 
-/** GPT-5 / o-series often fix sampling at defaults — sending temperature/top_p/penalties returns 400. */
-function openAiUsesStrictDefaults(model) {
-  const m = String(model || '').toLowerCase()
-  return m.includes('gpt-5') || /^o[0-9]/.test(m) || m.startsWith('o1') || m.startsWith('o3')
+/** Resolve API model id (defensive if `apiModel` were missing on a profile clone). */
+function resolveOpenAiApiModel(profile) {
+  const direct = String(profile?.apiModel ?? '').trim()
+  if (direct) return direct
+  const id = String(profile?.id || '')
+  if (id === 'openai-gpt55') return 'gpt-5.5'
+  return direct
+}
+
+/** Newer OpenAI chat models reject `max_tokens` and require `max_completion_tokens`. */
+function openAiTokenCapFields(model, value) {
+  return openAiNewChatFamily(model) ? { max_completion_tokens: value } : { max_tokens: value }
 }
 
 /** Reasoning models count hidden “thinking” toward max_completion_tokens — keep headroom for visible text. */
 function openAiCompletionCap(model) {
-  const m = String(model || '').toLowerCase()
-  if (m.includes('gpt-5') || /^o[0-9]/.test(m) || m.startsWith('o1') || m.startsWith('o3')) {
-    return 8192
-  }
-  return 1200
+  return openAiNewChatFamily(model) ? 8192 : 1200
 }
 
 /** Chat message.content may be a string or a parts array (newer models). */
@@ -76,7 +84,7 @@ export async function generateRawCompletion(profile, { systemPrompt, userPrompt,
   if (!key) throw new Error('API key missing for this model.')
 
   if (profile.provider === 'openai') {
-    const model = profile.apiModel
+    const model = resolveOpenAiApiModel(profile)
     const body = {
       model,
       messages: [
@@ -86,12 +94,17 @@ export async function generateRawCompletion(profile, { systemPrompt, userPrompt,
       ...openAiTokenCapFields(model, openAiCompletionCap(model)),
     }
     const m = String(model || '').toLowerCase()
-    const strict = openAiUsesStrictDefaults(model)
+    const strict = openAiNewChatFamily(model)
     if (strict) {
+      delete body.temperature
+      delete body.top_p
+      delete body.presence_penalty
+      delete body.frequency_penalty
       if (m.includes('gpt-5')) {
         body.reasoning_effort = 'low'
       }
     } else {
+      delete body.reasoning_effort
       body.temperature = 0.96
       body.top_p = 0.9
       body.presence_penalty = 0.7
