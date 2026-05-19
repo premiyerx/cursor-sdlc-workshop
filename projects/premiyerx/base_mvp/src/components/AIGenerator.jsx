@@ -142,20 +142,41 @@ export default function AIGenerator({
       <div className="ai-settings">
         <p className="ai-keys-heading">One-time setup — three keys, then Save on each row</p>
         <p className="ai-keys-sub">
-          OpenAI, Anthropic (Claude), and Google (Gemini from AI Studio) are separate fields. On a phone, scroll this
-          panel — all three are here.
+          OpenAI, Anthropic (Claude), and Google (Gemini from AI Studio) are separate fields.{' '}
+          <strong className="ai-keys-legend-saved">Green</strong> row = key on file;{' '}
+          <strong className="ai-keys-legend-miss">Orange</strong> row = still empty. On a phone, scroll this panel — all
+          three are here.
         </p>
 
-        <div className="ai-key-block">
-          <label className="ai-key-provider-label" htmlFor="key-openai">
-            OpenAI
-          </label>
+        <div className={`ai-key-block ${hasKey ? 'ai-key-block--saved' : 'ai-key-block--missing'}`}>
+          <div className="ai-key-block-head">
+            <label className="ai-key-provider-label" htmlFor="key-openai">
+              OpenAI
+            </label>
+            <span
+              className={`ai-key-state ${hasKey ? 'ai-key-state--saved' : 'ai-key-state--missing'}`}
+              aria-label={hasKey ? 'OpenAI key saved on this device' : 'OpenAI key not saved'}
+            >
+              {hasKey ? (
+                <>
+                  <span className="ai-key-pill-verb">On file</span>
+                  {keyStatus.lastFour ? <span className="ai-key-pill-id">···{keyStatus.lastFour}</span> : null}
+                </>
+              ) : (
+                <span className="ai-key-pill-verb">Not set</span>
+              )}
+            </span>
+          </div>
           <div className="ai-key-row">
             <input
               id="key-openai"
               type="password"
-              className="ai-input"
-              placeholder={hasKey ? 'Replace OpenAI key' : 'OpenAI key (sk-…)'}
+              className={`ai-input ${hasKey ? 'ai-input--key-saved' : 'ai-input--key-missing'}`}
+              placeholder={
+                hasKey
+                  ? `Paste new key to replace (current ends …${keyStatus.lastFour})`
+                  : 'Paste OpenAI API key (sk-…)'
+              }
               value={openaiDraft}
               onChange={(e) => setOpenaiDraft(e.target.value)}
               autoComplete="off"
@@ -170,16 +191,35 @@ export default function AIGenerator({
           ↓ Anthropic &amp; Google keys are next — scroll this gray panel on your phone.
         </p>
 
-        <div className="ai-key-block">
-          <label className="ai-key-provider-label" htmlFor="key-anthropic">
-            Anthropic (Claude)
-          </label>
+        <div className={`ai-key-block ${anthStatus.saved ? 'ai-key-block--saved' : 'ai-key-block--missing'}`}>
+          <div className="ai-key-block-head">
+            <label className="ai-key-provider-label" htmlFor="key-anthropic">
+              Anthropic (Claude)
+            </label>
+            <span
+              className={`ai-key-state ${anthStatus.saved ? 'ai-key-state--saved' : 'ai-key-state--missing'}`}
+              aria-label={anthStatus.saved ? 'Anthropic key saved' : 'Anthropic key not saved'}
+            >
+              {anthStatus.saved ? (
+                <>
+                  <span className="ai-key-pill-verb">On file</span>
+                  {anthStatus.lastFour ? <span className="ai-key-pill-id">···{anthStatus.lastFour}</span> : null}
+                </>
+              ) : (
+                <span className="ai-key-pill-verb">Not set</span>
+              )}
+            </span>
+          </div>
           <div className="ai-key-row">
             <input
               id="key-anthropic"
               type="password"
-              className="ai-input"
-              placeholder={anthStatus.saved ? 'Replace Anthropic key' : 'Anthropic key (sk-ant-…)'}
+              className={`ai-input ${anthStatus.saved ? 'ai-input--key-saved' : 'ai-input--key-missing'}`}
+              placeholder={
+                anthStatus.saved
+                  ? `Paste new key to replace (current ends …${anthStatus.lastFour})`
+                  : 'Paste Anthropic API key (sk-ant-…)'
+              }
               value={anthropicDraft}
               onChange={(e) => setAnthropicDraft(e.target.value)}
               autoComplete="off"
@@ -190,16 +230,35 @@ export default function AIGenerator({
           </div>
         </div>
 
-        <div className="ai-key-block">
-          <label className="ai-key-provider-label" htmlFor="key-google-gemini">
-            Google (Gemini)
-          </label>
+        <div className={`ai-key-block ${gemStatus.saved ? 'ai-key-block--saved' : 'ai-key-block--missing'}`}>
+          <div className="ai-key-block-head">
+            <label className="ai-key-provider-label" htmlFor="key-google-gemini">
+              Google (Gemini)
+            </label>
+            <span
+              className={`ai-key-state ${gemStatus.saved ? 'ai-key-state--saved' : 'ai-key-state--missing'}`}
+              aria-label={gemStatus.saved ? 'Google Gemini key saved' : 'Google Gemini key not saved'}
+            >
+              {gemStatus.saved ? (
+                <>
+                  <span className="ai-key-pill-verb">On file</span>
+                  {gemStatus.lastFour ? <span className="ai-key-pill-id">···{gemStatus.lastFour}</span> : null}
+                </>
+              ) : (
+                <span className="ai-key-pill-verb">Not set</span>
+              )}
+            </span>
+          </div>
           <div className="ai-key-row">
             <input
               id="key-google-gemini"
               type="password"
-              className="ai-input"
-              placeholder={gemStatus.saved ? 'Replace Google Gemini key' : 'Google AI Studio / Gemini API key'}
+              className={`ai-input ${gemStatus.saved ? 'ai-input--key-saved' : 'ai-input--key-missing'}`}
+              placeholder={
+                gemStatus.saved
+                  ? `Paste new key to replace (current ends …${gemStatus.lastFour})`
+                  : 'Paste Google AI Studio / Gemini API key'
+              }
               value={geminiDraft}
               onChange={(e) => setGeminiDraft(e.target.value)}
               autoComplete="off"
@@ -281,18 +340,43 @@ export default function AIGenerator({
         </button>
 
         {showExtraKeys && (
-          <div className="ai-key-row">
-            <input
-              type="password"
-              className="ai-input"
-              placeholder={hasUnsplash ? 'Replace Unsplash key' : 'Unsplash key (optional)'}
-              value={unsplashDraft}
-              onChange={(e) => setUnsplashDraft(e.target.value)}
-              autoComplete="off"
-            />
-            <button type="button" className="ai-save-key-btn" onClick={handleSaveUnsplash}>
-              Save
-            </button>
+          <div className={`ai-key-block ${hasUnsplash ? 'ai-key-block--saved' : 'ai-key-block--missing'}`}>
+            <div className="ai-key-block-head">
+              <label className="ai-key-provider-label" htmlFor="key-unsplash">
+                Unsplash (optional)
+              </label>
+              <span
+                className={`ai-key-state ${hasUnsplash ? 'ai-key-state--saved' : 'ai-key-state--missing'}`}
+                aria-label={hasUnsplash ? 'Unsplash key saved' : 'Unsplash key not set'}
+              >
+                {hasUnsplash ? (
+                  <>
+                    <span className="ai-key-pill-verb">On file</span>
+                    <span className="ai-key-pill-id">···{unsplashKey.trim().slice(-4)}</span>
+                  </>
+                ) : (
+                  <span className="ai-key-pill-verb">Not set</span>
+                )}
+              </span>
+            </div>
+            <div className="ai-key-row">
+              <input
+                id="key-unsplash"
+                type="password"
+                className={`ai-input ${hasUnsplash ? 'ai-input--key-saved' : 'ai-input--key-missing'}`}
+                placeholder={
+                  hasUnsplash
+                    ? `Paste new key to replace (current ends …${unsplashKey.trim().slice(-4)})`
+                    : 'Paste Unsplash access key (optional)'
+                }
+                value={unsplashDraft}
+                onChange={(e) => setUnsplashDraft(e.target.value)}
+                autoComplete="off"
+              />
+              <button type="button" className="ai-save-key-btn" onClick={handleSaveUnsplash}>
+                Save
+              </button>
+            </div>
           </div>
         )}
 
