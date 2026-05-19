@@ -243,18 +243,57 @@ body {
   margin-top: 0.1rem;
 }
 
-.hero-api-keys-link {
-  margin-top: 0.35rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--green);
-  text-decoration: none;
-  border-bottom: 1px solid rgba(62, 220, 129, 0.35);
+.hero-api-keys-btn {
+  margin-top: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  max-width: 100%;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.hero-api-keys-link:hover {
+.hero-api-keys-btn:hover {
+  border-color: rgba(62, 220, 129, 0.45);
+  background: rgba(62, 220, 129, 0.06);
+}
+
+.hero-api-keys-btn--need {
+  border-left: 3px solid #fb7185;
+}
+
+.hero-api-keys-btn--done {
+  border-left: 3px solid var(--green);
+}
+
+.hero-api-keys-btn-label {
+  font-size: 0.82rem;
+  font-weight: 700;
   color: #fff;
-  border-bottom-color: var(--green);
+  letter-spacing: 0.02em;
+}
+
+.hero-api-keys-btn-status {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.35;
+  max-width: 22rem;
+}
+
+.hero-api-keys-btn--need .hero-api-keys-btn-status {
+  color: #fecdd3;
+}
+
+.hero-api-keys-btn--done .hero-api-keys-btn-status {
+  color: var(--green);
 }
 
 .hero-suggestion {
@@ -1174,6 +1213,21 @@ body {
   flex-wrap: wrap;
   gap: 0.45rem;
   margin-bottom: 0.65rem;
+}
+
+.ai-generator-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ai-gen-post-settings {
+  padding: 0.75rem 1rem 1rem;
+}
+
+.ai-generator-stack .ai-generator {
+  margin-bottom: 0;
 }
 
 /* ============ AI GENERATOR ============ */
@@ -3337,16 +3391,6 @@ body {
   }
 }
 
-.model-compare-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem 1rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  min-height: 220px;
-}
-
 .model-compare-card.is-error {
   border-color: rgba(248, 113, 113, 0.45);
 }
@@ -3356,6 +3400,7 @@ body {
   flex-direction: column;
   gap: 0.15rem;
   margin-bottom: 0.65rem;
+  flex-shrink: 0;
 }
 
 .model-compare-badge {
@@ -3373,18 +3418,42 @@ body {
   color: var(--text-primary);
 }
 
+.model-compare-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  max-height: min(92vh, 720px);
+}
+
 .model-compare-preview {
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   margin-bottom: 0.75rem;
+}
+
+.model-compare-scroll {
+  flex: 1;
+  min-height: 0;
+  max-height: min(48vh, 22rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.35rem;
+  -webkit-overflow-scrolling: touch;
 }
 
 .model-compare-hook {
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.5rem;
   line-height: 1.35;
+  white-space: pre-wrap;
 }
 
 .model-compare-body {
@@ -3392,6 +3461,39 @@ body {
   color: var(--text-secondary);
   line-height: 1.45;
   white-space: pre-wrap;
+  margin: 0 0 0.55rem;
+}
+
+.model-compare-cta,
+.model-compare-hashtags {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  margin: 0 0 0.45rem;
+}
+
+.model-compare-first-wrap {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.model-compare-first-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 0.25rem;
+}
+
+.model-compare-first-body {
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  margin: 0;
 }
 
 .model-compare-err {
@@ -3505,6 +3607,23 @@ body {
 
 .ai-keys-sub strong.ai-keys-legend-miss {
   color: #fb7185;
+}
+
+.ai-keys-sub a {
+  color: #7dd3fc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ai-keys-sub a:hover {
+  color: #bae6fd;
+}
+
+.ai-keys-gnews-note {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0 0 0.55rem;
 }
 
 .ai-key-block {

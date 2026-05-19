@@ -90,7 +90,18 @@ function buildStampPlugin({ sha, builtAt, builtAtIso: iso }) {
 
 export default defineConfig({
   plugins: [react(), buildStampPlugin({ sha: deploySha, builtAt: buildDateLabel, builtAtIso })],
-  server: { port: 5180 },
+  server: {
+    port: 5180,
+    proxy: {
+      // Anthropic has no browser CORS — mirror production /api route for local dev.
+      '/api/anthropic-messages': {
+        target: 'https://api.anthropic.com',
+        changeOrigin: true,
+        rewrite: () => '/v1/messages',
+        secure: true,
+      },
+    },
+  },
   define: {
     __DEPLOY_SHA__: JSON.stringify(deploySha),
     __BUILD_DATE__: JSON.stringify(buildDateLabel),

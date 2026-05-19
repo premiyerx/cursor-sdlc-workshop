@@ -291,7 +291,7 @@ export async function generateNewsroomImage({
 }) {
   const key = (apiKey || getOpenAiKey() || '').trim()
   if (!key) {
-    return { ok: false, error: 'Add your OpenAI key in the API keys section at the top of the page first.' }
+    return { ok: false, error: 'Add your OpenAI key under API Keys (welcome area) first.' }
   }
 
   const errors = []

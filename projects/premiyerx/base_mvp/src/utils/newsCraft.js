@@ -32,13 +32,19 @@ function scoreHeadline(headline, topicId) {
     if (title.includes(kw)) score += kw.length > 6 ? 3 : 2
   }
 
-  // Recency boost
+  // Recency boost — prefer items from the last few weeks for AI posts
   if (headline.date) {
-    const age = Date.now() - new Date(headline.date).getTime()
-    const days = age / 86_400_000
-    if (days <= 3) score += 8
-    else if (days <= 7) score += 5
-    else if (days <= 14) score += 2
+    const t = new Date(`${headline.date}T12:00:00Z`).getTime()
+    if (!Number.isNaN(t)) {
+      const days = (Date.now() - t) / 86_400_000
+      if (days <= 3) score += 14
+      else if (days <= 7) score += 10
+      else if (days <= 14) score += 6
+      else if (days <= 30) score += 3
+      else if (days <= 45) score += 0
+      else if (days <= 60) score -= 6
+      else score -= 22
+    }
   }
 
   // GNews tends to be more "newsy" for executive audiences
@@ -147,12 +153,13 @@ export function buildFullResearchBrief(realtimeData, topicId) {
     lines.push('')
     lines.push(`VIRAL STRUCTURE HINT: Use "${archetype.label}" pattern — ${archetype.pattern}`)
   } else {
-    lines.push('(No live headlines returned — anchor on pillar thesis + verified stats; use hedged "recent reporting suggests…" only if defensible.)')
+    lines.push('(No live headlines returned — anchor on pillar thesis + hedged framing; use "recent reporting suggests…" only if defensible.)')
   }
 
-  if (realtimeData?.freshData?.length > 0) {
+  // When we have live headlines, do not inject "registry" stats — they go stale and fight the feed.
+  if (headlines.length === 0 && realtimeData?.freshData?.length > 0) {
     lines.push('')
-    lines.push('VERIFIED / REGISTRY STATS (cite inline when used):')
+    lines.push('BACKGROUND FRAMING ONLY (hedged — no hard numbers unless you later get them from headlines):')
     realtimeData.freshData.forEach((d) => lines.push(`→ ${d}`))
   }
 
@@ -163,6 +170,7 @@ export function buildFullResearchBrief(realtimeData, topicId) {
     '- Paraphrase headlines; never paste article titles as your opening line.',
     '- Name-check at most one vendor/product from the news if it sharpens the point.',
     '- Never invent funding rounds, dates, customer logos, or survey percentages.',
+    '- If CONTEXT includes dated headlines, every valuation, funding total, and quarter MUST agree with those dates — never resurrect older figures from training data.',
     '- Prefer a narrative frame the feed has NOT already beaten to death.',
     '=== END PILLAR BRIEF ===',
     '',

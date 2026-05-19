@@ -418,7 +418,7 @@ export default function DynamicGraphic({
         flashErr(graphic.error || 'Could not create your picture.')
       } else {
         finishGraphicProgress('Basic chart ready')
-        flashOk('Basic chart only — save your OpenAI key in API keys at the top, then tap New graphic angle again.')
+        flashOk('Basic chart only — save your OpenAI key under API Keys (welcome area), then tap New graphic angle again.')
       }
     } catch {
       flashErr('Could not refresh — try again.')
@@ -446,7 +446,7 @@ export default function DynamicGraphic({
       return
     }
     if (!hasOpenAiKey()) {
-      flashErr('Save your OpenAI key in API keys at the top, then tap Refresh graphic.')
+      flashErr('Save your OpenAI key under API Keys (welcome area), then tap Refresh graphic.')
       return
     }
     setSmartBusy(true)
@@ -604,7 +604,7 @@ export default function DynamicGraphic({
       {keyStatus.saved ? (
         <p className="graphic-key-status graphic-key-status--ok">{keyStatus.label} · AI infographics enabled</p>
       ) : (
-        <p className="graphic-key-status graphic-key-status--warn">No OpenAI key detected — save one in API keys at the top for premium pictures</p>
+        <p className="graphic-key-status graphic-key-status--warn">No OpenAI key detected — save one under API Keys (welcome area) for premium pictures</p>
       )}
 
       <div className="smart-visual-row">

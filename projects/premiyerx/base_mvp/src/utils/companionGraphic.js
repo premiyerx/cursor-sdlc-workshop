@@ -113,7 +113,7 @@ export async function createCompanionGraphic({
     realtimeData: rt,
     seed,
     model,
-    hint: `Basic chart only — open API keys at the top, paste your OpenAI key, tap Save, then tap New graphic angle.`,
+    hint: `Basic chart only — open API Keys (welcome area), paste your OpenAI key, tap Save, then tap New graphic angle.`,
     error: null,
   }
 }

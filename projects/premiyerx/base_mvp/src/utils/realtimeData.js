@@ -138,7 +138,17 @@ function mergeHeadlines(groups) {
   }
   const merged = [...map.values()]
   merged.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-  return merged.slice(0, 22)
+
+  const maxAgeMs = 75 * 86_400_000
+  const now = Date.now()
+  const dated = merged.filter((h) => {
+    if (!h.date) return true
+    const t = new Date(h.date + 'T12:00:00Z').getTime()
+    if (Number.isNaN(t)) return true
+    return now - t <= maxAgeMs
+  })
+  // Prefer recent items for AI relevance; fall back if the feed is thin.
+  return (dated.length >= 5 ? dated : merged).slice(0, 22)
 }
 
 /**
@@ -227,23 +237,40 @@ export function getEditableDataPoints() {
   return defaults
 }
 
+/** Hedged framing only — models must prefer dated headlines over these when numbers conflict. */
 const DEFAULT_DATA_POINTS = {
-  cursor_users: 'Cursor serves millions of developers with 1M+ daily active users and 50,000+ businesses (Cursor, March 2026)',
-  cursor_fortune500: 'Over half of the Fortune 500 use Cursor (Cursor, 2026)',
-  cursor_awareness: '69% of developers have heard of Cursor; 18% use it at work (JetBrains Survey, Jan 2026)',
-  cursor_valuation: 'Cursor raised $2.3B at a $29B valuation in November 2025, with $2B+ ARR (multiple sources, 2026)',
-  ai_tools_market: 'AI-assisted coding tools market projected to reach $22B by 2028 (Gartner, 2025)',
-  ai_tools_adoption: '73% of Fortune 500 have active AI dev tool pilots (Gartner, 2025)',
-  investment_total: 'AI developer tooling saw $4.2B in funding, 3x YoY (PitchBook, Q4 2025)',
-  investment_nrr: 'Top AI dev tool companies averaging 140%+ net revenue retention (Bessemer Cloud Index)',
-  cio_priority: '78% of CIOs list AI integration as a top-3 priority (Gartner, 2025)',
-  cio_budget: '62% of tech leaders increased AI tooling budgets this year (Deloitte, 2025)',
-  cio_talent: '87% of engineering leaders cite talent shortage as top concern (multiple surveys, 2025)',
-  roi_speed: 'AI dev tools deliver 30-40% faster time-to-ship (DORA State of DevOps, 2025)',
-  roi_savings: '$37K annual savings per developer seat from AI tools (Forrester TEI, 2025)',
-  roi_bugs: '25% fewer production bugs with AI-assisted development (DORA, 2025)',
-  roi_payback: '6-week average payback period for AI dev tool investment (Forrester, 2025)',
-  devsecops_vuln: 'DevSecOps teams using AI tools report 44% fewer critical vulnerabilities (DORA, 2025)',
+  cursor_users:
+    'Cursor is widely used across startups and enterprises; cite concrete scale only if a headline in CONTEXT supplies it with a date.',
+  cursor_fortune500:
+    'AI-native editors compete for enterprise procurement cycles; name logos or adoption stats only when your headlines include them.',
+  cursor_awareness:
+    'Developer surveys still show rapid trial of AI IDEs; cite survey numbers only if your headlines name the study and period.',
+  cursor_valuation:
+    '2026 reporting described a conditional acquisition framework for Cursor at roughly a $60B valuation linked to SpaceX-affiliated syndicates — treat any figure as fluid until your LEAD STORY corroborates it with a fresh date.',
+  ai_tools_market:
+    'Analysts expect strong multi-year growth in AI-assisted software delivery; avoid citing a single static “market size” unless your headlines quote it with a source and date.',
+  ai_tools_adoption:
+    'Enterprises continue expanding pilots for AI coding assistants; prefer “recent reporting” unless headlines give a dated statistic.',
+  investment_total:
+    'Funding and valuation headlines for AI dev tools change week to week in 2026 — do not reuse old quarter totals from memory; pull amounts and quarters only from your dated headline list.',
+  investment_nrr:
+    'High net-revenue retention remains a talking point for top dev-tool vendors; only cite a number if a headline provides it.',
+  cio_priority:
+    'CIOs still rank AI integration near the top of roadmaps; use generic framing unless a headline supplies a dated survey stat.',
+  cio_budget:
+    'Budget shifts toward AI tooling continue; avoid invented budget percentages.',
+  cio_talent:
+    'Talent and productivity pressure remain central to engineering leadership narratives.',
+  roi_speed:
+    'Teams report faster delivery when AI assists code review and scaffolding; cite benchmarks only if headlines name the study.',
+  roi_savings:
+    'ROI narratives vary by org; avoid hard dollar-per-seat claims unless sourced in CONTEXT.',
+  roi_bugs:
+    'Quality outcomes depend on workflow; cite defect metrics only when headlines support them.',
+  roi_payback:
+    'Payback timelines differ widely; do not invent a universal payback window.',
+  devsecops_vuln:
+    'Security teams evaluate AI-generated code carefully; keep claims qualitative unless headlines cite data.',
 }
 
 function generateFreshDataPoints(topicId) {

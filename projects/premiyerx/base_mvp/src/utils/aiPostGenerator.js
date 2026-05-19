@@ -36,6 +36,19 @@ export function describeMissingCompareKeys() {
   return TEXT_MODEL_PROFILES.filter((p) => !keyLooksValid(p, getApiKeyForProfile(p))).map((p) => p.keyHint)
 }
 
+/** Remove internal drafting markers models sometimes leak into prose. */
+function sanitizeExternalCopy(s) {
+  if (!s) return ''
+  let t = String(s)
+  const markers =
+    /\b(?:RE[-_\s]?HOOK|RE[-_\s]?BODY|RE[-_\s]?LINE|ALT[-_\s]?HOOK|INTERNAL\s*DRAFT|DRAFT\s*ONLY|META[-_\s]?NOTE|NOTE\s*TO\s*SELF)\s*:?\s*/gi
+  t = t.replace(markers, '')
+  t = t.replace(/\(\s*Internal:[^)]*\)/gi, '')
+  t = t.replace(/[^\S\n]+/g, ' ')
+  t = t.replace(/\n{3,}/g, '\n\n')
+  return t.trim()
+}
+
 /** Strip common assistant wrappers so section headers parse cleanly. */
 function stripAssistantPreamble(text) {
   let t = text.trim()
@@ -74,7 +87,15 @@ function stripStraySectionLabels(s) {
   if (!s) return ''
   return s
     .split('\n')
-    .filter((line) => !/^\s*#*\s*(?:\*\*)?\s*(HOOK|BODY|CTA|HASHTAGS|CONTENT|OPENING|HEADLINE|MAIN|TAGS)\s*(?:\*\*)?\s*:?\s*$/i.test(line))
+    .filter(
+      (line) =>
+        !/^\s*#*\s*(?:\*\*)?\s*(HOOK|BODY|CTA|HASHTAGS|CONTENT|OPENING|HEADLINE|MAIN|TAGS)\s*(?:\*\*)?\s*:?\s*$/i.test(
+          line,
+        ) &&
+        !/^\s*#*\s*(?:\*\*)?\s*RE[-_\s]?HOOK\s*:?\s*$/i.test(line) &&
+        !/^\s*#*\s*(?:\*\*)?\s*ALT[-_\s]?HOOK\s*:?\s*$/i.test(line) &&
+        !/^\s*#*\s*(?:\*\*)?\s*INTERNAL\s*:?\s*$/i.test(line),
+    )
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
@@ -187,11 +208,11 @@ function parseLegacyFlexibleColon(text) {
 }
 
 function finalizePost(p) {
-  const hook = stripStraySectionLabels(p.hook || '')
-  const body = stripStraySectionLabels(p.body || '')
-  const cta = stripStraySectionLabels(p.cta || '')
-  const hashtags = stripStraySectionLabels(p.hashtags || '')
-  const firstComment = stripStraySectionLabels(p.firstComment || '')
+  const hook = stripStraySectionLabels(sanitizeExternalCopy(p.hook || ''))
+  const body = stripStraySectionLabels(sanitizeExternalCopy(p.body || ''))
+  const cta = stripStraySectionLabels(sanitizeExternalCopy(p.cta || ''))
+  const hashtags = stripStraySectionLabels(sanitizeExternalCopy(p.hashtags || ''))
+  const firstComment = stripStraySectionLabels(sanitizeExternalCopy(p.firstComment || ''))
   recordGeneratedHook(hook || body.slice(0, 200))
   return { hook, body, cta, hashtags, firstComment }
 }
@@ -199,6 +220,7 @@ function finalizePost(p) {
 function parseAIOutput(raw) {
   let text = stripCodeFence(String(raw || '').replace(/\r\n/g, '\n'))
   text = stripAssistantPreamble(text)
+  text = sanitizeExternalCopy(text)
 
   const json = tryParseJsonPost(text)
   if (json) return finalizePost(json)
@@ -222,10 +244,17 @@ function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '') {
   const varietyBlock = buildVarietyEnvelope(topicId, topic.label)
   const narrative = getTopicNarrative(topicId)
   const runStamp = new Date().toISOString()
+  const periodLabel = new Date().toLocaleString('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
 
   return `Write a LinkedIn post in the content pillar: "${topic.label}".
 
 GENERATION_RUN: ${runStamp} — this must be completely different from any post you wrote earlier today for this pillar.
+
+CURRENT_PERIOD_UTC: ${periodLabel}. For anything time-sensitive (valuations, M&A, funding totals, survey quarters), prioritize facts implied by the dated headlines in CONTEXT. Do not cite stale 2025 summaries or old round totals unless a headline explicitly includes them with a date.
 
 Pillar context: ${topic.description}
 
@@ -244,7 +273,7 @@ CONTEXT:
 - Ban phrases: "game-changer", "let's dive", "in today's fast-paced", "thoughts?", "agree?"
 ${realtimeContext}
 
-DATA ACCURACY: Every stat needs inline source. Never invent funding, dates, or customer names.
+DATA ACCURACY: Every stat needs inline source tied to CONTEXT headlines when possible. Never invent funding, dates, or customer names. Never output internal drafting labels (e.g. RE-HOOK, ALT HOOK, INTERNAL).
 
 ALGORITHM (2026): Optimize for sustained read depth (dwell), comment threads over passive likes, pillar consistency, and an opening that earns "see more." No engagement bait or naked external URLs in the body. FIRST_COMMENT must add new insight and a follow-up question so you can reply substantively in the first hour.
 
@@ -307,7 +336,7 @@ export async function generateAIPost(topicId, options = {}) {
   const profile = getTextModelProfile(options.textModelId || DEFAULT_TEXT_MODEL_ID)
   const apiKey = (options.apiKey || '').trim() || getApiKeyForProfile(profile)
   if (!keyLooksValid(profile, apiKey)) {
-    throw new Error(`Add your ${profile.keyHint} in the API keys section at the top of the page.`)
+    throw new Error(`Add your ${profile.keyHint} under API Keys (welcome area).`)
   }
 
   const ctx = await loadSharedGenerationContext(topicId, options)

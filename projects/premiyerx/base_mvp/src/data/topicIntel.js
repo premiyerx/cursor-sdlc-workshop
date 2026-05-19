@@ -7,12 +7,13 @@ export const TOPIC_RESEARCH = {
   cursor: {
     hnQueries: [
       'Cursor editor AI OR Windsurf OR Zed AI coding',
+      'Cursor SpaceX OR Cursor acquisition OR Anysphere valuation',
       'agentic coding OR "AI software development" enterprise',
       '"GitHub Copilot" OR "AI code review" OR Devin AI',
       'codebase context OR "AI IDE" OR SWE agent production',
     ],
     gnewsQueries: [
-      '("Cursor" AI editor OR "Anysphere") AND (enterprise OR developers)',
+      '("Cursor" AI editor OR "Anysphere") AND (enterprise OR developers OR acquisition OR SpaceX)',
       '("GitHub Copilot" OR Windsurf OR Devin) AND ("AI coding" OR IDE)',
       '("agentic coding" OR "AI software development") AND (startup OR enterprise 2026)',
     ],

@@ -4,7 +4,14 @@ import { findCitations } from './data/citations'
 import { getRealtimeSprinkle, fetchRealtimeContext, invalidateRealtimeCache } from './utils/realtimeData'
 import { weaveNewsIntoTemplate, getResearchSummary } from './utils/newsCraft'
 import { pickTemplateIndex, recordGeneratedHook } from './utils/generationVariety'
-import { hasOpenAiKey, getOpenAiKey, generateAIPost, generateAIPostCompareAll, hasApiKeyForModelId, canRunCompareAll } from './utils/aiPostGenerator'
+import {
+  hasOpenAiKey,
+  getOpenAiKey,
+  generateAIPost,
+  generateAIPostCompareAll,
+  hasApiKeyForModelId,
+  canRunCompareAll,
+} from './utils/aiPostGenerator'
 import { DEFAULT_TEXT_MODEL_ID, getTextModelProfile } from './data/textModelProfiles'
 import { createCompanionGraphic } from './utils/companionGraphic'
 import { bumpRefreshSeed } from './utils/freshnessRotation'
@@ -52,6 +59,11 @@ export default function App() {
   const [textGenMode, setTextGenMode] = useState('single')
   const [selectedTextModelId, setSelectedTextModelId] = useState(DEFAULT_TEXT_MODEL_ID)
   const [postVariants, setPostVariants] = useState(null)
+  const [apiKeysMetaTick, setApiKeysMetaTick] = useState(0)
+  const [apiKeysPanelOpen, setApiKeysPanelOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return !canRunCompareAll()
+  })
   const compareContextRef = useRef({ realtimeData: null, seed: 0 })
   const [companionGraphic, setCompanionGraphic] = useState(null)
   const [graphicSessionId, setGraphicSessionId] = useState(0)
@@ -107,6 +119,25 @@ export default function App() {
     () => getTextModelProfile(selectedTextModelId),
     [selectedTextModelId],
   )
+
+  const allCompareKeysSaved = useMemo(() => {
+    void apiKeysMetaTick
+    return canRunCompareAll()
+  }, [apiKeysMetaTick])
+
+  const handleLlmKeysSaved = useCallback(() => {
+    setApiKeysMetaTick((n) => n + 1)
+    queueMicrotask(() => {
+      if (canRunCompareAll()) setApiKeysPanelOpen(false)
+    })
+  }, [])
+
+  const openApiKeysPanel = useCallback(() => {
+    setApiKeysPanelOpen(true)
+    queueMicrotask(() => {
+      document.getElementById('api-keys-setup')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [])
 
   const today = useMemo(() => {
     const d = new Date()
@@ -198,7 +229,7 @@ export default function App() {
         } else if (!graphic.ok) {
           flashGenerateErr(`Your post is ready. ${graphic.error || 'The picture could not be created.'}`, 15000)
         } else {
-          flashGenerateOk('Post ready. Open API keys at the top and save your OpenAI key for premium infographics.')
+          flashGenerateOk('Post ready. Open API Keys (welcome area) and save your OpenAI key for premium infographics.')
         }
         return
       }
@@ -349,7 +380,7 @@ export default function App() {
         } else if (!graphic.ok) {
           flashGenerateErr(`Your post is ready. ${graphic.error || 'The picture could not be created.'}`, 15000)
         } else {
-          flashGenerateOk('Post ready. Save your OpenAI key in API keys at the top for premium infographics.')
+          flashGenerateOk('Post ready. Save your OpenAI key under API Keys (welcome area) for premium infographics.')
         }
       } catch (err) {
         flashGenerateErr(err?.message || 'Could not create infographic.')
@@ -398,9 +429,18 @@ export default function App() {
             <div className="hero-welcome">
               <h2 className="hero-hello">{today.greeting}, Prem</h2>
               <p className="hero-date">{today.dateStr}</p>
-              <a className="hero-api-keys-link" href="#api-keys-setup">
-                API keys (OpenAI, Anthropic, Google)
-              </a>
+              <button
+                type="button"
+                className={`hero-api-keys-btn ${allCompareKeysSaved ? 'hero-api-keys-btn--done' : 'hero-api-keys-btn--need'}`}
+                onClick={openApiKeysPanel}
+              >
+                <span className="hero-api-keys-btn-label">API Keys</span>
+                <span className="hero-api-keys-btn-status" aria-live="polite">
+                  {allCompareKeysSaved
+                    ? 'All set — tap to view or rotate keys'
+                    : 'Start here — add OpenAI, Anthropic & Google'}
+                </span>
+              </button>
             </div>
           </div>
 
@@ -424,6 +464,9 @@ export default function App() {
           onTextGenModeChange={setTextGenMode}
           selectedTextModelId={selectedTextModelId}
           onSelectedTextModelIdChange={setSelectedTextModelId}
+          apiKeysPanelOpen={apiKeysPanelOpen}
+          onApiKeysPanelOpenChange={setApiKeysPanelOpen}
+          onLlmKeysSaved={handleLlmKeysSaved}
         />
 
         {/* STEP 2: The one action — pick, configure, generate */}
@@ -509,15 +552,15 @@ export default function App() {
             <div className="command-ai-key-banner" role="status">
               <p className="command-ai-key-banner-title">No saved key for {selectedTextModelProfile.label}</p>
               <p className="command-ai-key-banner-body">
-                Generate will use the <strong>template + live headlines</strong> path instead of that model. Open the{' '}
-                <strong>API keys: OpenAI, Anthropic &amp; Google (Gemini)</strong> section above and save{' '}
-                {selectedTextModelProfile.keyHint} to use this model.
+                Generate will use the <strong>template + live headlines</strong> path instead of that model. Tap{' '}
+                <strong>API Keys</strong> in the welcome area, expand the panel, and save {selectedTextModelProfile.keyHint}{' '}
+                to use this model.
               </p>
             </div>
           )}
           {selectedTopic && textGenMode === 'compare' && !canRunCompareAll() && (
             <p className="command-key-hint">
-              Three-way compare needs all three API keys in the section above (OpenAI, Anthropic, Google Gemini).
+              Three-way compare needs all three keys under <strong>API Keys</strong> (OpenAI, Anthropic, Google Gemini).
             </p>
           )}
         </section>

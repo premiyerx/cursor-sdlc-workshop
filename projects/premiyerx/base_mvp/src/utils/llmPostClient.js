@@ -1,6 +1,17 @@
 import { getOpenAiKey } from './openaiKey'
 import { getAnthropicKey, getGeminiKey } from './llmProviderKeys'
 
+/** Newer OpenAI chat models reject `max_tokens` and require `max_completion_tokens`. */
+function openAiTokenCapFields(model, value) {
+  const m = String(model || '').toLowerCase()
+  if (m.includes('gpt-5') || /^o[0-9]/.test(m) || m.startsWith('o1') || m.startsWith('o3')) {
+    return { max_completion_tokens: value }
+  }
+  return { max_tokens: value }
+}
+
+const ANTHROPIC_MESSAGES_PATH = '/api/anthropic-messages'
+
 /**
  * Resolve API key for a profile's `keyStorage` type.
  */
@@ -43,7 +54,7 @@ export async function generateRawCompletion(profile, { systemPrompt, userPrompt,
       top_p: 0.9,
       presence_penalty: 0.7,
       frequency_penalty: 0.5,
-      max_tokens: 1200,
+      ...openAiTokenCapFields(profile.apiModel, 1200),
     }
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -61,7 +72,7 @@ export async function generateRawCompletion(profile, { systemPrompt, userPrompt,
   }
 
   if (profile.provider === 'anthropic') {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(ANTHROPIC_MESSAGES_PATH, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
