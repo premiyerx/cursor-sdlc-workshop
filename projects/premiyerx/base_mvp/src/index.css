@@ -983,6 +983,7 @@ body {
 
 .collapsible-section.is-open {
   background: linear-gradient(145deg, var(--bg-secondary) 0%, #050505 100%);
+  overflow: visible;
 }
 
 #api-keys-setup {
@@ -1043,7 +1044,8 @@ body {
 }
 
 .collapsible-body {
-  padding: 0 1rem 1rem;
+  padding: 0 1rem;
+  padding-bottom: max(2rem, calc(0.75rem + env(safe-area-inset-bottom, 0px)));
 }
 
 .algorithm-scorer-wrap .algorithm-scorer,
@@ -3511,6 +3513,21 @@ body {
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 0.35rem;
+}
+
+.ai-keys-scroll-hint {
+  display: none;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--green);
+  margin: 0.1rem 0 0.65rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 768px) {
+  .ai-keys-scroll-hint {
+    display: block;
+  }
 }
 
 .ai-compare-note {

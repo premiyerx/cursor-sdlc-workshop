@@ -124,16 +124,92 @@ export default function AIGenerator({
     ? 'OpenAI · Anthropic · Google'
     : [keyStatus.saved && 'OpenAI', anthStatus.saved && 'Anthropic', gemStatus.saved && 'Google'].filter(Boolean).join(' · ') || 'Add API keys'
 
+  const defaultKeysOpen =
+    (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) ||
+    !hasOpenAiKey() ||
+    !anthStatus.saved ||
+    !gemStatus.saved
+
   return (
     <CollapsibleSection
       id="api-keys-setup"
       className="ai-settings-wrap"
       title="API keys: OpenAI, Anthropic & Google (Gemini)"
       badge={keysReady}
-      hint="Expand to paste OpenAI, Anthropic, and Google AI Studio keys — pick a topic after"
-      defaultOpen={!hasOpenAiKey() || !anthStatus.saved || !gemStatus.saved}
+      hint="OpenAI, Anthropic & Google — expand to paste keys (scroll on phone)"
+      defaultOpen={defaultKeysOpen}
     >
       <div className="ai-settings">
+        <p className="ai-keys-heading">One-time setup — three keys, then Save on each row</p>
+        <p className="ai-keys-sub">
+          OpenAI, Anthropic (Claude), and Google (Gemini from AI Studio) are separate fields. On a phone, scroll this
+          panel — all three are here.
+        </p>
+
+        <div className="ai-key-block">
+          <label className="ai-key-provider-label" htmlFor="key-openai">
+            OpenAI
+          </label>
+          <div className="ai-key-row">
+            <input
+              id="key-openai"
+              type="password"
+              className="ai-input"
+              placeholder={hasKey ? 'Replace OpenAI key' : 'OpenAI key (sk-…)'}
+              value={openaiDraft}
+              onChange={(e) => setOpenaiDraft(e.target.value)}
+              autoComplete="off"
+            />
+            <button type="button" className="ai-save-key-btn" onClick={handleSaveOpenAi}>
+              Save
+            </button>
+          </div>
+        </div>
+
+        <p className="ai-keys-scroll-hint" aria-hidden="true">
+          ↓ Anthropic &amp; Google keys are next — scroll this gray panel on your phone.
+        </p>
+
+        <div className="ai-key-block">
+          <label className="ai-key-provider-label" htmlFor="key-anthropic">
+            Anthropic (Claude)
+          </label>
+          <div className="ai-key-row">
+            <input
+              id="key-anthropic"
+              type="password"
+              className="ai-input"
+              placeholder={anthStatus.saved ? 'Replace Anthropic key' : 'Anthropic key (sk-ant-…)'}
+              value={anthropicDraft}
+              onChange={(e) => setAnthropicDraft(e.target.value)}
+              autoComplete="off"
+            />
+            <button type="button" className="ai-save-key-btn" onClick={handleSaveAnthropic}>
+              Save
+            </button>
+          </div>
+        </div>
+
+        <div className="ai-key-block">
+          <label className="ai-key-provider-label" htmlFor="key-google-gemini">
+            Google (Gemini)
+          </label>
+          <div className="ai-key-row">
+            <input
+              id="key-google-gemini"
+              type="password"
+              className="ai-input"
+              placeholder={gemStatus.saved ? 'Replace Google Gemini key' : 'Google AI Studio / Gemini API key'}
+              value={geminiDraft}
+              onChange={(e) => setGeminiDraft(e.target.value)}
+              autoComplete="off"
+            />
+            <button type="button" className="ai-save-key-btn" onClick={handleSaveGemini}>
+              Save
+            </button>
+          </div>
+        </div>
+
         <fieldset className="ai-model-fieldset">
           <legend className="ai-model-legend">Post text generation</legend>
           <div className="ai-gen-mode-row">
@@ -177,73 +253,11 @@ export default function AIGenerator({
           )}
           {textGenMode === 'compare' && (
             <p className="ai-settings-note ai-compare-note">
-              Runs <strong>GPT 5.5</strong>, <strong>Claude Opus 4.7</strong>, and <strong>Gemini 3 Flash</strong> in parallel. Save all three keys below first.
+              Runs <strong>GPT 5.5</strong>, <strong>Claude Opus 4.7</strong>, and <strong>Gemini 3 Flash</strong> in parallel.
+              Save all three keys in the fields above first.
             </p>
           )}
         </fieldset>
-
-        <p className="ai-keys-heading">One-time setup — paste each key and tap Save</p>
-        <p className="ai-keys-sub">OpenAI, then Anthropic (Claude), then Google (Gemini from AI Studio).</p>
-
-        <div className="ai-key-block">
-          <label className="ai-key-provider-label" htmlFor="key-openai">
-            OpenAI
-          </label>
-          <div className="ai-key-row">
-            <input
-              id="key-openai"
-              type="password"
-              className="ai-input"
-              placeholder={hasKey ? 'Replace OpenAI key' : 'OpenAI key (sk-…)'}
-              value={openaiDraft}
-              onChange={(e) => setOpenaiDraft(e.target.value)}
-              autoComplete="off"
-            />
-            <button type="button" className="ai-save-key-btn" onClick={handleSaveOpenAi}>
-              Save
-            </button>
-          </div>
-        </div>
-
-        <div className="ai-key-block">
-          <label className="ai-key-provider-label" htmlFor="key-anthropic">
-            Anthropic (Claude)
-          </label>
-          <div className="ai-key-row">
-            <input
-              id="key-anthropic"
-              type="password"
-              className="ai-input"
-              placeholder={anthStatus.saved ? 'Replace Anthropic key' : 'Anthropic key (sk-ant-…)'}
-              value={anthropicDraft}
-              onChange={(e) => setAnthropicDraft(e.target.value)}
-              autoComplete="off"
-            />
-            <button type="button" className="ai-save-key-btn" onClick={handleSaveAnthropic}>
-              Save
-            </button>
-          </div>
-        </div>
-
-        <div className="ai-key-block">
-          <label className="ai-key-provider-label" htmlFor="key-google-gemini">
-            Google (Gemini)
-          </label>
-          <div className="ai-key-row">
-            <input
-              id="key-google-gemini"
-              type="password"
-              className="ai-input"
-              placeholder={gemStatus.saved ? 'Replace Google Gemini key' : 'Google AI Studio / Gemini API key'}
-              value={geminiDraft}
-              onChange={(e) => setGeminiDraft(e.target.value)}
-              autoComplete="off"
-            />
-            <button type="button" className="ai-save-key-btn" onClick={handleSaveGemini}>
-              Save
-            </button>
-          </div>
-        </div>
 
         <textarea
           className="ai-angle-input"
