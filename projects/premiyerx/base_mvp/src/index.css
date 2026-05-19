@@ -1087,6 +1087,58 @@ body {
   padding-bottom: max(2rem, calc(0.75rem + env(safe-area-inset-bottom, 0px)));
 }
 
+.ai-settings-wrap.collapsible-section > .collapsible-toggle {
+  margin: 0.35rem 0.5rem 0;
+  width: calc(100% - 1rem);
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(40, 40, 42, 0.95) 0%, rgba(22, 22, 24, 0.98) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06),
+    0 4px 14px rgba(0, 0, 0, 0.35);
+  flex-wrap: wrap;
+}
+
+.ai-settings-wrap.collapsible-section.is-open > .collapsible-toggle {
+  margin-bottom: 0;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+}
+
+.ai-settings-wrap.collapsible-section > .collapsible-toggle:focus-visible {
+  outline: 2px solid rgba(62, 220, 129, 0.65);
+  outline-offset: 2px;
+}
+
+.ai-settings-wrap .collapsible-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #f3f4f6;
+}
+
+.collapsible-hint--open {
+  color: #a7f3d0;
+  font-weight: 600;
+  max-width: 46%;
+  text-align: right;
+  line-height: 1.35;
+}
+
+@media (max-width: 520px) {
+  .ai-settings-wrap.collapsible-section > .collapsible-toggle {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ai-settings-wrap .collapsible-hint,
+  .ai-settings-wrap .collapsible-hint--open {
+    max-width: none;
+    text-align: left;
+    width: 100%;
+  }
+}
+
 .algorithm-scorer-wrap .algorithm-scorer,
 .fact-check-wrap .fact-check-gate {
   background: transparent;

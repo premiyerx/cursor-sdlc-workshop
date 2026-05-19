@@ -165,9 +165,10 @@ export default function AIGenerator({
       <CollapsibleSection
         id="api-keys-setup"
         className="ai-settings-wrap"
-        title="API Keys"
+        title={apiKeysPanelOpen ? 'Close API Keys' : 'Open API Keys'}
         badge={keysReady}
         hint={keysHint}
+        hintOpen="Click here again to collapse and hide all key fields."
         open={apiKeysPanelOpen}
         onOpenChange={onApiKeysPanelOpenChange}
       >

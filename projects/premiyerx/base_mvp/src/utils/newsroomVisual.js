@@ -1,5 +1,5 @@
 /**
- * Newspaper-style AI infographic generation (NYT / LAT / WaPo data journalism aesthetic).
+ * Premium editorial AI infographics — varied high-end visual languages (not one repeated template).
  * Uses GPT image models only — never sends response_format.
  */
 import { mulberry32 } from './generationVariety'
@@ -8,46 +8,139 @@ import { getTopicNarrative } from '../data/topicNarratives'
 import { buildNewsroomAlgorithmLine } from '../data/linkedinAlgorithm2026'
 import { getOpenAiKey } from './openaiKey'
 
-const NEWSPAPER_LAYOUTS = [
+/** Rotating “families” = quality bar (polish, hierarchy) without locking every image to the same newspaper trope. */
+const EDITORIAL_FAMILIES = [
   {
-    id: 'sankey-roi',
-    name: 'Sankey ROI Flow',
-    brief: 'large Sankey/alluvial flow diagram showing investment flowing into benefit categories with dollar labels and percentages',
+    id: 'news-data-desk',
+    label: 'Newsroom data spread',
+    styleLines: [
+      'VISUAL FAMILY: Premium newspaper / Upshot-style data desk — crisp modular grid, editorial serif + clean sans, generous whitespace.',
+      'Light or soft newsprint background; charts feel researched and labeled, not decorative clipart.',
+    ],
   },
   {
-    id: 'executive-briefing',
-    name: 'Executive Briefing',
-    brief: 'left column narrative + right column "The Bottom Line" callout box with hero ROI number',
+    id: 'annual-report',
+    label: 'Executive annual report',
+    styleLines: [
+      'VISUAL FAMILY: Top-tier annual report / strategy memo — wide margins, restrained color, confident typography, “one idea per spread”.',
+      'Favor narrative flow with 1–2 strong visuals rather than a wall of small charts.',
+    ],
   },
   {
-    id: 'metrics-grid',
-    name: 'Key Metrics Grid',
-    brief: 'vertical list of 5-6 KPI metrics with icons, plus small sparkline or area chart at bottom',
+    id: 'magazine-feature',
+    label: 'Magazine feature layout',
+    styleLines: [
+      'VISUAL FAMILY: Long-form magazine feature (think Wired, Rest of World, Monocle) — asymmetric columns, bold display type, editorial illustration accents.',
+      'Mix typographic hooks with abstract shapes or isometric hints; avoid stock-photo humans.',
+    ],
   },
   {
-    id: 'dual-chart',
-    name: 'Dual Chart Spread',
-    brief: 'two coordinated charts side by side — e.g. productivity lift bar chart + cumulative benefit line chart',
+    id: 'keynote-minimal',
+    label: 'Keynote clarity',
+    styleLines: [
+      'VISUAL FAMILY: Apple-style keynote clarity — very few elements, huge focal number or short headline, subtle depth, museum-like restraint.',
+      'If you use a chart, make it singular and iconic; otherwise let type and one diagram carry the story.',
+    ],
   },
   {
-    id: 'newspaper-columns',
-    name: 'Newspaper Columns',
-    brief: 'classic 3-column newspaper layout with headline, subheads, pull quote, and embedded charts',
+    id: 'swiss-poster',
+    label: 'Swiss poster system',
+    styleLines: [
+      'VISUAL FAMILY: Swiss / International Typographic poster — strong grid, mono or grotesk sans, one dominant accent color, geometric blocks.',
+      'Data can appear as bold figures and simple geometric charts (bars, rings, steps), not busy dashboards.',
+    ],
+  },
+  {
+    id: 'financial-editorial',
+    label: 'Financial editorial',
+    styleLines: [
+      'VISUAL FAMILY: Financial / business editorial (Bloomberg Businessweek energy, FT weekend) — confident headlines, sharp contrast, ink-like graphics.',
+      'Background may be off-white, soft gray, or deep navy with light type if contrast stays luxury-grade.',
+    ],
+  },
+  {
+    id: 'diagram-editorial',
+    label: 'Explainer diagram',
+    styleLines: [
+      'VISUAL FAMILY: Explainer / schematic editorial — one clear “system diagram”, pipeline, layered stack, or before→after story with callouts.',
+      'Labels are short and legible; whitespace guides the eye; avoid duplicating the same Sankey trope unless it truly fits.',
+    ],
   },
 ]
 
-const NEWSPAPER_PALETTES = [
-  'white and warm cream background, black serif headlines, navy subheads, muted blue/green/gold flow colors',
-  'off-white newsprint background, charcoal text, burgundy accent lines, blue and teal chart colors',
-  'light gray background, Times-style serif masthead, Washington Post blue accents, clean data colors',
+const LAYOUT_RECIPES = [
+  {
+    id: 'flow-story',
+    name: 'Flow story',
+    brief: 'one primary flow story (Sankey, waterfall, funnel, or stage ribbon) — only if it fits the stats; otherwise use a stepped timeline or pipeline schematic',
+  },
+  {
+    id: 'split-panel',
+    name: 'Split thesis',
+    brief: 'two-panel “then vs now” or “cost vs value” composition with a strong central hinge or dividing rule',
+  },
+  {
+    id: 'hero-figure',
+    name: 'Hero figure',
+    brief: 'typographic hero: one dominant KPI or ROI figure with supporting micro-stats in a quiet secondary band',
+  },
+  {
+    id: 'small-multiples',
+    name: 'Small multiples',
+    brief: 'row or grid of 3–5 small matching charts (spark strips, slope mini-panels, or paired bars) sharing one scale language',
+  },
+  {
+    id: 'radar-polar',
+    name: 'Radar summary',
+    brief: 'single polar / radar / petal chart summarizing dimensions — keep labels minimal and elegant',
+  },
+  {
+    id: 'isometric-schematic',
+    name: 'Isometric stack',
+    brief: 'isometric or layered “stack” diagram (platform layers, value stack, or toolchain) with short callouts',
+  },
+  {
+    id: 'narrative-columns',
+    name: 'Editorial columns',
+    brief: 'multi-column editorial layout with pull quote, one medium chart, and a kicker rail — magazine, not slide deck',
+  },
+  {
+    id: 'big-chart-deck',
+    name: 'Single hero chart',
+    brief: 'one large, impeccably styled chart (grouped bars, area, dot plot, or donut cluster) plus annotation callouts — no mandatory second chart',
+  },
+  {
+    id: 'timeline-arc',
+    name: 'Timeline arc',
+    brief: 'horizontal timeline or journey arc with milestones and one cumulative or payoff visualization',
+  },
+  {
+    id: 'waterfall-narrative',
+    name: 'Waterfall narrative',
+    brief: 'waterfall or bridge chart as the spine of the story, with short annotations tied to verified figures',
+  },
+]
+
+const EDITORIAL_PALETTES = [
+  'white and warm cream background, black serif headlines, navy subheads, muted blue/green/gold accents',
+  'off-white newsprint, charcoal type, burgundy rule lines, teal and slate chart colors',
+  'soft gray field, deep indigo headlines, copper accent, restrained chart palette',
+  'deep navy background, warm off-white type, single electric blue or mint accent — luxury contrast, no neon',
+  'near-black charcoal, ivory headlines, gold foil accent, sparse ink-style graphics',
+  'paper white, single bold spot color (coral or kelly green) plus black and cool gray',
+  'frosted light gradient, glassy subtle panels, dark graphite text — modern premium UI-adjacent but still editorial',
 ]
 
 const SECTION_KICKERS = [
   'The Business of AI',
   'Data Desk',
   'Enterprise Analysis',
-  'The Bottom Line',
+  'Signal & Noise',
   'By the Numbers',
+  'Field Notes',
+  'The Thesis',
+  'What Changed',
+  'Lens: ROI',
 ]
 
 const TOPIC_HEADLINES = {
@@ -57,12 +150,37 @@ const TOPIC_HEADLINES = {
   cio: 'What Technology Leaders Must Know About AI in the SDLC',
 }
 
+/** Each run picks a few of these — not every image needs Sankey + sidebar + five KPIs. */
+const VIZ_ELEMENT_POOL = [
+  'One hero data visualization (choose what fits: waterfall, grouped bars, slope chart, stream segment, donut cluster, funnel, or a restrained flow — avoid defaulting to Sankey unless the story is genuinely about flows).',
+  'A typographic anchor: one oversized figure or 2–4 word headline stat that carries the visual weight.',
+  'Either a compact icon-led metric row OR clean typographic KPI rows — not both unless space allows.',
+  'Optional narrow rail or callout for one sharp takeaway (can merge into the main column instead of a boxed cliché).',
+  'At most one secondary mini-chart or spark row — omit if it would duplicate the hero story.',
+  'Optional timeline, before/after strip, or 3–5 step sequence if it clarifies the thesis.',
+  'Optional abstract metaphor (isometric blocks, layers, pipeline nodes) — schematic, not cheesy 3D clipart.',
+  'Generous whitespace and a single clear focal path; resist filling every inch with charts and tables.',
+]
+
+function shufflePick(pool, rng, count) {
+  const idx = pool.map((_, i) => i)
+  for (let i = idx.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[idx[i], idx[j]] = [idx[j], idx[i]]
+  }
+  return idx.slice(0, Math.min(count, pool.length)).map((i) => pool[i])
+}
+
 export function pickInfographicRecipe(refreshSeed, attempt = 0) {
   const rng = mulberry32((refreshSeed ^ (attempt * 0x9e3779b9)) >>> 0)
-  const layout = NEWSPAPER_LAYOUTS[Math.floor(rng() * NEWSPAPER_LAYOUTS.length) % NEWSPAPER_LAYOUTS.length]
-  const palette = pickFromPool(NEWSPAPER_PALETTES, refreshSeed + attempt, 'palette')
+  const family = EDITORIAL_FAMILIES[Math.floor(rng() * EDITORIAL_FAMILIES.length) % EDITORIAL_FAMILIES.length]
+  const layout = LAYOUT_RECIPES[Math.floor(rng() * LAYOUT_RECIPES.length) % LAYOUT_RECIPES.length]
+  const palette = pickFromPool(EDITORIAL_PALETTES, refreshSeed + attempt * 3, 'palette')
   const kicker = pickFromPool(SECTION_KICKERS, refreshSeed + attempt * 5, 'kicker')
-  return { layout, palette, kicker }
+  const vizOrdered = shufflePick(VIZ_ELEMENT_POOL, rng, VIZ_ELEMENT_POOL.length)
+  const vizFull = vizOrdered.slice(0, 4)
+  const vizCompact = vizOrdered.slice(0, 3)
+  return { family, layout, palette, kicker, vizFull, vizCompact }
 }
 
 export function humanizeImageError(raw = '') {
@@ -101,7 +219,8 @@ function formatStatsBlock(stats = []) {
 }
 
 function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postTheme, recipe, tier = 'full' }) {
-  const { layout, palette, kicker } = recipe || pickInfographicRecipe(refreshSeed)
+  const fullRecipe = recipe || pickInfographicRecipe(refreshSeed)
+  const { family, layout, palette, kicker, vizFull, vizCompact } = fullRecipe
   const narrative = getTopicNarrative(topicId)
   const stats = (infographicModel?.verifiedStats || []).slice(0, 5)
   const headline = TOPIC_HEADLINES[topicId] || `The ROI of ${topicLabel || narrative.label}`
@@ -111,55 +230,60 @@ function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postT
   const variationId = `v${((refreshSeed >>> 0) + (tier === 'minimal' ? 99 : tier === 'compact' ? 55 : 0)).toString(16).slice(0, 6)}`
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
-  const newspaperStyle = [
-    'STYLE: Sophisticated newspaper data journalism infographic.',
-    'Must feel like New York Times, LA Times, Chicago Tribune, or Washington Post — NOT a dark tech slide, NOT a simple 3-bar chart, NOT a Canva template.',
-    'Light/white newsprint background, elegant serif headline font, clean sans-serif labels, professional grid layout, generous whitespace.',
-    `Color palette: ${palette}.`,
+  const qualityPreamble = [
+    'QUALITY BAR: Publication-grade LinkedIn infographic (landscape ~16:9, 1536×1024).',
+    'Prioritize clarity, typography, and believable visual hierarchy — *high-end fidelity*, not the same layout every time.',
+    'Vary composition, chart species, and graphic language between generations; avoid cookie-cutter “ROI dashboard” sameness (identical Sankey + sidebar + metric strip).',
+    ...family.styleLines,
+    `Palette and mood: ${palette}.`,
   ].join('\n')
 
   if (tier === 'minimal') {
+    const prios = (vizCompact || []).slice(0, 2)
     return [
-      newspaperStyle,
+      qualityPreamble,
       `Headline: "${headline}". Section kicker: "${kicker}". Date: ${today}.`,
       `Topic angle: ${narrative.label}. ${leadLine}.`,
-      `Hero visual: ${layout.brief}.`,
+      `Primary composition: ${layout.name} — ${layout.brief}.`,
+      prios.length ? ['', 'VISUAL PRIORITIES (this run):', ...prios.map((v, i) => `${i + 1}. ${v}`)].join('\n') : '',
       `Verified numbers ONLY:\n${statsBlock}`,
-      `Include "The Bottom Line" sidebar with one big ROI or impact number from the stats above.`,
+      `One clear focal insight from the stats (callout, big figure, or simple chart — designer's choice).`,
       `Small footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
       buildNewsroomAlgorithmLine(),
-    ].join('\n')
+    ]
+      .filter(Boolean)
+      .join('\n')
   }
 
   if (tier === 'compact') {
+    const prios = vizCompact || []
     return [
-      newspaperStyle,
-      `Create a landscape LinkedIn infographic (1536x1024) titled "${headline}".`,
-      `Section header: "${kicker}" · ${today}.`,
+      qualityPreamble,
+      `Create a landscape LinkedIn infographic titled "${headline}".`,
+      `Kicker: "${kicker}" · ${today}.`,
       `Story angle: ${narrative.coreThesis}`,
-      `News hook (paraphrase, do not copy): ${leadLine}`,
+      `Hook line (paraphrase, do not copy): ${leadLine}`,
       '',
-      'LAYOUT SECTIONS:',
-      `1. MASTHEAD — bold serif headline + thin rule line`,
-      `2. HERO VIZ — ${layout.name}: ${layout.brief}`,
-      '   If Sankey-style: show investment/cost on left flowing into 3-4 benefit streams on right with dollar amounts and % labels',
-      `3. SIDEBAR — "The Bottom Line" box with large hero metric (e.g. ROI multiple or payback) derived from verified stats`,
-      '4. KEY METRICS — vertical list of 5 metrics with small icons (clock, chart, shield, code, dollar)',
-      '5. BOTTOM STRIP — two small charts: productivity lift + cumulative benefit over time',
-      '6. SOURCE LINE — small italic source attributions under charts',
+      'STRUCTURE (adapt to the visual family — omit sections that would clutter):',
+      `• Title + kicker`,
+      `• Hero: ${layout.name} — ${layout.brief}`,
+      '• Verified figures integrated cleanly (short labels, no walls of text)',
+      '',
+      'VISUAL PRIORITIES (this run):',
+      ...prios.map((v, i) => `${i + 1}. ${v}`),
       '',
       'VERIFIED NUMBERS (use ONLY these — do not invent others):',
       statsBlock,
       '',
-      'RULES: sophisticated flows and charts, strong visual hierarchy, accurate-looking data labels, no people photos, no walls of text.',
+      'RULES: intentional hierarchy, legible labels, credible tone; no invented statistics.',
       `Footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
       buildNewsroomAlgorithmLine(),
     ].join('\n')
   }
 
+  const prios = vizFull || []
   return [
-    newspaperStyle,
-    `Generate an infographic that looks like premium newspaper data journalism for LinkedIn (landscape 16:9).`,
+    qualityPreamble,
     `Title: "${headline}"`,
     `Kicker: "${kicker}" · ${today}`,
     '',
@@ -167,21 +291,16 @@ function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postT
     `CORE THESIS: ${narrative.coreThesis}`,
     `THIS WEEK'S ANGLE: ${leadLine}`,
     '',
-    'REQUIRED VISUAL ELEMENTS (all must appear):',
-    '• Large Sankey or alluvial flow diagram — investment/cost flows into 3-4 benefit categories with $ and % labels',
-    '• "The Bottom Line" callout — oversized hero number (ROI multiple, payback months, or net benefit)',
-    '• "Key Metrics" sidebar — 5-6 metrics with clean icons and short labels',
-    '• At least one additional chart (bar, line, or area) showing trend over time',
-    '• Source attribution line in small italic type',
-    `• Primary layout emphasis: ${layout.name} — ${layout.brief}`,
+    `PRIMARY COMPOSITION: ${layout.name} — ${layout.brief}`,
+    '',
+    'VISUAL PRIORITIES (this run — lean into these; drop dashboard clichés that are not implied above):',
+    ...prios.map((v, i) => `${i + 1}. ${v}`),
     '',
     'VERIFIED DATA (use ONLY these numbers and sources):',
     statsBlock,
     '',
-    'QUALITY BAR: Match the sophistication of ChatGPT-generated NYT-style ROI infographics.',
-    'Strong flows, multiple chart types, elegant typography, credible source lines.',
-    'FORBIDDEN: dark background, neon colors, plain 3-bar chart as the only viz, invented statistics, stock photos.',
-    `Small credit line: Prem Iyer · AI Software Transformation · ${variationId}.`,
+    'FORBIDDEN: invented statistics, illegible micro-labels, stock photos of people, tacky neon gamer UI, clip-art icons, or samey template filler.',
+    `Credit line: Prem Iyer · AI Software Transformation · ${variationId}.`,
     buildNewsroomAlgorithmLine(),
   ].join('\n')
 }
@@ -299,9 +418,9 @@ export async function generateNewsroomImage({
     const cfg = ATTEMPT_PLAN[i]
     const stage =
       i === 0
-        ? 'Creating newspaper-style infographic…'
+        ? 'Creating your infographic…'
         : i < 3
-          ? 'Trying a different layout…'
+          ? 'Trying a different visual angle…'
           : 'Trying alternate image model…'
     onProgress?.(10 + i * 14, stage)
 
@@ -329,8 +448,8 @@ export async function generateNewsroomImage({
       return {
         ok: true,
         url: result.url,
-        styleName: recipe.layout.name,
-        styleId: recipe.layout.id,
+        styleName: `${recipe.family.label} · ${recipe.layout.name}`,
+        styleId: `${recipe.family.id}-${recipe.layout.id}`,
         variationId: ((refreshSeed >>> 0) + cfg.attempt).toString(16).slice(0, 6),
         imageModel: cfg.model,
         via: result.via,

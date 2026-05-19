@@ -9,6 +9,8 @@ export default function CollapsibleSection({
   title,
   badge,
   hint,
+  /** Shown on the right when expanded — makes “click to close” obvious (optional). */
+  hintOpen,
   defaultOpen = false,
   open: controlledOpen,
   onOpenChange,
@@ -41,6 +43,9 @@ export default function CollapsibleSection({
     return () => window.removeEventListener('hashchange', match)
   }, [id, isControlled, onOpenChange])
 
+  const affordance = open ? hintOpen : hint
+  const ariaLabel = [title, badge && String(badge), affordance].filter(Boolean).join('. ')
+
   return (
     <section id={id} className={`collapsible-section ${open ? 'is-open' : ''} ${className}`.trim()}>
       <button
@@ -48,15 +53,22 @@ export default function CollapsibleSection({
         className="collapsible-toggle"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
+        aria-controls={open && id ? `${id}-panel` : undefined}
+        aria-label={ariaLabel}
       >
         <span className="collapsible-left">
           <span className="collapsible-icon" aria-hidden="true">{open ? '▾' : '▸'}</span>
           <span className="collapsible-title">{title}</span>
           {badge && <span className="collapsible-badge">{badge}</span>}
         </span>
+        {open && hintOpen && <span className="collapsible-hint collapsible-hint--open">{hintOpen}</span>}
         {!open && hint && <span className="collapsible-hint">{hint}</span>}
       </button>
-      {open && <div className="collapsible-body">{children}</div>}
+      {open && (
+        <div className="collapsible-body" id={id ? `${id}-panel` : undefined} role="region" aria-label={title}>
+          {children}
+        </div>
+      )}
     </section>
   )
 }

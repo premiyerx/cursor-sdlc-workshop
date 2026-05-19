@@ -434,7 +434,7 @@ export default function App() {
                 className={`hero-api-keys-btn ${allCompareKeysSaved ? 'hero-api-keys-btn--done' : 'hero-api-keys-btn--need'}`}
                 onClick={openApiKeysPanel}
               >
-                <span className="hero-api-keys-btn-label">API Keys</span>
+                <span className="hero-api-keys-btn-label">Open API Keys</span>
                 <span className="hero-api-keys-btn-status" aria-live="polite">
                   {allCompareKeysSaved
                     ? 'All set — tap to view or rotate keys'

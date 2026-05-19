@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:images": "node scripts/test-image-gen.mjs"
+    "test:images": "node scripts/test-image-gen.mjs",
+    "test:llm-smoke": "node scripts/smoke-llm-compare.mjs"
   },
   "dependencies": {
     "jspdf": "^4.2.1",

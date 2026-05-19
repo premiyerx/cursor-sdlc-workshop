@@ -1,4 +1,4 @@
-import { vaultGetSync, vaultPutSync } from './apiKeyVault'
+import { vaultGetSync, vaultPutSync } from './apiKeyVault.js'
 
 const STORAGE_KEY = 'openai_key'
 /** Same-tab mirror only (clears when the tab closes); not a substitute for vault backups. */

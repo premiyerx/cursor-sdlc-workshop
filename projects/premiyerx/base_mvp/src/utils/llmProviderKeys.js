@@ -1,4 +1,4 @@
-import { vaultGetSync, vaultPutSync } from './apiKeyVault'
+import { vaultGetSync, vaultPutSync } from './apiKeyVault.js'
 
 const ANTHROPIC_KEY = 'anthropic_api_key'
 const GEMINI_KEY = 'gemini_api_key'

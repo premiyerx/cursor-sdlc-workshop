@@ -599,7 +599,8 @@ export default function DynamicGraphic({
     <section className="image-display fade-in-up">
       <h2 className="section-title">Post Graphic</h2>
       <p className="section-subtitle graphic-section-subtitle">
-        Newspaper-style data journalism infographics — NYT / WaPo quality, built from your post
+        Premium AI infographics — magazine, annual-report, and keynote-quality layouts that rotate so each run feels
+        fresh (still built from your verified stats)
       </p>
       {keyStatus.saved ? (
         <p className="graphic-key-status graphic-key-status--ok">{keyStatus.label} · AI infographics enabled</p>
@@ -688,7 +689,7 @@ export default function DynamicGraphic({
         <div className="graphic-progress-panel graphic-progress-panel--hero">
           <ProgressRing progress={activeProgress} size={80} strokeWidth={5} />
           <p className="graphic-progress-stage">{activeStage || 'Creating your LinkedIn picture…'}</p>
-          <p className="graphic-progress-sub">Newspaper-style layout · usually 20–45 sec · your post is ready above</p>
+          <p className="graphic-progress-sub">High-end editorial layout · usually 20–45 sec · your post is ready above</p>
         </div>
       )}
 
