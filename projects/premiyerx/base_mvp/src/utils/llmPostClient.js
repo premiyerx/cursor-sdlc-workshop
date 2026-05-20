@@ -2,21 +2,44 @@ import { getOpenAiKey } from './openaiKey.js'
 import { getAnthropicKey, getGeminiKey } from './llmProviderKeys.js'
 
 /**
- * GPT-5.x and o-series: use `max_completion_tokens` and do **not** send temperature / top_p / penalties
+ * GPT-5.x and o-series: use `max_completion_tokens` and do **not** send custom temperature / top_p / penalties
  * (API returns 400, e.g. "temperature does not support 0.96 … only the default (1)").
  * Single source of truth so token-cap logic and sampling logic never drift.
  */
+function normalizeOpenAiModelId(model) {
+  return String(model ?? '')
+    .trim()
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+}
+
 function openAiNewChatFamily(model) {
-  const m = String(model ?? '').trim().toLowerCase()
+  const m = normalizeOpenAiModelId(model).toLowerCase()
   if (!m) return false
-  if (m.includes('gpt-5')) return true
+  // Normalized ids: gpt-5, gpt-5.5, gpt-5-mini, …
+  if (m.startsWith('gpt-5')) return true
+  // Rare aliases / spacing typos still containing gpt + 5 as a version token
+  if (/\bgpt[\s._-]*5\b/i.test(m)) return true
   if (/^o[0-9]/.test(m) || m.startsWith('o1') || m.startsWith('o3')) return true
   return false
 }
 
+/**
+ * Any request using max_completion_tokens (reasoning / GPT-5 family in this app) must not send legacy sampling.
+ * Tie this to the **body shape**, not only model-string heuristics, so a missed classification cannot leak 0.96.
+ */
+function applyOpenAiReasoningSamplingDefaults(body) {
+  if (!('max_completion_tokens' in body)) return
+  delete body.top_p
+  delete body.presence_penalty
+  delete body.frequency_penalty
+  // API rejects non-default temperature for several GPT-5.x models — explicit 1 matches "default (1)".
+  body.temperature = 1
+}
+
 /** Resolve API model id (defensive if `apiModel` were missing on a profile clone). */
 function resolveOpenAiApiModel(profile) {
-  const direct = String(profile?.apiModel ?? '').trim()
+  const direct = normalizeOpenAiModelId(profile?.apiModel)
   if (direct) return direct
   const id = String(profile?.id || '')
   if (id === 'openai-gpt55') return 'gpt-5.5'
@@ -93,15 +116,13 @@ export async function generateRawCompletion(profile, { systemPrompt, userPrompt,
       ],
       ...openAiTokenCapFields(model, openAiCompletionCap(model)),
     }
-    const m = String(model || '').toLowerCase()
+    const m = normalizeOpenAiModelId(model).toLowerCase()
     const strict = openAiNewChatFamily(model)
     if (strict) {
-      delete body.temperature
-      delete body.top_p
-      delete body.presence_penalty
-      delete body.frequency_penalty
-      if (m.includes('gpt-5')) {
+      if (m.startsWith('gpt-5') || m.includes('gpt-5')) {
         body.reasoning_effort = 'low'
+      } else {
+        delete body.reasoning_effort
       }
     } else {
       delete body.reasoning_effort
@@ -110,6 +131,8 @@ export async function generateRawCompletion(profile, { systemPrompt, userPrompt,
       body.presence_penalty = 0.7
       body.frequency_penalty = 0.5
     }
+    // Belt-and-suspenders: any max_completion_tokens request must never ship legacy sampling (e.g. 0.96).
+    applyOpenAiReasoningSamplingDefaults(body)
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {

@@ -269,7 +269,7 @@ ${varietyBlock}
 CONTEXT:
 - Audience: ${narrative.audience}
 - Anchor hook in LEAD STORY from research below (paraphrase — never paste headline verbatim).
-- Sound like Prem Iyer: operator + investor, peer to CIOs — NOT generic ChatGPT LinkedIn voice.
+- Sound like Prem Iyer: SVP, Global Strategic Accounts at Cursor — operator + investor, peer to CIOs and engineering leaders — NOT generic ChatGPT LinkedIn voice.
 - Ban phrases: "game-changer", "let's dive", "in today's fast-paced", "thoughts?", "agree?"
 ${realtimeContext}
 

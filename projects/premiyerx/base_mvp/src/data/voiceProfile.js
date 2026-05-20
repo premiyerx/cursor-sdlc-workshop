@@ -40,8 +40,12 @@ NOVELTY (non-negotiable for every generation):
 - Write like high-performing B2B *operators* on LinkedIn (field memos, spreadsheet math, myth-busts, decision forks) — not celebrity influencers or engagement bait.
 
 PUBLIC PROFILE SNAPSHOT (verify volatile facts externally; use for voice and career arc only):
-- LinkedIn: ${li.profileUrl || 'https://www.linkedin.com/in/premiyer/'}
+- LinkedIn: ${li.profileUrl || 'https://www.linkedin.com/in/premiyer/'} (canonical profile — automated mirrors sometimes lag behind your live headline)
 - ${li.snapshot || ''}
+
+EMPLOYER ATTRIBUTION (non-negotiable):
+- The author's **current** employer is **Cursor**; official operating title: **SVP, Global Strategic Accounts at Cursor**. Prior companies (including Palo Alto Networks) are historical context—never write hooks, bios, or asides that imply the author still works there today.
+- When a post needs cyber or channel proof points, frame them as past operator experience unless the topic is explicitly retrospective.
 
 VOICE RULES:
 - Write from the perspective of: ${bg.currentRole}
@@ -74,6 +78,10 @@ STRUCTURE (still mandatory):
 
 ${buildLinkedInAlgorithmBlock()}
 
+PASTED VOICE SAMPLES (if present below):
+- Use pasted LinkedIn writing **only** for cadence, diction, and rhetorical habits — not for employment facts.
+- If samples imply the author is still at Palo Alto Networks (or any prior employer), treat that as **stale**; **Cursor** is the current employer for this app, with title **SVP, Global Strategic Accounts at Cursor** unless the user explicitly overrides it in the Voice Profile UI.
+
 CAROUSEL CAPTION (if generating for carousel):
 - The caption is what the feed ranks—the PDF is opaque; make the caption long enough to preview value on its own
 - Include hook, re-hook, 3-4 sourced data previews, bridge to the document, closing question, hashtags
@@ -83,7 +91,7 @@ CAROUSEL CAPTION (if generating for carousel):
 const PREM_IYER = createVoiceProfile({
   name: 'Prem Iyer',
   headline:
-    'SVP, Strategic Pursuits at Palo Alto Networks | GTM Advisor at Rubrik (NYSE:RBRK) | Revenue Architect | Large Deals | CxO Engagement',
+    'SVP, Global Strategic Accounts at Cursor | GTM Advisor at Rubrik (NYSE:RBRK) | Investor & enterprise operator | Former SVP, Strategic Pursuits, Palo Alto Networks',
   linkedinUrl: 'https://www.linkedin.com/in/premiyer/',
   connections: 10000,
   followers: 10097,
@@ -91,14 +99,14 @@ const PREM_IYER = createVoiceProfile({
   linkedinAnchors: {
     profileUrl: 'https://www.linkedin.com/in/premiyer/',
     snapshot:
-      'Enterprise BD + ecosystem leader: GSIs, hyperscalers, VARs, distributors, and service providers. Cyber services → enterprise sales → global channel leadership (RedSeal, Trusteer/IBM, ThousandEyes/Cisco). Co-founded Rekonnex (Booth/Polsky GNVC). Palo Alto Networks since 2017 (Sr Director BD → SVP Strategic Pursuits from Aug 2024). Briefs boards/CxOs on cyber risk and mitigation. Active investor (e.g., OpenAI, Groq, Exowatt, Console, Upscale AI, Aten Security, Opt Health) and LP (MVP Ventures, Stage 2 Capital). Public speaking on cybersecurity + AI markets (e.g., industry keynotes).',
+      'SVP, Global Strategic Accounts at Cursor — leads Cursor’s most strategic global customer relationships and enterprise expansion (AI-native development, adoption at scale, and how serious teams ship with agents and modern SDLC). Prior tenure includes SVP, Strategic Pursuits at Palo Alto Networks (from Sr Director BD through SVP), plus global channel and ecosystem leadership (RedSeal, Trusteer/IBM, ThousandEyes/Cisco). Co-founded Rekonnex (Booth/Polsky GNVC). Active investor (e.g., OpenAI, Groq, Exowatt, Console, Upscale AI, Aten Security, Opt Health) and LP (MVP Ventures, Stage 2 Capital). Briefs boards and executive teams on transformation, resilience, and GTM — now with a builder lens on how software organizations adopt AI.',
   },
 
   background: {
-    currentRole: 'SVP, Strategic Pursuits at Palo Alto Networks',
+    currentRole: 'SVP, Global Strategic Accounts at Cursor',
     yearsExperience: 30,
     notableAchievement:
-      'Instrumental in driving Palo Alto Networks market cap from $20B to $140B; focuses on large strategic pursuits and CxO engagement',
+      'At Cursor: drives global strategic account motion for the AI-native development platform—complex enterprise adoption, multi-threaded CxO relationships, and revenue at scale. Previously helped scale Palo Alto Networks through a major growth phase (large pursuits, ecosystem velocity).',
     education: 'University of Chicago Booth School of Business',
     entrepreneurship:
       'CEO/Co-Founder at Rekonnex — Won Chicago Booth/Polsky Center Global New Venture Challenge',
@@ -108,9 +116,12 @@ const PREM_IYER = createVoiceProfile({
   },
 
   domains: [
+    'Global strategic accounts & enterprise expansion',
+    'AI-native software development & SDLC',
+    'Developer tools & coding agents',
+    'Enterprise Software',
     'Cybersecurity',
     'AI & Machine Learning',
-    'Enterprise Software',
     'Channel & Partner Ecosystems',
     'Venture Capital & Private Equity',
     'CxO Executive Engagement',
@@ -119,15 +130,15 @@ const PREM_IYER = createVoiceProfile({
 
   toneAttributes: {
     authority:
-      'Executive-level — speaks from decades of enterprise experience, partner ecosystems, and board-level cyber conversations',
+      'Executive-level — speaks from decades of global strategic accounts, enterprise GTM, and board-level conversations; now anchored in how elite engineering orgs adopt Cursor and AI-native development',
     dataOrientation:
-      'Leads with specific numbers and outcomes (e.g., "540% of quota in two quarters", "grew revenue 400% in Year 1", "$20B to $140B market cap context")',
+      'Leads with specific numbers and outcomes (pipeline math, adoption curves, productivity deltas, security/resilience tradeoffs) — cite only verified stats from the prompt block, never invented figures',
     perspective: 'Investor + operator hybrid — builder and capital allocator lenses',
     audienceAwareness: 'CIOs, CTOs, CDOs, VPs of Engineering, DevOps/DevSecOps leaders, and board members — as peers, not from above',
     storytelling: 'Uses concrete anecdotes from real conversations ("I talked to 30 CIOs last quarter")',
     urgency: 'Creates healthy urgency without fearmongering — frames decisions as windows of opportunity',
     credibility:
-      'References direct experience at Palo Alto Networks, Cisco/ThousandEyes, IBM/Trusteer, RedSeal, and founder journey',
+      'Grounds takes in current work as SVP, Global Strategic Accounts at Cursor; cites prior operator chapters (Palo Alto Networks, Cisco/ThousandEyes, IBM/Trusteer, RedSeal) only when the lesson is relevant — never as the current job',
   },
 
   styleGuide: {
@@ -144,8 +155,9 @@ const PREM_IYER = createVoiceProfile({
 
   engagementPatterns: {
     topicsEngaged: [
-      'Palo Alto Networks ecosystem & partner programs',
-      'Cybersecurity industry developments (Unit 42, CVEs, enterprise risk)',
+      'Cursor — global strategic accounts, enterprise rollout, and AI-native engineering motion',
+      'AI-assisted development and how enterprises change the SDLC',
+      'Cybersecurity industry developments (Unit 42, CVEs, enterprise risk) — as context for builders and buyers',
       'AI dev tools, agents, and inference infrastructure',
       'CIO/CTO/CDO forums and executive decision-making',
       'Venture + GTM angles on AI and security platforms',
@@ -154,6 +166,33 @@ const PREM_IYER = createVoiceProfile({
     interactionStyle: 'Amplifies peers; engages CISOs, CIOs, founders, and investor communities.',
   },
 })
+
+/**
+ * Browsers that saved older defaults (Palo Alto Networks as current, or the interim Cursor headline)
+ * get headline/snapshot/background refreshed so models and UI match the latest LinkedIn-aligned title.
+ */
+function migrateStoredVoiceProfile(parsed) {
+  if (!parsed || typeof parsed !== 'object') return parsed
+  const role = String(parsed.background?.currentRole || '').trim()
+  const headline = String(parsed.headline || '')
+  const legacyPanHeadline = /^SVP,\s*Strategic Pursuits at Palo Alto Networks\b/i.test(headline)
+  const legacyPanRole = /^SVP,\s*Strategic Pursuits at Palo Alto Networks$/i.test(role)
+  const interimCursorHeadline =
+    /^Cursor \|/i.test(headline) && !/Global Strategic Accounts at Cursor/i.test(headline)
+  const interimCursorRole =
+    /^Cursor —/i.test(role) && /GTM,\s*strategic partnerships/i.test(role) && !/Global Strategic Accounts/i.test(role)
+  if (!legacyPanHeadline && !legacyPanRole && !interimCursorHeadline && !interimCursorRole) return parsed
+
+  return {
+    ...parsed,
+    headline: PREM_IYER.headline,
+    linkedinAnchors: { ...PREM_IYER.linkedinAnchors },
+    background: { ...PREM_IYER.background },
+    domains: [...PREM_IYER.domains],
+    toneAttributes: { ...PREM_IYER.toneAttributes },
+    engagementPatterns: { ...PREM_IYER.engagementPatterns },
+  }
+}
 
 export function getVoiceCorpusMeta() {
   try {
@@ -175,7 +214,10 @@ export function saveVoiceCorpus(text) {
 export function getVoiceProfileForDisplay() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) return createVoiceProfile(JSON.parse(stored))
+    if (stored) {
+      const migrated = migrateStoredVoiceProfile(JSON.parse(stored))
+      return createVoiceProfile(migrated)
+    }
   } catch { /* fallback */ }
   return PREM_IYER
 }
@@ -184,7 +226,10 @@ export function getActiveProfile() {
   let profile = PREM_IYER
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) profile = createVoiceProfile(JSON.parse(stored))
+    if (stored) {
+      const migrated = migrateStoredVoiceProfile(JSON.parse(stored))
+      profile = createVoiceProfile(migrated)
+    }
   } catch { /* fallback */ }
   const suffix = buildVoiceCorpusSuffix()
   if (!suffix) return profile

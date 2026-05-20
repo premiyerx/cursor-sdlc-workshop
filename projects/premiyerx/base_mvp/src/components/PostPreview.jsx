@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { findCitations } from '../data/citations'
+import { getVoiceProfileForDisplay } from '../data/voiceProfile'
 
 const SEE_MORE_LIMIT = 210
 
@@ -25,7 +26,7 @@ export default function PostPreview({ text }) {
           <div className="preview-avatar">PI</div>
           <div className="preview-author-info">
             <span className="preview-name">Prem Iyer</span>
-            <span className="preview-headline">SVP, Strategic Pursuits at Palo Alto Networks | GTM Advisor at Rubrik</span>
+            <span className="preview-headline">{getVoiceProfileForDisplay().headline}</span>
             <span className="preview-time">Just now · 🌐</span>
           </div>
         </div>
