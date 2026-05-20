@@ -7,13 +7,13 @@ export const TOPIC_RESEARCH = {
   cursor: {
     hnQueries: [
       'Cursor editor AI OR Windsurf OR Zed AI coding',
-      'Cursor SpaceX OR Cursor acquisition OR Anysphere valuation',
+      'AI IDE enterprise adoption OR "AI software development" security procurement',
       'agentic coding OR "AI software development" enterprise',
       '"GitHub Copilot" OR "AI code review" OR Devin AI',
       'codebase context OR "AI IDE" OR SWE agent production',
     ],
     gnewsQueries: [
-      '("Cursor" AI editor OR "Anysphere") AND (enterprise OR developers OR acquisition OR SpaceX)',
+      '("Cursor" OR "Anysphere") AND (enterprise OR developers OR security OR procurement OR benchmark)',
       '("GitHub Copilot" OR Windsurf OR Devin) AND ("AI coding" OR IDE)',
       '("agentic coding" OR "AI software development") AND (startup OR enterprise 2026)',
     ],
@@ -25,15 +25,16 @@ export const TOPIC_RESEARCH = {
       'AI startup funding OR venture capital developer tools',
       '"Series A" OR Series B AI infrastructure OR inference',
       'Groq OR OpenAI OR Anthropic enterprise deal OR valuation',
-      'AI dev tools acquisition OR private equity software',
+      'private equity software roll-up OR "growth equity" AI SDLC',
     ],
     gnewsQueries: [
       '(AI developer tools OR "coding agents") AND (funding OR valuation OR "Series")',
       '(OpenAI OR Anthropic OR Groq) AND (investment OR valuation OR enterprise deal)',
-      '("private equity" OR venture capital) AND ("software development" OR SDLC) 2026',
+      '("private equity" OR "venture capital") AND ("software development" OR SDLC OR DevOps OR "developer productivity") 2026',
+      '("growth equity" OR buyout) AND (software OR SaaS OR "developer tools") AND AI',
     ],
     gnewsQuery:
-      '(AI developer tools funding) OR ("venture capital" AI software) OR (OpenAI OR Anthropic OR Groq investment 2026)',
+      '("venture capital" OR "private equity") AND (AI OR inference OR agents) AND ("software development" OR SDLC OR "developer tools")',
   },
   cio: {
     hnQueries: [

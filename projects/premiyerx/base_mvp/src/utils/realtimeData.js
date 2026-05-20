@@ -245,8 +245,8 @@ const DEFAULT_DATA_POINTS = {
     'AI-native editors compete for enterprise procurement cycles; name logos or adoption stats only when your headlines include them.',
   cursor_awareness:
     'Developer surveys still show rapid trial of AI IDEs; cite survey numbers only if your headlines name the study and period.',
-  cursor_valuation:
-    '2026 reporting described a conditional acquisition framework for Cursor at roughly a $60B valuation linked to SpaceX-affiliated syndicates — treat any figure as fluid until your LEAD STORY corroborates it with a fresh date.',
+  investment_vc_pe_sdlc:
+    'VC and PE are underwriting AI across the SDLC—build/test/deploy automation, agent governance, inference COGS, security review, and services attach—not tabloid single-name transaction arcs. Prefer headline-backed, multi-company patterns (rounds, roll-ups, infra spend) over speculative employer M&A chatter.',
   ai_tools_market:
     'Analysts expect strong multi-year growth in AI-assisted software delivery; avoid citing a single static “market size” unless your headlines quote it with a source and date.',
   ai_tools_adoption:
@@ -278,7 +278,7 @@ function generateFreshDataPoints(topicId) {
 
   const dataByTopic = {
     cursor: [data.cursor_users, data.cursor_fortune500, data.ai_tools_market],
-    investment: [data.investment_total, data.investment_nrr, data.cursor_valuation],
+    investment: [data.investment_total, data.investment_nrr, data.investment_vc_pe_sdlc],
     cio: [data.cio_priority, data.cio_budget, data.cio_talent],
     roi: [data.roi_speed, data.roi_savings, data.roi_payback],
   }

@@ -19,11 +19,12 @@ const BUILT_IN_DATA = {
     sourceUrl: 'https://www.cursor.com',
     category: 'cursor',
   },
-  cursor_valuation: {
-    claim: 'Cursor raised $2.3B at a $29B valuation in November 2025',
-    source: 'Cursor Series C, Nov 2025',
-    sourceUrl: 'https://aifundingtracker.com/cursor-revenue-valuation/',
-    category: 'cursor',
+  investment_vc_sdlc_theme: {
+    claim:
+      'Growth and PE investors increasingly weight AI outcomes across the SDLC—cycle time, defect rates, audit trails, inference COGS, and services attach—not headline valuation alone.',
+    source: 'Market synthesis (hedged), 2026',
+    sourceUrl: '',
+    category: 'investment',
   },
   cursor_arr: {
     claim: 'Cursor has $2B+ ARR',

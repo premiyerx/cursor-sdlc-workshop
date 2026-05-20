@@ -250,6 +250,17 @@ function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '') {
     timeZone: 'UTC',
   })
 
+  const capitalPillarGuard =
+    topicId === 'investment'
+      ? `
+
+CAPITAL_PILLAR_FOCUS (VC & PE × AI SDLC — prudent public framing for an operator at an AI dev platform):
+- Lead with cross-portfolio themes: inference / infra economics, roll-ups & secondaries, seat & NRR math, pilot→production conversion, security & governance spend, services attach, and LP expectations.
+- Do not make speculative or sensitive single-company M&A / syndicate arcs the spine of the post (including Cursor-related transaction chatter) unless the author explicitly wants that angle and CONTEXT has a primary, dated, on-the-record headline to paraphrase with attribution.
+- If a blockbuster headline appears, treat it as one datapoint among several—never as insider commentary, unnamed “adjacent syndicate” framing, or anything that reads like confidential detail.
+`
+      : ''
+
   return `Write a LinkedIn post in the content pillar: "${topic.label}".
 
 GENERATION_RUN: ${runStamp} — this must be completely different from any post you wrote earlier today for this pillar.
@@ -265,6 +276,7 @@ MARKET FRAME: ${narrative.competitiveFrame}
 ${customAngle ? `Specific angle: ${customAngle}` : ''}
 
 ${varietyBlock}
+${capitalPillarGuard}
 
 CONTEXT:
 - Audience: ${narrative.audience}

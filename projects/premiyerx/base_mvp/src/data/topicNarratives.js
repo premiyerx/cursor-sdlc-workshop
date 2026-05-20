@@ -53,12 +53,16 @@ export const TOPIC_NARRATIVES = {
       'Agentic coding claims vs. what teams actually ship in production',
       'Model-neutral stacks and avoiding vendor lock-in on inference',
     ],
+    avoid: [
+      'Generic "AI will replace developers" fear posts',
+      'Unsourced win claims about any vendor',
+      'Tabloid M&A, syndicate, or uncorroborated acquisition/transaction arcs as the main spine—unless CONTEXT has a dated, primary headline and the user clearly wants that angle',
+    ],
     hookDirections: [
       'Lead with a competitive gap the headlines surface: speed, context, or cost.',
       'Open on what changed in the last 7 days for teams evaluating AI IDEs.',
       'Frame as what PE and boards are asking versus what engineers actually use day to day.',
     ],
-    avoid: ['Generic "AI will replace developers" fear posts', 'Unsourced win claims about any vendor'],
     platformLegendCells: ['SIGNAL', 'SCOPE', 'CONTEXT', 'RISK', 'BUILD', 'SHIP', 'PROOF', 'NEXT'],
     carouselTrio: {
       roadmap:
@@ -95,11 +99,16 @@ export const TOPIC_NARRATIVES = {
       'Talent and margin pressure driving automation spend',
     ],
     hookDirections: [
-      'Lead with a dollar figure or valuation move from recent reporting',
+      'Lead with a capital-structure or operating move from recent reporting (round, roll-up, infra spend, secondaries) when headlines support it',
       'Contrast what LPs want vs. what engineering orgs feel on the ground',
       'Name the second-order effect of a headline (hiring, M&A, infra spend)',
     ],
-    avoid: ['Invented round sizes or dates', 'Ticker advice or stock picks'],
+    avoid: [
+      'Invented round sizes or dates',
+      'Ticker advice or stock picks',
+      'Making speculative or sensitive single-company M&A / syndicate / “who invested with whom” arcs the spine of the post—especially employer-adjacent deal gossip—unless CONTEXT has a primary, dated headline and the user explicitly wants that angle',
+      'Insider tone or confidential-sounding claims; stay to public-market, LP, and engineering-operator patterns for VC & PE × AI SDLC',
+    ],
     platformLegendCells: DEFAULT_PLATFORM_LEGEND,
     carouselTrio: { ...DEFAULT_CAROUSEL_TRIO },
     carouselPillarCols: [...DEFAULT_PILLAR_COLS],
