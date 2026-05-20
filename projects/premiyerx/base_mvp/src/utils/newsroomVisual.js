@@ -472,4 +472,72 @@ export async function generateNewsroomImage({
   }
 }
 
+/**
+ * Prompt for a single carousel “platform” slide image — meaningful diagram/chart only
+ * (not the old decorative THEMES/SCOPE strip + anonymous sparkline).
+ */
+export function buildCarouselPlatformSlidePrompt({
+  topicLabel,
+  titleMain,
+  titleAccent,
+  bodyText,
+  trioHints = [],
+}) {
+  const body = String(bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 520)
+  const trio = (trioHints || []).filter(Boolean).slice(0, 3).join(' | ')
+  return [
+    'Create ONE infographic image for a single slide in a LinkedIn PDF carousel.',
+    'Visual framing: dark background (#050505), cream/ivory typography (#f2efe8), accent green (#3EDC81) for highlights and connectors — high-contrast editorial or financial print style.',
+    '',
+    `Topic label: ${topicLabel || 'AI × software delivery'}.`,
+    `Slide headline (capture the idea, do not paste as a dense wall of text): ${String(titleMain || '').slice(0, 200)} — ${String(titleAccent || '').slice(0, 140)}.`,
+    `Supporting copy (paraphrase into chart labels; do NOT invent $ or % figures unless they appear here): ${body}`,
+    trio ? `Three beats to show as stages, columns, or callouts (clear words only): ${trio}` : '',
+    '',
+    'DRAW ONE of: a labeled pilot→scale→renewal flow; a simple 2–3 bar or dot comparison with axis words; a system diagram with 3–5 short callouts; or one clean annotated figure.',
+    'Keep labels LARGE and legible as if the art will be shown ~900px wide.',
+    '',
+    'DO NOT: fake dashboards, meaningless sparklines, tiny unreadable text, stock photos of people, generic clipart, or any 8-tab “THEMES / SCOPE / …” navigation strip.',
+    '',
+    'Small footer: Prem Iyer · AI Software Transformation',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+/** One-shot GPT image for the carousel platform slide (uses saved OpenAI key + /api/generate-image proxy when deployed). */
+export async function generateCarouselPlatformGraphic({
+  topicId: _topicId = '',
+  topicLabel,
+  titleMain,
+  titleAccent,
+  body,
+  trio,
+  apiKey,
+} = {}) {
+  const key = (apiKey || getOpenAiKey() || '').trim()
+  if (!key) {
+    return { ok: false, error: 'Add your OpenAI key under API Keys (welcome area) first.' }
+  }
+  const hints = Array.isArray(trio)
+    ? trio.map((t) => `${t?.title || ''}: ${String(t?.sub || '').replace(/\s+/g, ' ').trim().slice(0, 140)}`)
+    : []
+  const prompt = buildCarouselPlatformSlidePrompt({
+    topicLabel,
+    titleMain,
+    titleAccent,
+    bodyText: body,
+    trioHints: hints,
+  })
+  const result = await requestImage({
+    apiKey: key,
+    prompt,
+    model: 'gpt-image-1.5',
+    size: '1536x1024',
+    quality: 'medium',
+  })
+  if (result.ok) return { ok: true, url: result.url, model: result.model, via: result.via }
+  return { ok: false, error: result.error || 'Image generation failed', status: result.status }
+}
+
 export { buildPrompt, ATTEMPT_PLAN, requestImage }

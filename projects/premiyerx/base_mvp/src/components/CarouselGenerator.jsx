@@ -10,6 +10,8 @@ import ActionFeedback from './ActionFeedback'
 import TOPICS from '../data/postTemplates'
 import { getTopicNarrative, CAROUSEL_CTA_BANK } from '../data/topicNarratives'
 import { slideCopy, subdeckDuplicatesBullet, takeawayCopy, firstSentence, balanceParentheses } from '../utils/completeSentence'
+import { generateCarouselPlatformGraphic } from '../utils/newsroomVisual'
+import { hasOpenAiKey } from '../utils/openaiKey'
 
 const SLIDE_W = 1080
 const SLIDE_H = 1080
@@ -47,27 +49,28 @@ const CAROUSEL_TYPE = {
   sectionListLineH: 26,
   bulletsTitle: 56,
   bulletsTitleGap: 62,
-  bulletsItem: 22,
-  bulletsItemLineH: 32,
-  bulletsIndex: 10,
+  /** Body copy on bullet slides — sized closer to reference decks (strong title vs. still-readable body). */
+  bulletsItem: 30,
+  bulletsItemLineH: 40,
+  bulletsIndex: 13,
   quoteDisplay: 62,
   quoteLineGap: 68,
   ctaDisplay: 54,
   ctaLineGap: 60,
-  platformDeck: 52,
-  platformDeckGap: 58,
-  platformBody: 20,
-  platformBodyLineH: 31,
-  trioTitle: 17,
-  trioSub: 16,
-  trioLineGap: 20,
+  platformDeck: 54,
+  platformDeckGap: 60,
+  platformBody: 24,
+  platformBodyLineH: 34,
+  trioTitle: 21,
+  trioSub: 18,
+  trioLineGap: 24,
   pillarDisplay: 50,
   pillarLineGap: 56,
-  pillarBody: 17,
-  pillarBodyLineH: 27,
-  pillarColLabel: 11,
-  pillarColBody: 16,
-  pillarColLineGap: 22,
+  pillarBody: 19,
+  pillarBodyLineH: 29,
+  pillarColLabel: 12,
+  pillarColBody: 18,
+  pillarColLineGap: 26,
   closerDisplay: 48,
   closerLineGap: 54,
   closerSub: 17,
@@ -126,6 +129,65 @@ function bulletTexts(bullets, n) {
 
 function allBulletStrings(bullets) {
   return bullets.map((b) => (typeof b === 'string' ? b : b?.text || '')).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean)
+}
+
+function normalizeBulletEntry(item) {
+  if (typeof item === 'string') return { text: item, cite: null }
+  return { text: String(item?.text || '').replace(/\s+/g, ' ').trim(), cite: item?.cite || null }
+}
+
+/**
+ * Headline-style bullets (“Unit economics ledger”, “Adoption ledger”) read as empty on a carousel.
+ * We swap them for narrative-backed sentences so slides 3–4 stay substantive for non-developers.
+ */
+function isLabelLikeOrShallowBullet(text) {
+  const t = (text || '').replace(/\s+/g, ' ').trim()
+  if (!t) return true
+  const words = t.split(/\s+/).length
+  const len = t.length
+  if (len >= 120) return false
+  if (/\?\s*$/.test(t) && len >= 36 && words >= 6) return false
+  const labelTail =
+    /\b(ledger|stack|matrix|model|layer|view|pillar|lens|frame|map|canvas|rubric)\s*\.?\s*$/i
+  if (words <= 6 && len < 82 && labelTail.test(t)) return true
+  if (words <= 4 && len < 68) return true
+  if (words <= 8 && len < 56 && !/[.!?;:]/.test(t)) return true
+  return false
+}
+
+function enrichCarouselBulletItems(bullets, narrative, standaloneStatements, hook, subdeck) {
+  if (!Array.isArray(bullets) || bullets.length === 0) return bullets
+  const shallow = bullets.map((b, i) => (isLabelLikeOrShallowBullet(normalizeBulletEntry(b).text) ? i : -1)).filter((i) => i >= 0)
+  if (!shallow.length) return bullets
+
+  const pool = [...narrativeCandidatePool(narrative, standaloneStatements, hook, subdeck)]
+  const extra = Array.isArray(narrative.carouselBulletFallbacks) ? narrative.carouselBulletFallbacks : []
+  for (const s of extra) {
+    const t = String(s || '').replace(/\s+/g, ' ').trim()
+    if (t) pool.push(t)
+  }
+
+  const guard = allBulletStrings(bullets)
+  const replacements = pickBlurbLines(pool, Math.max(shallow.length * 2, 8), guard)
+  let r = 0
+  const coreFallback = () =>
+    takeawayCopy(
+      `${narrative.label}: ${firstSentence(narrative.coreThesis || narrative.audience || '', 110)}`.replace(
+        /\s+/g,
+        ' ',
+      ).trim(),
+      118,
+      168,
+    )
+
+  const shallowSet = new Set(shallow)
+  return bullets.map((original, i) => {
+    if (!shallowSet.has(i)) return original
+    let line = replacements[r++]
+    if (!line || isLabelLikeOrShallowBullet(line)) line = coreFallback()
+    if (typeof original === 'string') return { text: line, cite: null }
+    return { text: line, cite: null }
+  })
 }
 
 function pickPlatformNarrative(subdeck, hook, bullets) {
@@ -205,7 +267,7 @@ function narrativeCandidatePool(narrative, standaloneStatements, hook, subdeck) 
   }
   for (const s of standaloneStatements || []) push(s)
   for (const s of narrative.newsLenses || []) push(s)
-  for (const s of narrative.hookDirections || []) push(s)
+  // hookDirections are model instructions — never surface them on public carousel/PDF copy.
   splitDelimitedClauses(narrative.competitiveFrame).forEach(push)
   for (const part of (narrative.coreThesis || '').split('. ')) push(part)
   push(narrative.audience)
@@ -297,30 +359,6 @@ function buildTrioAndPillarCopy({
 
 const BORING_CTA_RE = /bottom-up\s+adoption|top-down\s+mandate/i
 
-function buildKeywordCells(narrative, shortTopic) {
-  const raw = narrative.platformLegendCells
-  if (Array.isArray(raw) && raw.length > 0) {
-    const out = raw
-      .map((s) =>
-        String(s || '')
-          .trim()
-          .toUpperCase()
-          .replace(/[^A-Z0-9 ]/g, '')
-          .slice(0, 6)
-          .trim(),
-      )
-      .filter(Boolean)
-    const pad = ['THEMES', 'SCOPE', 'PROOF', 'NEXT', 'RISK', 'BUILD', 'SHIP', 'EDGE']
-    let guard = 0
-    while (out.length < 8 && guard < 24) {
-      out.push(pad[out.length % pad.length])
-      guard += 1
-    }
-    return out.slice(0, 8)
-  }
-  return eightGraphicCells(shortTopic, narrative.signalLabel)
-}
-
 function buildCarouselTrioSubs(narrative, fallbackArgs) {
   const T = narrative.carouselTrio
   if (T?.roadmap && T?.ship && T?.prove) {
@@ -365,27 +403,35 @@ function pickVariedCta(ctaFromPost, { headlineGuard, narrative, topicId, hook, p
   return escape || bank[0]
 }
 
-/** Decorative 8 cells — letters from topic + signal (design only; not standalone “meaning”). */
-function eightGraphicCells(topicLabel, signalLabel) {
-  const raw = `${topicLabel} ${signalLabel || ''}`.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
-  const out = []
-  for (let i = 0; i < raw.length && out.length < 8; i++) out.push(raw[i])
-  while (out.length < 8) out.push('·')
-  return out.slice(0, 8)
+/** True when the opening line is prompt rubric / internal guidance, not reader-facing copy. */
+function hookReadsLikePromptRubric(h) {
+  const t = (h || '').replace(/\s+/g, ' ').trim()
+  if (!t) return true
+  if (/^lead with\b/i.test(t)) return true
+  if (/^open on\b/i.test(t)) return true
+  if (/^frame as\b/i.test(t)) return true
+  if (/^name the second-order\b/i.test(t)) return true
+  if (/^contrast what\b/i.test(t) && t.length < 130) return true
+  if (/when headlines support it/i.test(t)) return true
+  if (/unless CONTEXT has/i.test(t)) return true
+  if (/unless the author explicitly wants/i.test(t)) return true
+  if (/cross-portfolio themes/i.test(t) && /LP expectations|pilot→production|roll-ups/i.test(t)) return true
+  return false
 }
 
-/** Platform hero lines — never repeat the cover hook as the platform headline. */
+/** Platform hero lines — never repeat the cover hook as the platform headline; never use prompt rubric as headline. */
 function platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard) {
   const h = (hook || '').replace(/\s+/g, ' ').trim()
   const shortTopic = topicShortLabel(topicLabel)
+  const publicHook = hookReadsLikePromptRubric(h) ? '' : h
   let primary = ''
   let accent = ''
-  if (h.length >= 36) {
-    const { primary: p, accent: a } = headlineSplitForCanvas(h)
-    primary = p || h
+  if (publicHook.length >= 36) {
+    const { primary: p, accent: a } = headlineSplitForCanvas(publicHook)
+    primary = p || publicHook
     accent = a && a.length > 6 ? a : shortTopic
-  } else if (h.length >= 12) {
-    primary = h
+  } else if (publicHook.length >= 12) {
+    primary = publicHook
     accent = shortTopic
   } else {
     const t = headlineSplitForCanvas(narrative.coreThesis || '')
@@ -394,11 +440,13 @@ function platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard) {
   }
   const dup =
     headlineGuard.has(primary) ||
-    shareLongPrefix(primary, h, 36) ||
-    shareLongPrefix(`${primary} ${accent}`.trim(), h, 36)
+    (publicHook.length >= 12 &&
+      (shareLongPrefix(primary, publicHook, 36) ||
+        shareLongPrefix(`${primary} ${accent}`.trim(), publicHook, 36)))
   if (dup) {
+    const lens0 = (narrative.newsLenses || []).find((s) => String(s || '').trim().length > 40)
     const fb =
-      narrative.hookDirections?.[0] ||
+      lens0 ||
       `${narrative.label}: ${firstSentence(narrative.coreThesis, 92)}`
     const sp = headlineSplitForCanvas(takeawayCopy(fb, 72, 118))
     primary = sp.primary || takeawayCopy(fb, 52, 86)
@@ -406,6 +454,37 @@ function platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard) {
   }
   headlineGuard.add(primary)
   return { primary, accent }
+}
+
+function pillarCatalogHeadline(narrative, topicShort, headlineGuard) {
+  const thesisLead = takeawayCopy(
+    `${firstSentence(narrative.coreThesis || '', 160)}`.replace(/\s+/g, ' ').trim(),
+    44,
+    92,
+  )
+  const frameLead = takeawayCopy(
+    `${firstSentence(narrative.competitiveFrame || '', 160)}`.replace(/\s+/g, ' ').trim(),
+    44,
+    92,
+  )
+  const candidates = [
+    thesisLead && thesisLead.length > 32 ? thesisLead : '',
+    frameLead && frameLead.length > 32 && !shareLongPrefix(frameLead, thesisLead, 28) ? frameLead : '',
+    `Where ${topicShort} shows up in budgets, roadmaps, and renewals — not in slide decks alone.`,
+  ].filter(Boolean)
+
+  for (const raw of candidates) {
+    const balanced = balanceParentheses(raw)
+    const head = firstSentence(balanced, 78).replace(/\s+/g, ' ').trim()
+    if (head.length < 28) continue
+    if (headlineGuard.has(head)) continue
+    if (/^welcome to\b/i.test(head)) continue
+    headlineGuard.add(head)
+    return head
+  }
+  const fallback = `How ${topicShort} compounds when governance keeps pace with adoption.`
+  headlineGuard.add(fallback)
+  return fallback
 }
 
 function pillarBodyFallback(subdeck, standaloneStatements, narrative) {
@@ -451,7 +530,7 @@ function parseIntoSlides(text, topicId = '') {
     if (prose) subdeck = prose.trim()
   }
 
-  const bullets = []
+  let bullets = []
   const sections = []
   let currentSection = null
   const standaloneStatements = []
@@ -486,6 +565,8 @@ function parseIntoSlides(text, topicId = '') {
   }
   if (currentSection && currentSection.items.length > 0) sections.push(currentSection)
 
+  bullets = enrichCarouselBulletItems(bullets, narrative, standaloneStatements, hook, subdeck)
+
   const firstBulletStr = bullets[0]
     ? (typeof bullets[0] === 'string' ? bullets[0] : bullets[0].text).replace(/\s+/g, ' ').trim()
     : ''
@@ -494,8 +575,18 @@ function parseIntoSlides(text, topicId = '') {
   }
 
   const headlineGuard = createHeadlineGuard()
-  slides.push({ type: 'cover', text: hook, topicLabel, subdeck })
-  headlineGuard.add(hook)
+  const coverText = hookReadsLikePromptRubric(hook)
+    ? takeawayCopy(
+        `${narrative.label}: ${firstSentence(narrative.coreThesis || narrative.audience || '', 140)}`.replace(
+          /\s+/g,
+          ' ',
+        ).trim(),
+        68,
+        118,
+      )
+    : hook
+  slides.push({ type: 'cover', text: coverText, topicLabel, subdeck })
+  headlineGuard.add(coverText)
 
   let shiftCounter = 0
 
@@ -619,19 +710,11 @@ function parseIntoSlides(text, topicId = '') {
         { title: 'Ship', sub: trioSubs[1] },
         { title: 'Prove', sub: trioSubs[2] },
       ],
-      platformGraphic: {
-        keywordCells: buildKeywordCells(narrative, shortTopic),
-        meshLabel: slideCopy(narrative.signalLabel, 40, 56).toUpperCase(),
-        bridgeCaption:
-          'Themes from your week as nodes—illustrative sequence, not live market data.',
-        footMono: '',
-      },
     })
   }
 
   const topicShort = topicShortLabel(topicLabel).slice(0, 44)
-  const pillarHeadline = `Welcome to ${topicShort}.`
-  headlineGuard.add(pillarHeadline)
+  const pillarHeadline = pillarCatalogHeadline(narrative, topicShort, headlineGuard)
   slides.push({
     type: 'pillar',
     strike: STRIKE_BY_TOPIC[topicId] || 'HYPE — PILOTS — SLIDEWARE',
@@ -770,6 +853,40 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, rr)
   ctx.arcTo(x, y, x + w, y, rr)
   ctx.closePath()
+}
+
+/** Load a data URL or remote URL into an HTMLImageElement for canvas drawImage. */
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      if (typeof img.decode === 'function') {
+        img.decode().then(() => resolve(img)).catch(() => resolve(img))
+      } else resolve(img)
+    }
+    img.onerror = () => reject(new Error('Could not load generated slide image'))
+    img.src = src
+  })
+}
+
+async function loadCarouselPlatformImage(slides, topicId) {
+  const platform = slides.find((s) => s.type === 'platform')
+  if (!platform || !hasOpenAiKey()) return null
+  try {
+    const res = await generateCarouselPlatformGraphic({
+      topicId,
+      topicLabel: getTopicLabel(topicId),
+      titleMain: platform.titleMain,
+      titleAccent: platform.titleAccent,
+      body: platform.body,
+      trio: platform.trio,
+    })
+    if (!res.ok) return null
+    return await loadImageElement(res.url)
+  } catch {
+    return null
+  }
 }
 
 function drawStrikeLabel(ctx, text, x, y, maxW) {
@@ -971,127 +1088,7 @@ function drawThreeColGrid(ctx, topY, maxW, cols, bottomLimit = FOOTER_TOP - 14) 
   }
 }
 
-function drawPlatformInfographic(ctx, boxTop, maxW, meta = null) {
-  const x0 = PAD
-  const w = maxW
-  const boxH = 300
-  const keywordCells = meta?.keywordCells || eightGraphicCells('TOPIC', 'SIGNAL')
-  const meshLabel = (meta?.meshLabel || 'TOPIC SIGNALS').slice(0, 52)
-  const bridgeCaption = meta?.bridgeCaption
-    ? slideCopy(meta.bridgeCaption, 80, 220)
-    : 'From your post to one clear story.'
-  const footMono = typeof meta?.footMono === 'string' ? meta.footMono : ''
-  ctx.strokeStyle = BOX_EDGE
-  ctx.lineWidth = 1
-  roundRect(ctx, x0, boxTop, w, boxH, 2)
-  ctx.stroke()
-
-  const bandY = boxTop + 14
-  const n = 8
-  const gap = 6
-  const cellW = (w - 24 - (n - 1) * gap) / n
-  const maxSymLen = Math.max(...keywordCells.map((c) => String(c || '').length), 1)
-  const cellFontPx = maxSymLen > 4 ? 11 : maxSymLen > 2 ? 12 : 14
-  for (let i = 0; i < n; i++) {
-    const cx = x0 + 12 + i * (cellW + gap)
-    ctx.fillStyle = i % 2 === 0 ? '#111814' : '#0e1210'
-    roundRect(ctx, cx, bandY, cellW, 40, 4)
-    ctx.fill()
-    ctx.strokeStyle = RULE
-    ctx.lineWidth = 1
-    ctx.stroke()
-    ctx.fillStyle = ACCENT
-    ctx.font = `600 ${cellFontPx}px ${FONT_MONO}`
-    ctx.textAlign = 'center'
-    ctx.fillText(keywordCells[i] || '·', cx + cellW / 2, bandY + 26)
-    ctx.textAlign = 'left'
-  }
-
-  ctx.font = `500 10px ${FONT_MONO}`
-  ctx.letterSpacing = '2px'
-  ctx.fillStyle = MUTED
-  ctx.textAlign = 'center'
-  ctx.fillText(meshLabel, x0 + w / 2, bandY + 58)
-  ctx.textAlign = 'left'
-  ctx.letterSpacing = '0px'
-
-  const arrowY = bandY + 72
-  ctx.fillStyle = ACCENT_SOFT
-  ctx.beginPath()
-  ctx.moveTo(x0 + w / 2 - 7, arrowY)
-  ctx.lineTo(x0 + w / 2 + 7, arrowY)
-  ctx.lineTo(x0 + w / 2, arrowY + 12)
-  ctx.closePath()
-  ctx.fill()
-
-  const graphTop = arrowY + 22
-  const graphH = 118
-  const gx0 = x0 + 20
-  const gw = w - 40
-  ctx.save()
-  ctx.strokeStyle = 'rgba(62,220,129,0.12)'
-  ctx.lineWidth = 1
-  for (let r = 0; r < 5; r++) {
-    const t = r / 4
-    const y = graphTop + t * graphH
-    const xL = gx0 + t * 40
-    const xR = gx0 + gw - t * 28
-    ctx.beginPath()
-    ctx.moveTo(xL, y)
-    ctx.lineTo(xR, y)
-    ctx.stroke()
-  }
-  const nodes = [
-    [0.22, 0.35],
-    [0.42, 0.55],
-    [0.62, 0.38],
-    [0.78, 0.62],
-    [0.52, 0.72],
-  ]
-  for (const [nx, ny] of nodes) {
-    const px = gx0 + nx * gw
-    const py = graphTop + ny * graphH
-    ctx.fillStyle = '#1a2220'
-    ctx.beginPath()
-    ctx.arc(px, py, 9, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = ACCENT_SOFT
-    ctx.stroke()
-  }
-  ctx.strokeStyle = 'rgba(62,220,129,0.25)'
-  for (let a = 0; a < nodes.length - 1; a++) {
-    const [nx1, ny1] = nodes[a]
-    const [nx2, ny2] = nodes[a + 1]
-    ctx.beginPath()
-    ctx.moveTo(gx0 + nx1 * gw, graphTop + ny1 * graphH)
-    ctx.lineTo(gx0 + nx2 * gw, graphTop + ny2 * graphH)
-    ctx.stroke()
-  }
-  ctx.restore()
-
-  ctx.font = `500 10px ${FONT_SANS}`
-  ctx.fillStyle = PAPER
-  ctx.textAlign = 'center'
-  const capLines = wrapText(ctx, bridgeCaption, w - 48).slice(0, 3)
-  let capY = graphTop - 6 - (capLines.length - 1) * 14
-  for (const ln of capLines) {
-    ctx.fillText(ln, x0 + w / 2, capY)
-    capY += 14
-  }
-  ctx.textAlign = 'left'
-
-  const trioY = boxTop + boxH - 52
-  hairlineH(ctx, x0 + 12, x0 + w - 12, trioY - 10)
-  if (footMono.trim()) {
-    ctx.font = `500 8px ${FONT_MONO}`
-    ctx.letterSpacing = '1.8px'
-    ctx.fillStyle = ACCENT_SOFT
-    ctx.fillText(footMono, x0 + 16, trioY - 2)
-    ctx.letterSpacing = '0px'
-  }
-}
-
-function renderSlide(ctx, slide, index, total) {
+function renderSlide(ctx, slide, index, total, extra = {}) {
   ctx.fillStyle = BG
   ctx.fillRect(0, 0, SLIDE_W, SLIDE_H)
 
@@ -1213,7 +1210,7 @@ function renderSlide(ctx, slide, index, total) {
         ctx.letterSpacing = '0px'
         ctx.fillStyle = PAPER
         ctx.font = `400 ${CAROUSEL_TYPE.bulletsItem}px ${FONT_SANS}`
-        const short = takeawayCopy(itemText, 175, 260)
+        const short = takeawayCopy(itemText, 165, 255)
         for (const il of wrapText(ctx, short, innerW - 36)) {
           ctx.fillText(il, PAD + boxPad + 36, iy)
           iy += CAROUSEL_TYPE.bulletsItemLineH
@@ -1265,7 +1262,7 @@ function renderSlide(ctx, slide, index, total) {
 
     case 'platform': {
       const topicHdr = (slide.topicRail || 'TOPIC').slice(0, 32)
-      drawEditorialHeader(ctx, `INSIGHT · ${topicHdr}`, index, total, { monoRight: true })
+      drawEditorialHeader(ctx, `FIELD NOTE · ${topicHdr}`, index, total, { monoRight: true })
       ctx.fillStyle = PAPER
       ctx.font = `700 ${CAROUSEL_TYPE.platformDeck}px ${FONT_SANS}`
       let y = CONTENT_TOP + 4
@@ -1288,17 +1285,52 @@ function renderSlide(ctx, slide, index, total) {
         ctx.fillText(ln, PAD, y)
         y += CAROUSEL_TYPE.platformBodyLineH
       }
-      y += 10
-      drawPlatformInfographic(ctx, y, maxW, slide.platformGraphic || null)
-      const trioTop = y + 300 + 14
+      y += 12
+      const minTrioReserve = 168
+      const maxGraphicBottom = FOOTER_TOP - minTrioReserve
+      let slotH = 248
+      if (y + slotH > maxGraphicBottom) {
+        slotH = Math.max(112, maxGraphicBottom - y - 8)
+      }
+      const img = extra?.platformImage
+      const canDraw =
+        img instanceof HTMLImageElement &&
+        img.complete &&
+        img.naturalWidth > 0 &&
+        slotH >= 100
+      if (canDraw) {
+        const x0 = PAD
+        const w = maxW
+        const slotTop = y
+        ctx.save()
+        roundRect(ctx, x0, slotTop, w, slotH, 4)
+        ctx.clip()
+        const iw = img.naturalWidth
+        const ih = img.naturalHeight
+        const scale = Math.max(w / iw, slotH / ih)
+        const dw = iw * scale
+        const dh = ih * scale
+        const dx = x0 + (w - dw) / 2
+        const dy = slotTop + (slotH - dh) / 2
+        ctx.drawImage(img, dx, dy, dw, dh)
+        ctx.restore()
+        ctx.strokeStyle = BOX_EDGE
+        ctx.lineWidth = 1
+        roundRect(ctx, x0, slotTop, w, slotH, 4)
+        ctx.stroke()
+        y = slotTop + slotH + 14
+      } else {
+        y += 6
+      }
       if (slide.trio && slide.trio.length === 3) {
+        const trioTop = y
         const tw = (maxW - 32) / 3
         const xb = PAD
         const trioLineGap = CAROUSEL_TYPE.trioLineGap
         const trioBottomCap = FOOTER_TOP - 18
         const maxTrioLines = Math.max(
           3,
-          Math.min(14, Math.floor((trioBottomCap - trioTop - 52) / trioLineGap)),
+          Math.min(18, Math.floor((trioBottomCap - trioTop - 52) / trioLineGap)),
         )
         let maxColLines = 0
         const trioWrapped = slide.trio.map((t) => {
@@ -1317,7 +1349,7 @@ function renderSlide(ctx, slide, index, total) {
           ctx.font = `700 ${CAROUSEL_TYPE.trioTitle}px ${FONT_SANS}`
           ctx.fillText(t.title, tx, trioTop + 22)
           ctx.font = `400 ${CAROUSEL_TYPE.trioSub}px ${FONT_SANS}`
-          ctx.fillStyle = MUTED
+          ctx.fillStyle = '#e4e0d8'
           let subY = trioTop + 48
           for (let si = 0; si < n; si++) {
             ctx.fillText(subLines[si], tx, subY)
@@ -1333,13 +1365,13 @@ function renderSlide(ctx, slide, index, total) {
 
     case 'pillar': {
       const pHdr = (slide.topicRail || '').slice(0, 28)
-      drawEditorialHeader(ctx, pHdr ? `INSIGHT · ${pHdr}` : 'THE CATEGORY', index, total)
+      drawEditorialHeader(ctx, pHdr ? `FIELD NOTE · ${pHdr}` : 'FIELD NOTE · PILLAR', index, total)
       let y = CONTENT_TOP + 8
       drawStrikeLabel(ctx, slide.strike || '', PAD, y, maxW)
       y += 52
       y = drawSplitHeadline(
         ctx,
-        slide.headline || 'Welcome to Digital Trust.',
+        slide.headline || 'How this lands for operators and boards.',
         maxW,
         y,
         CAROUSEL_TYPE.pillarDisplay,
@@ -1441,7 +1473,7 @@ function renderSlide(ctx, slide, index, total) {
   }
 }
 
-function generateCarouselCaption(postText, topicId = '') {
+function generateCarouselCaption(postText, topicId = '', slideCount = 0) {
   if (!postText) return ''
   const lines = postText.split('\n').filter((l) => l.trim())
   const hook = lines[0] || ''
@@ -1467,14 +1499,15 @@ function generateCarouselCaption(postText, topicId = '') {
     }
   }
 
-  const slideCount = Math.max(5, Math.round(postText.length / 200))
+  const slideCountResolved =
+    slideCount > 0 ? slideCount : Math.max(5, Math.round(postText.length / 200))
 
   const captionRng = mulberry32((fnv1a(`${topicId}:${hook.slice(0, 40)}:${Date.now()}`) >>> 0) || 0xace12345)
   const bridgeTemplates = [
-    `I broke this down into a ${slideCount}-slide visual guide.\n\nSwipe through — but here's the preview:\n\n`,
-    `Here is a ${slideCount}-slide walkthrough—tight on purpose.\n\nSkim the preview, then open the PDF:\n\n`,
-    `Turned the thread into a ${slideCount}-slide breakdown.\n\nQuick scan below—full story in the carousel:\n\n`,
-    `Packaged this as ${slideCount} slides so you can share it with your team.\n\nPreview first, PDF attached:\n\n`,
+    `I broke this down into a ${slideCountResolved}-slide visual guide.\n\nSwipe through — but here's the preview:\n\n`,
+    `Here is a ${slideCountResolved}-slide walkthrough—tight on purpose.\n\nSkim the preview, then open the PDF:\n\n`,
+    `Turned the thread into a ${slideCountResolved}-slide breakdown.\n\nQuick scan below—full story in the carousel:\n\n`,
+    `Packaged this as ${slideCountResolved} slides so you can share it with your team.\n\nPreview first, PDF attached:\n\n`,
   ]
   const bridge = bridgeTemplates[Math.floor(captionRng() * bridgeTemplates.length) % bridgeTemplates.length]
 
@@ -1498,16 +1531,16 @@ function generateCarouselCaption(postText, topicId = '') {
   }
 
   const closers = [
-    `Every stat is sourced; each slide is one decision-useful beat.\n\nThe PDF is for dwell—the caption above does the ranking work.\n\n`,
-    `Built to read fast: claim → proof → so-what per slide.\n\nAttach the document and let people swipe—depth signals matter in 2026.\n\n`,
-    `If someone only reads the caption, they should still learn something concrete.\n\nFull walkthrough in the PDF.\n\n`,
+    `Each slide is one claim you can reuse in a memo or a board readout.\n\n`,
+    `Built to read fast: claim, proof, and what to do next.\n\n`,
+    `If someone only reads the caption, they should still leave with one concrete takeaway.\n\n`,
   ]
   caption += closers[Math.floor(captionRng() * closers.length) % closers.length]
 
   const fallbackQuestions = [
     `What would you add? Drop your take in the comments.\n\n`,
-    `Which slide would you send to your CIO first—and why?\n\n`,
-    `If you had to cut this to 3 slides, what stays?\n\n`,
+    `Which slide would you send to your CFO or CIO first—and why?\n\n`,
+    `If you had to cut this to three slides, what stays?\n\n`,
   ]
 
   if (ctaForCaption) {
@@ -1517,14 +1550,25 @@ function generateCarouselCaption(postText, topicId = '') {
   }
 
   if (captionRng() > 0.4) {
-    caption += `Save this PDF for your next CIO or board readout if the framing helps.\n\n`
+    caption += `Save the PDF if the framing helps your next leadership conversation.\n\n`
   }
 
   if (hashtags) {
     caption += hashtags
   }
 
-  return caption.trim()
+  return reconcileSlideCountsInCaption(caption.trim(), slideCountResolved)
+}
+
+/** If the model (or an old template) guessed the wrong deck size, align copy to the real PDF slide count. */
+function reconcileSlideCountsInCaption(caption, actual) {
+  if (!caption || !actual || actual < 1) return caption
+  return caption.replace(/\b(\d{1,2})-slide\b/gi, (match, d) => {
+    const v = parseInt(d, 10)
+    if (v === actual) return match
+    if (v >= 4 && v <= 36) return `${actual}-slide`
+    return match
+  })
 }
 
 export default function CarouselGenerator({ postText, topicId = '' }) {
@@ -1546,18 +1590,27 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
       setPreviewIndex(0)
       return
     }
-    const canvas = document.createElement('canvas')
-    canvas.width = SLIDE_W
-    canvas.height = SLIDE_H
-    const ctx = canvas.getContext('2d')
-    const images = []
-    for (let i = 0; i < slides.length; i++) {
-      renderSlide(ctx, slides[i], i, slides.length)
-      images.push(canvas.toDataURL('image/png'))
+    let cancelled = false
+    ;(async () => {
+      const platformImg = await loadCarouselPlatformImage(slides, topicId)
+      if (cancelled) return
+      const canvas = document.createElement('canvas')
+      canvas.width = SLIDE_W
+      canvas.height = SLIDE_H
+      const ctx = canvas.getContext('2d')
+      const images = []
+      for (let i = 0; i < slides.length; i++) {
+        const extra = slides[i].type === 'platform' ? { platformImage: platformImg } : {}
+        renderSlide(ctx, slides[i], i, slides.length, extra)
+        images.push(canvas.toDataURL('image/png'))
+      }
+      setPreviewSlides(images)
+      setPreviewIndex((prev) => (prev >= images.length ? 0 : prev))
+      setCaptionText(generateCarouselCaption(postText, topicId, slides.length))
+    })()
+    return () => {
+      cancelled = true
     }
-    setPreviewSlides(images)
-    setPreviewIndex((prev) => (prev >= images.length ? 0 : prev))
-    setCaptionText(generateCarouselCaption(postText, topicId))
   }, [postText, topicId, slides])
 
   async function copyCaption() {
@@ -1575,6 +1628,7 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
     if (slides.length === 0) return
     setGenerating(true)
     try {
+      const platformImg = await loadCarouselPlatformImage(slides, topicId)
       const canvas = document.createElement('canvas')
       canvas.width = SLIDE_W
       canvas.height = SLIDE_H
@@ -1583,7 +1637,8 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
 
       for (let i = 0; i < slides.length; i++) {
         if (i > 0) pdf.addPage([SLIDE_W, SLIDE_H])
-        renderSlide(ctx, slides[i], i, slides.length)
+        const extra = slides[i].type === 'platform' ? { platformImage: platformImg } : {}
+        renderSlide(ctx, slides[i], i, slides.length, extra)
         const imgData = canvas.toDataURL('image/png')
         pdf.addImage(imgData, 'PNG', 0, 0, SLIDE_W, SLIDE_H)
       }
@@ -1613,6 +1668,13 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
             from <strong>your post</strong> and anchored to <strong>{getTopicLabel(topicId) || 'the topic you picked'}</strong>{' '}
             (headlines and stats still come from the same topic in the infographic). Decorative layout only — no
             unrelated “template” storylines.
+            {hasOpenAiKey() && slides.some((s) => s.type === 'platform') && (
+              <>
+                {' '}
+                With your OpenAI key saved, the <strong>platform</strong> slide requests one GPT-generated diagram
+                (flow, comparison, or schematic) that matches the slide copy — not the old decorative chart strip.
+              </>
+            )}
           </p>
           <img
             src={previewSlides[previewIndex]}

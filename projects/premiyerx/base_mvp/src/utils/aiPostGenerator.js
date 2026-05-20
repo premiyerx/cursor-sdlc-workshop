@@ -36,6 +36,40 @@ export function describeMissingCompareKeys() {
   return TEXT_MODEL_PROFILES.filter((p) => !keyLooksValid(p, getApiKeyForProfile(p))).map((p) => p.keyHint)
 }
 
+/** Lines models echo from system rubrics — not reader-facing LinkedIn copy. */
+function stripPromptInstructionEcho(text) {
+  if (!text) return ''
+  return text
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => {
+      const L = line.trim()
+      if (!L) return true
+      if (/^CAPITAL_PILLAR_FOCUS\b/i.test(L)) return false
+      if (/^-?\s*lead with cross-portfolio themes\b/i.test(L)) return false
+      if (/^lead with\b/i.test(L) && L.length < 160) return false
+      if (/^open on\b/i.test(L) && L.length < 140) return false
+      if (/^frame as\b/i.test(L) && L.length < 140) return false
+      if (/^contrast what\b/i.test(L) && L.length < 160) return false
+      if (/^name the second-order\b/i.test(L)) return false
+      if (/^do not make speculative\b/i.test(L)) return false
+      if (/^if a blockbuster headline\b/i.test(L)) return false
+      if (/unless CONTEXT has\b/i.test(L)) return false
+      if (/unless the author explicitly wants\b/i.test(L)) return false
+      return true
+    })
+    .join('\n')
+}
+
+/** Carousel exporter adds deck count; strip wrong “N-slide” claims from prose. */
+function stripDeckSlideCountClaims(s) {
+  if (!s) return ''
+  return s.replace(
+    /\b\d{1,2}\s*[-–]\s*slide\s+(visual guide|walkthrough|carousel|deck|breakdown)\b/gi,
+    'a visual guide',
+  )
+}
+
 /** Remove internal drafting markers models sometimes leak into prose. */
 function sanitizeExternalCopy(s) {
   if (!s) return ''
@@ -44,6 +78,8 @@ function sanitizeExternalCopy(s) {
     /\b(?:RE[-_\s]?HOOK|RE[-_\s]?BODY|RE[-_\s]?LINE|ALT[-_\s]?HOOK|INTERNAL\s*DRAFT|DRAFT\s*ONLY|META[-_\s]?NOTE|NOTE\s*TO\s*SELF)\s*:?\s*/gi
   t = t.replace(markers, '')
   t = t.replace(/\(\s*Internal:[^)]*\)/gi, '')
+  t = stripPromptInstructionEcho(t)
+  t = stripDeckSlideCountClaims(t)
   t = t.replace(/[^\S\n]+/g, ' ')
   t = t.replace(/\n{3,}/g, '\n\n')
   return t.trim()
@@ -256,6 +292,7 @@ function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '') {
 
 CAPITAL_PILLAR_FOCUS (VC & PE × AI SDLC — prudent public framing for an operator at an AI dev platform):
 - Lead with cross-portfolio themes: inference / infra economics, roll-ups & secondaries, seat & NRR math, pilot→production conversion, security & governance spend, services attach, and LP expectations.
+- These bullets are private instructions to you — never paste them verbatim into HOOK, BODY, or reader-facing bullets.
 - Do not make speculative or sensitive single-company M&A / syndicate arcs the spine of the post (including Cursor-related transaction chatter) unless the author explicitly wants that angle and CONTEXT has a primary, dated, on-the-record headline to paraphrase with attribution.
 - If a blockbuster headline appears, treat it as one datapoint among several—never as insider commentary, unnamed “adjacent syndicate” framing, or anything that reads like confidential detail.
 `
@@ -283,6 +320,8 @@ CONTEXT:
 - Anchor hook in LEAD STORY from research below (paraphrase — never paste headline verbatim).
 - Sound like Prem Iyer: SVP, Global Strategic Accounts at Cursor — operator + investor, peer to CIOs and engineering leaders — NOT generic ChatGPT LinkedIn voice.
 - Ban phrases: "game-changer", "let's dive", "in today's fast-paced", "thoughts?", "agree?"
+- Never paste CAPITAL_PILLAR rubric lines, “Lead with…”, “Contrast…”, or other prompt instructions as if they were the post — those are private guidance, not public copy.
+- Do not claim a specific slide count (e.g. “11-slide visual guide”); the app attaches the PDF and writes the accurate slide count in the caption.
 ${realtimeContext}
 
 DATA ACCURACY: Every stat needs inline source tied to CONTEXT headlines when possible. Never invent funding, dates, or customer names. Never output internal drafting labels (e.g. RE-HOOK, ALT HOOK, INTERNAL).

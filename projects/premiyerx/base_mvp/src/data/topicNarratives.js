@@ -113,6 +113,21 @@ export const TOPIC_NARRATIVES = {
     carouselTrio: { ...DEFAULT_CAROUSEL_TRIO },
     carouselPillarCols: [...DEFAULT_PILLAR_COLS],
     carouselCtas: [],
+    /** Full sentences swapped in when post bullets are label-like (“Adoption ledger”) so carousel slides stay substantive. */
+    carouselBulletFallbacks: [
+      'LPs and CIOs are asking the same question now: does bottom-up seat growth convert to durable NRR once inference COGS and security review enter the renewal math?',
+      'Capital is underwriting automation across build, test, deploy, and review — but diligence is moving from demo theater to pilot-to-production evidence with named owners.',
+      'The wedge investors track is not “more AI” — it is fewer handoffs from idea to merged code, with governance artifacts procurement can defend.',
+      'Roll-ups and secondaries matter because they concentrate portfolios where operating partners can force SDLC efficiency — not because decks mention agents more often.',
+      'When CFO scrutiny lands, the survivors show unit economics as a ledger of seats, tokens, rework avoided, and incidents prevented — not a single vanity throughput metric.',
+      'Enterprise deal velocity breaks when pilots win locally but policy, data boundaries, and agent audit trails cannot scale — that gap is the investable narrative.',
+      'Services attach rises when platforms stop at autocomplete; full-repo context and agentic workflows change who does review work and how margin compounds.',
+      'Talent and margin pressure push spend toward tools that remove meeting-heavy coordination — the capital story is labor leverage, not feature checklists.',
+      'Infrastructure vs. application-layer returns diverge when inference prices fall faster than customers expand usage; posts land when you name which side you are underwriting.',
+      'Boards want proof that agent-assisted shipping lowers incident rate and cycle time — not another benchmark claiming autonomous deployment without receipts.',
+      'Adoption that survives procurement names the workflow an agent owns end-to-end, the rollback path, and the metric that moves if you freeze the tool next quarter.',
+      'The best VC and PE posts contrast LP expectations with engineering reality: what the cap table wants funded versus what still breaks in production this month.',
+    ],
   },
   cio: {
     label: 'CIO & VP Engineering stakes',
