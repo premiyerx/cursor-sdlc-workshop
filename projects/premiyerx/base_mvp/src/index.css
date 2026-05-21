@@ -3763,6 +3763,32 @@ body {
   border-color: rgba(248, 113, 113, 0.45);
 }
 
+.model-workbench-card.is-recommended {
+  border-color: rgba(253, 203, 110, 0.75);
+  box-shadow:
+    0 0 0 1px rgba(253, 203, 110, 0.35),
+    0 0 28px rgba(253, 203, 110, 0.12),
+    0 12px 40px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(165deg, rgba(253, 203, 110, 0.06) 0%, var(--bg-card) 42%);
+}
+
+.model-workbench-card.is-recommended.is-dimmed {
+  opacity: 0.55;
+}
+
+.model-workbench-reach-pill {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #1a1408;
+  background: linear-gradient(135deg, #fdcb6e 0%, #f39c12 100%);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .model-workbench-card-h {
   display: flex;
   flex-wrap: wrap;

@@ -70,7 +70,8 @@ export const SCORING_RULES = [
       const wordCount = body.split(/\s+/).filter(Boolean).length
       const readTimeSec = (wordCount / 200) * 60
       const hasFramework = /\d+\.\s/.test(body) && (body.match(/\d+\.\s/g) || []).length >= 3
-      const arrowBullets = (body.match(/[→►▸]/g) || []).length
+      const lineCount = body.split('\n').filter((l) => l.trim()).length
+      const doubleBreaks = (body.match(/\n\n/g) || []).length
       const dataPoints = (body.match(/\d+%|\$[\d.]+[BMK]?|\d+x/g) || []).length
       let score = 0
       if (readTimeSec >= 45 && readTimeSec <= 120) score += 40
@@ -80,8 +81,8 @@ export const SCORING_RULES = [
       else if (readTimeSec > 180 && readTimeSec <= 220) score += 22
       else score += 12
       if (hasFramework) score += 25
-      else if (arrowBullets >= 5) score += 18
-      else if (arrowBullets >= 3) score += 12
+      else if (lineCount >= 14 && doubleBreaks >= 5) score += 18
+      else if (lineCount >= 10 && doubleBreaks >= 3) score += 12
       if (dataPoints >= 5) score += 25
       else if (dataPoints >= 3) score += 18
       else if (dataPoints >= 1) score += 10
@@ -144,23 +145,23 @@ export const SCORING_RULES = [
   {
     id: 'visualStructure',
     label: 'Visual Structure',
-    description: 'Arrows, 2-3 emoji anchors, numbered lists. Professional emojis only.',
+    description: 'Numbered beats, short lines, light emoji — no arrow-bullet AI tells.',
     weight: 10,
     evaluate: (text) => {
-      const arrows = (text.match(/→|►|▸/g) || []).length
-      const numberedItems = (text.match(/\n\d+\.\s/g) || []).length
-      const proEmojis = (text.match(/📊|💡|🔑|🎯|📈|🔮|⚡|🔴|📰/g) || []).length
-      const allEmojis = (text.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length
+      const body = stripHashtagBlock(text)
+      const arrows = (body.match(/→|►|▸/g) || []).length
+      const numberedItems = (body.match(/\n\d+\.\s/g) || []).length
+      const proEmojis = (body.match(/📊|💡|🔑|🎯|📈|🔮|⚡|🔴|📰/g) || []).length
+      const allEmojis = (body.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length
+      const shortLines = body.split('\n').filter((l) => l.trim() && l.trim().length <= 100).length
       let score = 0
-      if (arrows >= 6) score += 38
-      else if (arrows >= 4) score += 32
-      else if (arrows >= 3) score += 26
-      else if (arrows >= 1) score += 14
-      if (numberedItems >= 3) score += 20
-      else if (numberedItems >= 1) score += 10
-      if (proEmojis >= 2 && proEmojis <= 4) score += 30
-      else if (proEmojis === 1) score += 22
-      if (arrows >= 4 && proEmojis >= 1) score += 10
+      if (numberedItems >= 3) score += 32
+      else if (numberedItems >= 1) score += 18
+      if (shortLines >= 10) score += 28
+      else if (shortLines >= 6) score += 18
+      if (proEmojis >= 1 && proEmojis <= 3) score += 22
+      else if (proEmojis === 0) score += 12
+      if (arrows > 0) score -= Math.min(35, arrows * 12)
       if (allEmojis > 6) score -= 15
       return Math.min(Math.max(score, 0), 100)
     },
@@ -308,15 +309,15 @@ function meetsReachComposite(text, details) {
   const scan = details.find((d) => d.id === 'readability')?.score ?? 0
   if (hook < 78 || dwell < 58 || comments < 68 || scan < 52) return false
 
-  const arrows = (text.match(/[→►▸]/g) || []).length
+  const numbered = (body.match(/\n\d+\.\s/g) || []).length
+  const lineCount = body.split('\n').filter((l) => l.trim()).length
   const last = body.slice(-680)
-  if (arrows < 2 || !/\?/.test(last) || !/you|your/i.test(last)) return false
+  if ((numbered < 2 && lineCount < 12) || !/\?/.test(last) || !/you|your/i.test(last)) return false
 
   const tags = (text.match(/#\w+/g) || []).length
   if (tags < 2 || tags > 8) return false
 
   const doubles = (body.match(/\n\n/g) || []).length
-  const lineCount = body.split('\n').filter((l) => l.trim()).length
   if (doubles < 4 && lineCount < 16) return false
 
   return true

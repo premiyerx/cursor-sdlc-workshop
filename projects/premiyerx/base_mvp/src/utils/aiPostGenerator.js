@@ -12,6 +12,8 @@ import {
   getTextModelProfile,
 } from '../data/textModelProfiles'
 import { generateRawCompletion, getApiKeyForProfile } from './llmPostClient'
+import { humanizePostSections } from './humanizeLinkedInCopy'
+import { annotateVariantsWithRecommendation } from './draftRecommendation'
 
 export { hasOpenAiKey, getOpenAiKey }
 export { DEFAULT_TEXT_MODEL_ID, getTextModelProfile, TEXT_MODEL_PROFILES } from '../data/textModelProfiles'
@@ -249,8 +251,9 @@ function finalizePost(p) {
   const cta = stripStraySectionLabels(sanitizeExternalCopy(p.cta || ''))
   const hashtags = stripStraySectionLabels(sanitizeExternalCopy(p.hashtags || ''))
   const firstComment = stripStraySectionLabels(sanitizeExternalCopy(p.firstComment || ''))
-  recordGeneratedHook(hook || body.slice(0, 200))
-  return { hook, body, cta, hashtags, firstComment }
+  const humanized = humanizePostSections({ hook, body, cta, hashtags, firstComment })
+  recordGeneratedHook(humanized.hook || humanized.body.slice(0, 200))
+  return humanized
 }
 
 function salvageUnstructuredPost(text) {
@@ -346,6 +349,7 @@ CONTEXT:
 - Anchor hook in LEAD STORY from research below (paraphrase — never paste headline verbatim).
 - Sound like Prem Iyer: SVP, Global Strategic Accounts at Cursor — operator + investor, peer to CIOs and engineering leaders — NOT generic ChatGPT LinkedIn voice.
 - Ban phrases: "game-changer", "let's dive", "in today's fast-paced", "thoughts?", "agree?"
+- HUMAN VOICE (non-negotiable): Write like a tired-but-sharp operator typing on mobile — not an AI assistant. No → ► ▸ arrow bullets (major ChatGPT tell). No markdown bold. No "Key takeaway", "Here's the thing", "Furthermore", "leverage/utilize", or checklist emoji. Lists = short standalone lines with blank lines between, or "1." / "2." numbering — never arrow prefixes. Use normal punctuation (commas and periods); em dashes sparingly (at most two in the whole post).
 - Never paste CAPITAL_PILLAR rubric lines, “Lead with…”, “Contrast…”, or other prompt instructions as if they were the post — those are private guidance, not public copy.
 - Do not claim a specific slide count (e.g. “11-slide visual guide”); the app attaches the PDF and writes the accurate slide count in the caption.
 ${realtimeContext}
@@ -489,9 +493,13 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
     }
   })
 
+  report(96, 'Ranking drafts for LinkedIn reach…')
+  const { variants: annotated, recommendation } = annotateVariantsWithRecommendation(variants)
+
   report(100, 'All model runs finished')
   return {
-    variants,
+    variants: annotated,
+    recommendation,
     topic: ctx.topic,
     usedAI: true,
     realtimeData: ctx.realtimeData,

@@ -58,7 +58,7 @@ VOICE RULES:
 - ${tone.authority}
 - ${tone.dataOrientation}
 - ${tone.perspective}
-- Use short paragraphs (1-3 sentences), → arrows for lists, strategic line breaks
+- Use short paragraphs (1-3 sentences), strategic line breaks; lists as numbered beats or plain lines (never → arrow bullets — reads as AI)
 - Open with a hook that stops the scroll: ${style.hookPattern}
 - Close with a genuine question that invites conversation: ${style.closingPattern}
 - ${style.emojiUsage}
@@ -69,7 +69,7 @@ VOICE RULES:
 STRUCTURE (still mandatory):
 1. HOOK: 8-12 words with a number; first-person or direct; never start with "stop/don't/quit"
 2. RE-HOOK: Line 2-3 = parenthetical that earns the "see more" tap
-3. BODY: Aggressive line breaks; → arrows for evidence; 2-3 professional emoji anchors (📊 💡 🔑 🎯) at section transitions only
+3. BODY: Aggressive line breaks; evidence as short lines or 1. 2. 3. numbering (no → arrows); at most 2 professional emoji anchors (📊 💡 🔑 🎯) only if they feel natural
 4. FRAMEWORK + STORY: Numbered beats plus one concrete anecdote so the post sustains read depth
 5. CTA: One closing question using "you/your" that can spark threaded replies—not binary bait
 6. HASHTAGS: 3-5 at the end (1 broad + 2 mid + 1-2 niche)
@@ -145,7 +145,7 @@ const PREM_IYER = createVoiceProfile({
     hookPattern:
       'Punchy, curiosity-driven openers. A surprising stat, contrarian take, or "Here\'s what nobody talks about" framing.',
     paragraphLength: 'Short — 1-3 sentences max. Heavy use of line breaks for scanability.',
-    formatting: 'Uses → arrows for lists, strategic bold for emphasis, numbered lists for frameworks.',
+    formatting: 'Short lines and numbered beats for frameworks — no arrow bullets, no markdown bold, no assistant filler phrases.',
     tone: 'Confident but approachable. Not salesy — more "here\'s what I\'m seeing from the inside." Peer operator, not guru.',
     closingPattern: 'Ends with an engaging question that invites CxO-level conversation, not generic "thoughts?"',
     hashtagStyle: '3-5 targeted hashtags. Mix of 1 broad + 2 mid + 1-2 niche.',

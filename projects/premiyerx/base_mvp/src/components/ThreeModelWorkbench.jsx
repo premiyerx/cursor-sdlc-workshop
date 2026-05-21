@@ -13,6 +13,7 @@ export function variantPostToLiveText(post, appendCitations) {
  */
 export default function ThreeModelWorkbench({
   variants,
+  recommendation,
   topicId,
   variantAssets,
   assetFocus,
@@ -28,15 +29,25 @@ export default function ThreeModelWorkbench({
 
   const focusId = assetFocus?.variantId || null
   const dimOthers = Boolean(focusId && assetBusy)
+  const recommendedId =
+    recommendation?.variantId || variants.find((v) => v.isRecommended)?.id || null
+  const recommendedVariant = variants.find((v) => v.id === recommendedId)
 
   return (
     <section className="model-workbench" aria-label="Three model drafts">
       <div className="model-workbench-head">
         <h2 className="model-workbench-title">Three drafts — same topic, same headlines</h2>
         <p className="model-workbench-sub">
-          Each model wrote its own version. Open a column and use the buttons below that draft to build an infographic
-          or carousel PDF for <em>that</em> copy only. While one asset is generating, the other columns dim so you know
-          where to look.
+          Each model wrote its own version.{' '}
+          {recommendedVariant ? (
+            <>
+              The highlighted column ({recommendedVariant.label}) scores highest for LinkedIn reach —
+              dwell time, comments, and scannability — after stripping common AI tells.
+            </>
+          ) : (
+            <>Pick the column that sounds most like you.</>
+          )}{' '}
+          Use the buttons below a draft to build an infographic or carousel PDF for that copy only.
         </p>
       </div>
 
@@ -67,6 +78,7 @@ export default function ThreeModelWorkbench({
                 v.error ? 'is-error' : '',
                 isDimmed ? 'is-dimmed' : '',
                 isFocused ? 'is-focused' : '',
+                v.isRecommended || v.id === recommendedId ? 'is-recommended' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -74,6 +86,12 @@ export default function ThreeModelWorkbench({
               <header className="model-workbench-card-h">
                 <span className="model-workbench-badge">{v.shortLabel || v.label}</span>
                 <span className="model-workbench-name">{v.label}</span>
+                {(v.isRecommended || v.id === recommendedId) && !v.error && (
+                  <span className="model-workbench-reach-pill" title="Highest reach score among the three drafts">
+                    Best for reach
+                    {typeof v.algorithmScore === 'number' ? ` · ${v.algorithmScore}` : ''}
+                  </span>
+                )}
                 {isFocused && assetBusy && (
                   <span className="model-workbench-focus-pill" aria-live="polite">
                     In progress

@@ -36,6 +36,7 @@ export default function App() {
   const { time: footerBuildTime, sha: footerBuildSha } = useFooterBuildStamp()
   const [selectedTopic, setSelectedTopic] = useState(null)
   const [draftVariants, setDraftVariants] = useState(null)
+  const [draftRecommendation, setDraftRecommendation] = useState(null)
   const [variantAssets, setVariantAssets] = useState(emptyVariantAssets)
   const [assetFocus, setAssetFocus] = useState(null)
   const [generateBusy, setGenerateBusy] = useState(false)
@@ -150,6 +151,7 @@ export default function App() {
     setGenerateBusy(true)
     resetGenerateProgress()
     setDraftVariants(null)
+    setDraftRecommendation(null)
     setVariantAssets(emptyVariantAssets())
     setAssetFocus(null)
 
@@ -161,6 +163,7 @@ export default function App() {
       })
       compareContextRef.current = { realtimeData: result.realtimeData, seed: result.seed }
       setDraftVariants(result.variants)
+      setDraftRecommendation(result.recommendation ?? null)
       setPostProgress(100)
       const okCount = result.variants.filter((v) => v.post && !v.error).length
       setPostStage(okCount === 3 ? 'Three drafts ready' : `${okCount} of 3 drafts ready`)
@@ -171,8 +174,11 @@ export default function App() {
           12000,
         )
       }
+      const rec = result.recommendation
       flashGenerateOk(
-        'Three drafts are below. Use Generate infographic or Generate carousel on any column — you can create more than one per model.',
+        rec?.label
+          ? `Three drafts are below. ${rec.label} is highlighted as best for reach (score ${rec.algorithmScore}). Arrow bullets and other AI tells were stripped automatically.`
+          : 'Three drafts are below. Use Generate infographic or Generate carousel on any column — you can create more than one per model.',
       )
     } catch (err) {
       flashGenerateErr(err?.message || 'Could not generate. Check your API keys and connection.')
@@ -298,6 +304,7 @@ export default function App() {
   const handleTopicSelect = useCallback((id) => {
     setSelectedTopic(id)
     setDraftVariants(null)
+    setDraftRecommendation(null)
     setVariantAssets(emptyVariantAssets())
     setAssetFocus(null)
   }, [])
@@ -403,6 +410,7 @@ export default function App() {
         {draftVariants && draftVariants.length > 0 && (
           <ThreeModelWorkbench
             variants={draftVariants}
+            recommendation={draftRecommendation}
             topicId={selectedTopic}
             variantAssets={variantAssets}
             assetFocus={assetFocus}

@@ -10,7 +10,7 @@ const VIRAL_OPERATOR_ARCHETYPES = [
     label: 'Field memo',
     pattern:
       'Open like a one-paragraph memo to your peer group: "Three things I\'m seeing this week…" then numbered beats. Feels exclusive, not performative.',
-    structure: 'Hook (time-stamped) → 3 bullets with → arrows → one "so what" line → question',
+    structure: 'Hook (time-stamped) → three short lines (blank line between) → one "so what" line → question',
     voice: 'Calm authority. No hype adjectives. Sounds like a text to another exec.',
   },
   {
@@ -103,6 +103,7 @@ export function buildViralCraftBlock(topicId) {
     `- Scroll: ${stopper}`,
     `- Comment magnet: ${comment}`,
     '- Do NOT sound like a generic LinkedIn guru, life coach, or engagement bait ("Agree?", "Thoughts?", "Comment YES").',
+    '- Do NOT use → arrow bullets, markdown bold, or assistant filler ("Key takeaway", "Furthermore", "leverage").',
     '- Sound like a peer operator who invests, sells to CxOs, and has seen rollouts — not a motivational poster.',
     '- End with a fresh closing question: avoid repeating "bottom-up adoption or top-down mandate" and other stock forks across posts; vary the angle (metric, scope, failure mode, procurement, trust).',
     '',

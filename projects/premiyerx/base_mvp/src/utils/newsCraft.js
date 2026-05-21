@@ -149,7 +149,7 @@ export function buildFullResearchBrief(realtimeData, topicId) {
     headlines.slice(1, 5).forEach((h, i) => lines.push(formatHeadlineLine(h, i + 1)))
     lines.push('')
     lines.push('SUGGESTED ANGLES FOR THIS RUN:')
-    angles.forEach((a) => lines.push(`→ ${a}`))
+    angles.forEach((a) => lines.push(`- ${a}`))
     lines.push('')
     lines.push(`VIRAL STRUCTURE HINT: Use "${archetype.label}" pattern — ${archetype.pattern}`)
   } else {
@@ -160,7 +160,7 @@ export function buildFullResearchBrief(realtimeData, topicId) {
   if (headlines.length === 0 && realtimeData?.freshData?.length > 0) {
     lines.push('')
     lines.push('BACKGROUND FRAMING ONLY (hedged — no hard numbers unless you later get them from headlines):')
-    realtimeData.freshData.forEach((d) => lines.push(`→ ${d}`))
+    realtimeData.freshData.forEach((d) => lines.push(`- ${d}`))
   }
 
   lines.push(
@@ -191,7 +191,7 @@ export function weaveNewsIntoTemplate(pick, realtimeData, topicId) {
 
   const lines = headlines.map((h, i) => {
     const lens = narrative.newsLenses[i % narrative.newsLenses.length]
-    return `→ "${h.title}" — ${h.source}${h.date ? `, ${h.date}` : ''}\n   (${lens} — rewrite in your voice; connect to ${narrative.label.toLowerCase()})`
+    return `- "${h.title}" (${h.source}${h.date ? `, ${h.date}` : ''})\n   (${lens} — rewrite in your voice; connect to ${narrative.label.toLowerCase()})`
   })
 
   const angleIdx = (seed % narrative.hookDirections.length)
