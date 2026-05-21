@@ -20,20 +20,22 @@ function findGitRoot(start) {
 }
 
 const shaPath = resolve(appRoot, 'commit.sha')
-if (existsSync(shaPath)) {
-  const existing = readFileSync(shaPath, 'utf8').trim().slice(0, 7)
-  if (existing && existing !== 'local') {
-    console.log(`commit.sha kept → ${existing}`)
-    process.exit(0)
-  }
-}
-
 const gitRoot = findGitRoot(appRoot)
-let sha = 'local'
+
 try {
-  sha = execSync('git rev-parse --short HEAD', { encoding: 'utf8', cwd: gitRoot }).trim()
+  const sha = execSync('git rev-parse --short HEAD', { encoding: 'utf8', cwd: gitRoot }).trim()
+  writeFileSync(shaPath, `${sha}\n`, 'utf8')
+  console.log(`commit.sha → ${sha}`)
+  process.exit(0)
 } catch {
-  /* tarball / CI without git */
+  /* Vercel upload build: no .git — keep stamped file from deploy upload */
+  if (existsSync(shaPath)) {
+    const existing = readFileSync(shaPath, 'utf8').trim().slice(0, 7)
+    if (existing && existing !== 'local') {
+      console.log(`commit.sha kept (no git) → ${existing}`)
+      process.exit(0)
+    }
+  }
+  writeFileSync(shaPath, 'local\n', 'utf8')
+  console.log('commit.sha → local')
 }
-writeFileSync(shaPath, `${sha}\n`, 'utf8')
-console.log(`commit.sha → ${sha}`)
