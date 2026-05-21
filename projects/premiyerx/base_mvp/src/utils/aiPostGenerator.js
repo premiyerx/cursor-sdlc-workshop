@@ -332,7 +332,8 @@ CAPITAL_PILLAR_FOCUS (VC & PE × AI SDLC — prudent public framing for an opera
 GENERATION_RUN: ${runStamp} — this must be completely different from any post you wrote earlier today for this pillar.
 
 CURRENT_PERIOD_UTC: ${periodLabel}. For anything time-sensitive (valuations, M&A, funding totals, survey quarters), prioritize facts implied by the dated headlines in CONTEXT. Do not cite stale 2025 summaries or old round totals unless a headline explicitly includes them with a date.
-DATE FRESHNESS: Any stat, survey, or "as of" year in the post must be within 30 days of GENERATION_RUN — unless you show an explicit timeline that includes the current calendar year (e.g. 2024 → 2025 → 2026). Never drop a lone 2024 figure as if it were this week's news.
+BREAKING-NEWS MODE: Write like a same-day AI wire — anchor on CONTEXT headlines from the last 30 days. Never cite 2023 or 2024 (or older surveys) as current news. A multi-year timeline is allowed only if it ends in the current month/year (${new Date().getUTCFullYear()}).
+DATE FRESHNESS: Any stat or "as of" year must be within 30 days of GENERATION_RUN unless part of an explicit timeline whose last step is the present period. Training-data round totals from past years are forbidden.
 
 Pillar context: ${topic.description}
 

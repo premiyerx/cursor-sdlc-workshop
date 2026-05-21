@@ -3,7 +3,7 @@ import { researchForTopic } from '../data/topicIntel'
 
 const CACHE_KEY = 'lidp_realtime_cache'
 /** Soft TTL when not forcing refresh — still bypassed on every Generate via forceRefresh. */
-const CACHE_TTL = 4 * 60 * 60 * 1000
+const CACHE_TTL = 60 * 60 * 1000
 
 const GNEWS_KEY_STORAGE = 'lidp_gnews_api_key'
 const GNEWS_KEY_SAVED_AT = 'lidp_gnews_api_key_saved_at'

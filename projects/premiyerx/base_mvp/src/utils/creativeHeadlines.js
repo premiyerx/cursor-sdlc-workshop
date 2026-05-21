@@ -136,14 +136,14 @@ export async function generateCreativeHeadline({
   ].join('; ')
 
   const systemPrompt =
-    'You write original magazine-style infographic titles for LinkedIn. One line only. No quotes, no colons at start, no arrow bullets, no markdown.'
+    'You write breaking-news infographic titles for LinkedIn — same-day AI markets desk, not evergreen SEO. One line only. No quotes, no arrow bullets, no markdown.'
   const userPrompt = [
     `Topic pillar: ${topicLabel || narrative.label}.`,
     `Thesis: ${narrative.coreThesis.slice(0, 200)}.`,
-    leadHeadlineTitle ? `News anchor (paraphrase, do not copy): ${leadHeadlineTitle.slice(0, 100)}.` : '',
+    leadHeadlineTitle ? `Today's wire (paraphrase, do not copy): ${leadHeadlineTitle.slice(0, 100)}.` : '',
     postText ? `Post angle (paraphrase): ${postText.slice(0, 280).replace(/\n/g, ' ')}.` : '',
     `Do NOT repeat or closely imitate: ${banned}.`,
-    'Write ONE fresh title (8–14 words) that sounds human and specific to this week.',
+    'Write ONE fresh title (8–14 words) that sounds like breaking news THIS WEEK in AI — not a 2023/2024 retrospective.',
     'Return only the title text.',
   ]
     .filter(Boolean)

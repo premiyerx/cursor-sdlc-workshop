@@ -1,4 +1,5 @@
 import { headlinePromptOffset, fnv1a } from './generationVariety'
+import { filterBreakingHeadlines, FRESH_HEADLINE_MAX_DAYS, headlineAgeDays } from './dateFreshness.js'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { buildViralCraftBlock, pickViralArchetype } from './viralCraft'
 import { rotateSlice, bumpRefreshSeed } from './freshnessRotation'
@@ -40,10 +41,9 @@ function scoreHeadline(headline, topicId) {
       if (days <= 3) score += 14
       else if (days <= 7) score += 10
       else if (days <= 14) score += 6
-      else if (days <= 30) score += 3
-      else if (days <= 45) score += 0
-      else if (days <= 60) score -= 6
-      else score -= 22
+      else if (days <= 30) score += 8
+      else if (days <= 45) score -= 12
+      else score -= 40
     }
   }
 
@@ -62,7 +62,9 @@ function scoreHeadline(headline, topicId) {
  */
 export function selectHeadlinesForTopic(headlines, topicId, count = 5) {
   if (!headlines?.length) return []
-  const ranked = [...headlines]
+  const fresh = filterBreakingHeadlines(headlines, FRESH_HEADLINE_MAX_DAYS)
+  const pool = fresh.length ? fresh : headlines.filter((h) => headlineAgeDays(h.date) <= 45)
+  const ranked = [...pool]
     .map((h, i) => ({ h, score: scoreHeadline(h, topicId), i }))
     .sort((a, b) => b.score - a.score || (b.h.date || '').localeCompare(a.h.date || ''))
 
@@ -165,12 +167,13 @@ export function buildFullResearchBrief(realtimeData, topicId) {
 
   lines.push(
     '',
-    'FRESHNESS CONTRACT:',
-    '- The hook must feel written THIS WEEK — tie to lead story or a specific market shift.',
+    'FRESHNESS CONTRACT (breaking-news desk):',
+    `- Only headlines from the last ${FRESH_HEADLINE_MAX_DAYS} days count as "the news" — behave like a wire service, not a textbook.`,
+    '- The hook must feel written TODAY — tie to the lead story date and source.',
     '- Paraphrase headlines; never paste article titles as your opening line.',
-    '- Name-check at most one vendor/product from the news if it sharpens the point.',
+    '- FORBIDDEN: 2023/2024 (or older) stats, survey years, or timelines that stop before the current calendar year unless the post is explicitly a multi-year arc ending in the current month/year.',
     '- Never invent funding rounds, dates, customer logos, or survey percentages.',
-    '- If CONTEXT includes dated headlines, every valuation, funding total, and quarter MUST agree with those dates — never resurrect older figures from training data.',
+    '- If CONTEXT includes dated headlines, every number and quarter MUST match those headlines — never use training-data round totals from past years.',
     '- Prefer a narrative frame the feed has NOT already beaten to death.',
     '=== END PILLAR BRIEF ===',
     '',

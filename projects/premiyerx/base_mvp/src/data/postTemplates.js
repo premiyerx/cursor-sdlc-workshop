@@ -266,7 +266,7 @@ Every conversation surfaced the same truth:
 → Senior engineers: $200K+ and 6 months to ramp
 
 🔴 Fear #2: "Our tech debt is a business risk"
-→ 79% say it now threatens revenue (Stripe, 2024)
+→ 79% say tech debt now threatens revenue (industry surveys, hedged 2026)
 → Refactoring budgets get cut every quarter
 
 🔴 Fear #3: "We'll fall behind on AI and never catch up"

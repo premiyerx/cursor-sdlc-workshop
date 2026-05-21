@@ -6,7 +6,8 @@ import { mulberry32 } from './generationVariety'
 import { pickFromPool } from './freshnessRotation'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { buildNewsroomAlgorithmLine } from '../data/linkedinAlgorithm2026'
-import { generateCreativeHeadline } from './creativeHeadlines.js'
+import { generateCreativeHeadline, pickCreativeCatalogHeadline, BANNED_REPEAT } from './creativeHeadlines.js'
+import { buildBreakingNewsVisualRules, registrySourceIsFreshEnough } from './dateFreshness.js'
 import { getOpenAiKey } from './openaiKey'
 
 /** Rotating “families” = quality bar (polish, hierarchy) without locking every image to the same newspaper trope. */
@@ -144,12 +145,29 @@ const SECTION_KICKERS = [
   'Lens: ROI',
 ]
 
-/** Legacy defaults — only used if creative headline generation fails. */
-const TOPIC_HEADLINE_FALLBACK = {
-  roi: 'The ROI of AI in Software Development',
-  cursor: 'The Business Case for AI-Native Software Development',
-  investment: 'Where Capital Is Flowing in AI Software Development',
-  cio: 'What Technology Leaders Must Know About AI in the SDLC',
+function resolveInfographicTitle(creativeHeadline, topicId, postTheme, refreshSeed) {
+  let title = (creativeHeadline || '').trim()
+  if (!title || BANNED_REPEAT.test(title) || /where capital is flowing in ai software/i.test(title)) {
+    title = pickCreativeCatalogHeadline({
+      topicId,
+      refreshSeed: refreshSeed >>> 0,
+      headlineGuard: new Set(),
+      postSnippet: postTheme || '',
+    })
+  }
+  return title
+}
+
+function formatBreakingWireBlock(infographicModel) {
+  const lead = infographicModel?.leadHeadline
+  if (!lead?.title) {
+    return 'No wire headline available — use TODAY\'s date in the kicker and avoid inventing historical year labels.'
+  }
+  return [
+    `WIRE ANCHOR (build the visual around this — paraphrase, do not copy verbatim):`,
+    `"${lead.title}" — ${lead.source}${lead.date ? `, published ${lead.date}` : ''}`,
+    'All chart labels and callouts must relate to this week\'s story, not 2023/2024 retrospectives.',
+  ].join('\n')
 }
 
 const INFOGRAPHIC_FOOTER = 'Prem Iyer · AI Software Transformation'
@@ -161,7 +179,7 @@ const VIZ_ELEMENT_POOL = [
   'Either a compact icon-led metric row OR clean typographic KPI rows — not both unless space allows.',
   'Optional narrow rail or callout for one sharp takeaway (can merge into the main column instead of a boxed cliché).',
   'At most one secondary mini-chart or spark row — omit if it would duplicate the hero story.',
-  'Optional timeline, before/after strip, or 3–5 step sequence if it clarifies the thesis.',
+  'Optional timeline that ENDS in the current month/year (never stop at 2023 or 2024), or a before/after strip without obsolete year labels.',
   'Optional abstract metaphor (isometric blocks, layers, pipeline nodes) — schematic, not cheesy 3D clipart.',
   'Generous whitespace and a single clear focal path; resist filling every inch with charts and tables.',
 ]
@@ -215,8 +233,15 @@ export function humanizeImageError(raw = '') {
 }
 
 function formatStatsBlock(stats = []) {
-  if (!stats.length) return 'Use abstract KPI shapes only — do not invent numbers.'
-  return stats
+  const fresh = (stats || []).filter((s) => registrySourceIsFreshEnough(s.source))
+  if (!fresh.length) {
+    return [
+      'No statistics with sources from the last 30 days — use abstract KPI shapes only.',
+      'Do NOT invent dollar amounts, percents, or year labels (especially 2023/2024).',
+      'Let the headline wire and today\'s date carry the story.',
+    ].join('\n')
+  }
+  return fresh
     .slice(0, 5)
     .map((s, i) => `${i + 1}. ${s.value} — ${s.context?.slice(0, 40) || 'metric'} (source: ${s.source || 'verified registry'})`)
     .join('\n')
@@ -236,14 +261,13 @@ function buildPrompt({
   const { family, layout, palette, kicker, vizFull, vizCompact } = fullRecipe
   const narrative = getTopicNarrative(topicId)
   const stats = (infographicModel?.verifiedStats || []).slice(0, 5)
-  const headline =
-    creativeHeadline ||
-    TOPIC_HEADLINE_FALLBACK[topicId] ||
-    `The ROI of ${topicLabel || narrative.label}`
   const theme = (postTheme || infographicModel?.hook || narrative.coreThesis || '').slice(0, 120)
+  const headline = resolveInfographicTitle(creativeHeadline, topicId, theme, refreshSeed)
   const leadLine = infographicModel?.leadHeadline?.title?.slice(0, 90) || theme
   const statsBlock = formatStatsBlock(stats)
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const breakingRules = buildBreakingNewsVisualRules()
+  const wireBlock = formatBreakingWireBlock(infographicModel)
 
   const qualityPreamble = [
     'QUALITY BAR: Publication-grade LinkedIn infographic (landscape ~16:9, 1536×1024).',
@@ -257,6 +281,8 @@ function buildPrompt({
     const prios = (vizCompact || []).slice(0, 2)
     return [
       qualityPreamble,
+      breakingRules,
+      wireBlock,
       `Headline: "${headline}". Section kicker: "${kicker}". Date: ${today}.`,
       `Topic angle: ${narrative.label}. ${leadLine}.`,
       `Primary composition: ${layout.name} — ${layout.brief}.`,
@@ -274,6 +300,8 @@ function buildPrompt({
     const prios = vizCompact || []
     return [
       qualityPreamble,
+      breakingRules,
+      wireBlock,
       `Create a landscape LinkedIn infographic titled "${headline}".`,
       `Kicker: "${kicker}" · ${today}.`,
       `Story angle: ${narrative.coreThesis}`,
@@ -300,6 +328,8 @@ function buildPrompt({
   const prios = vizFull || []
   return [
     qualityPreamble,
+    breakingRules,
+    wireBlock,
     `Title: "${headline}"`,
     `Kicker: "${kicker}" · ${today}`,
     '',
