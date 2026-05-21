@@ -253,16 +253,36 @@ function finalizePost(p) {
   return { hook, body, cta, hashtags, firstComment }
 }
 
+function salvageUnstructuredPost(text) {
+  const clean = sanitizeExternalCopy(stripAssistantPreamble(stripCodeFence(String(text || '').replace(/\r\n/g, '\n'))))
+  if (!clean || clean.length < 24) return null
+  const lines = clean.split('\n').filter((l) => l.trim())
+  if (!lines.length) return null
+  return finalizePost({
+    hook: lines[0],
+    body: lines.length > 1 ? lines.slice(1).join('\n').trim() : clean,
+    cta: '',
+    hashtags: '',
+    firstComment: '',
+  })
+}
+
 function parseAIOutput(raw) {
   let text = stripCodeFence(String(raw || '').replace(/\r\n/g, '\n'))
   text = stripAssistantPreamble(text)
   text = sanitizeExternalCopy(text)
 
   const json = tryParseJsonPost(text)
-  if (json) return finalizePost(json)
+  if (json) {
+    const out = finalizePost(json)
+    if (out.hook || out.body) return out
+  }
 
   const headers = parseHeaderSections(text)
-  if (headers) return finalizePost(headers)
+  if (headers) {
+    const out = finalizePost(headers)
+    if (out.hook || out.body) return out
+  }
 
   const legacyNl = parseLegacyNewlineSections(text)
   if (legacyNl && (legacyNl.hook || legacyNl.body)) return finalizePost(legacyNl)
@@ -273,7 +293,13 @@ function parseAIOutput(raw) {
   const lines = text.split('\n').filter((l) => l.trim())
   const hook = lines[0] || text.slice(0, 200)
   const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text
-  return finalizePost({ hook, body, cta: '', hashtags: '', firstComment: '' })
+  const out = finalizePost({ hook, body, cta: '', hashtags: '', firstComment: '' })
+  if (out.hook || out.body) return out
+
+  const salvaged = salvageUnstructuredPost(raw)
+  if (salvaged?.hook || salvaged?.body) return salvaged
+
+  throw new Error('Could not find HOOK or BODY in model output. Try Generate again.')
 }
 
 function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '') {
@@ -417,44 +443,47 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
   const profiles = COMPARE_TEXT_MODEL_IDS.map((id) => getTextModelProfile(id))
   report(52, 'Running GPT 5.5, Claude Opus 4.7, and Gemini in parallel…')
 
-  const settled = await Promise.allSettled(
-    profiles.map((profile) =>
-      generateRawCompletion(profile, {
-        systemPrompt: ctx.systemPrompt,
-        userPrompt: ctx.userPrompt,
-        apiKey: getApiKeyForProfile(profile),
-      }),
-    ),
-  )
-
-  const variants = settled.map((s, i) => {
-    const profile = profiles[i]
-    if (s.status === 'fulfilled') {
+  async function runOneModel(profile) {
+    const baseArgs = {
+      systemPrompt: ctx.systemPrompt,
+      userPrompt: ctx.userPrompt,
+      apiKey: getApiKeyForProfile(profile),
+    }
+    const attempts = 2
+    let lastErr = 'Request failed'
+    for (let i = 0; i < attempts; i++) {
       try {
-        return {
-          id: profile.id,
-          label: profile.label,
-          shortLabel: profile.shortLabel,
-          provider: profile.provider,
-          post: parseAIOutput(s.value),
-          error: null,
+        const raw = await generateRawCompletion(profile, baseArgs)
+        const post = parseAIOutput(raw)
+        if (!post.hook?.trim() && !post.body?.trim()) {
+          throw new Error('Model returned empty HOOK and BODY.')
         }
+        return { post, error: null }
       } catch (e) {
-        return {
-          id: profile.id,
-          label: profile.label,
-          shortLabel: profile.shortLabel,
-          provider: profile.provider,
-          post: null,
-          error: e?.message || 'Could not parse model output.',
+        lastErr = e?.message || 'Request failed'
+        if (i < attempts - 1) {
+          await new Promise((r) => setTimeout(r, 1800))
         }
       }
     }
-    return {
+    return { post: null, error: lastErr }
+  }
+
+  const settled = await Promise.allSettled(profiles.map((profile) => runOneModel(profile)))
+
+  const variants = settled.map((s, i) => {
+    const profile = profiles[i]
+    const base = {
       id: profile.id,
       label: profile.label,
       shortLabel: profile.shortLabel,
       provider: profile.provider,
+    }
+    if (s.status === 'fulfilled') {
+      return { ...base, post: s.value.post, error: s.value.error }
+    }
+    return {
+      ...base,
       post: null,
       error: s.reason?.message || 'Request failed',
     }

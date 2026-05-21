@@ -2,9 +2,15 @@
   "installCommand": "cd projects/premiyerx/base_mvp && npm install",
   "buildCommand": "cd projects/premiyerx/base_mvp && npm run build",
   "outputDirectory": "projects/premiyerx/base_mvp/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
   "functions": {
     "api/generate-image.js": {
+      "maxDuration": 60
+    },
+    "api/anthropic-messages.js": {
       "maxDuration": 60
     }
   },

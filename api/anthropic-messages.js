@@ -1,6 +1,6 @@
 /**
  * Browser-safe bridge: Anthropic's API does not allow direct browser CORS calls.
- * Production uses repo-root /api/anthropic-messages.js; this copy mirrors behavior for local tooling.
+ * Deployed at repo root so Vercel serves POST /api/anthropic-messages (not caught by SPA rewrite).
  */
 export const config = {
   maxDuration: 60,

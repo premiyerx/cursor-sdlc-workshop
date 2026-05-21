@@ -41,7 +41,7 @@ export default function VoiceProfile() {
           <span>
             <strong>Your LinkedIn Writing Style</strong>
             <span className="voice-toggle-sub">
-              Voice snapshot + optional pasted posts (GNews for headlines lives under API Keys)
+              Voice snapshot + optional pasted posts (GNews lives in Settings below)
             </span>
           </span>
         </span>

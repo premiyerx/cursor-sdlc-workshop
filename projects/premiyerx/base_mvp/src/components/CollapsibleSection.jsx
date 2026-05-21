@@ -47,7 +47,10 @@ export default function CollapsibleSection({
   const ariaLabel = [title, badge && String(badge), affordance].filter(Boolean).join('. ')
 
   return (
-    <section id={id} className={`collapsible-section ${open ? 'is-open' : ''} ${className}`.trim()}>
+    <section
+      id={id}
+      className={`collapsible-section ${open ? 'is-open' : 'is-collapsed'} ${className}`.trim()}
+    >
       <button
         type="button"
         className="collapsible-toggle"

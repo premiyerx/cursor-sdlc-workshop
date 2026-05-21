@@ -1,30 +1,16 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import TOPICS from './data/postTemplates'
 import { findCitations } from './data/citations'
-import { getRealtimeSprinkle, fetchRealtimeContext, invalidateRealtimeCache } from './utils/realtimeData'
-import { weaveNewsIntoTemplate, getResearchSummary } from './utils/newsCraft'
-import { pickTemplateIndex, recordGeneratedHook } from './utils/generationVariety'
 import {
-  hasOpenAiKey,
-  getOpenAiKey,
-  generateAIPost,
-  generateAIPostCompareAll,
-  hasApiKeyForModelId,
   canRunCompareAll,
+  generateAIPostCompareAll,
 } from './utils/aiPostGenerator'
-import { DEFAULT_TEXT_MODEL_ID, getTextModelProfile } from './data/textModelProfiles'
 import { createCompanionGraphic } from './utils/companionGraphic'
-import { bumpRefreshSeed } from './utils/freshnessRotation'
+import { getOpenAiKey } from './utils/openaiKey'
 import VoiceProfile from './components/VoiceProfile'
-import AIGenerator from './components/AIGenerator'
-import PostDisplay from './components/PostDisplay'
-import PostPreview from './components/PostPreview'
-import AlgorithmScorer from './components/AlgorithmScorer'
-import DynamicGraphic from './components/DynamicGraphic'
-import FirstComment from './components/FirstComment'
-import CarouselGenerator from './components/CarouselGenerator'
-import FactCheckGate from './components/FactCheckGate'
-import ModelComparePicker from './components/ModelComparePicker'
+import ApiKeysPanel from './components/ApiKeysPanel'
+import OptionalAngleField from './components/OptionalAngleField'
+import ThreeModelWorkbench, { variantPostToLiveText } from './components/ThreeModelWorkbench'
 import { useFlashFeedback } from './hooks/useFlashFeedback'
 import { useFooterBuildStamp } from './hooks/useFooterBuildStamp'
 import ActionFeedback from './components/ActionFeedback'
@@ -42,13 +28,18 @@ const DAILY_ANGLES = {
   Sunday: { suggested: 'cio', reason: 'Sunday evening catches leaders doing weekly planning.' },
 }
 
+function emptyVariantAssets() {
+  return {}
+}
+
 export default function App() {
   const { time: footerBuildTime, sha: footerBuildSha } = useFooterBuildStamp()
   const [selectedTopic, setSelectedTopic] = useState(null)
-  const [format, setFormat] = useState('image')
-  const [generatedPost, setGeneratedPost] = useState(null)
-  const [liveText, setLiveText] = useState('')
+  const [draftVariants, setDraftVariants] = useState(null)
+  const [variantAssets, setVariantAssets] = useState(emptyVariantAssets)
+  const [assetFocus, setAssetFocus] = useState(null)
   const [generateBusy, setGenerateBusy] = useState(false)
+  const [assetBusy, setAssetBusy] = useState(false)
   const [generatePhase, setGeneratePhase] = useState(null)
   const [postProgress, setPostProgress] = useState(0)
   const [postStage, setPostStage] = useState('')
@@ -56,17 +47,12 @@ export default function App() {
   const [graphicStage, setGraphicStage] = useState('')
   const [phaseComplete, setPhaseComplete] = useState(false)
   const [customAngle, setCustomAngle] = useState('')
-  const [textGenMode, setTextGenMode] = useState('single')
-  const [selectedTextModelId, setSelectedTextModelId] = useState(DEFAULT_TEXT_MODEL_ID)
-  const [postVariants, setPostVariants] = useState(null)
   const [apiKeysMetaTick, setApiKeysMetaTick] = useState(0)
   const [apiKeysPanelOpen, setApiKeysPanelOpen] = useState(() => {
-    if (typeof window === 'undefined') return true
+    if (typeof window === 'undefined') return false
     return !canRunCompareAll()
   })
   const compareContextRef = useRef({ realtimeData: null, seed: 0 })
-  const [companionGraphic, setCompanionGraphic] = useState(null)
-  const [graphicSessionId, setGraphicSessionId] = useState(0)
   const { msg: generateMsg, flashOk: flashGenerateOk, flashErr: flashGenerateErr } = useFlashFeedback()
 
   const reportPostProgress = useCallback((pct, stage) => {
@@ -98,7 +84,6 @@ export default function App() {
     setPhaseComplete(false)
   }, [])
 
-  // Smooth creep between real milestones so the ring never feels stuck
   useEffect(() => {
     if (!generateBusy || phaseComplete || !generatePhase) return undefined
     const timer = setInterval(() => {
@@ -115,11 +100,6 @@ export default function App() {
 
   const topic = TOPICS.find((t) => t.id === selectedTopic)
 
-  const selectedTextModelProfile = useMemo(
-    () => getTextModelProfile(selectedTextModelId),
-    [selectedTextModelId],
-  )
-
   const allCompareKeysSaved = useMemo(() => {
     void apiKeysMetaTick
     return canRunCompareAll()
@@ -132,10 +112,10 @@ export default function App() {
     })
   }, [])
 
-  const openApiKeysPanel = useCallback(() => {
+  const scrollToSettings = useCallback(() => {
     setApiKeysPanelOpen(true)
     queueMicrotask(() => {
-      document.getElementById('api-keys-setup')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.getElementById('app-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }, [])
 
@@ -161,203 +141,71 @@ export default function App() {
 
   const handleGenerate = useCallback(async () => {
     if (!topic) return
-    const aiReady = textGenMode === 'compare' ? canRunCompareAll() : hasApiKeyForModelId(selectedTextModelId)
+    if (!canRunCompareAll()) {
+      flashGenerateErr('Add OpenAI, Anthropic, and Google keys in Settings at the bottom of the page, then try again.')
+      scrollToSettings()
+      return
+    }
 
     setGenerateBusy(true)
     resetGenerateProgress()
-    setCompanionGraphic(null)
-    setGeneratedPost(null)
-    setLiveText('')
-    setPostVariants(null)
+    setDraftVariants(null)
+    setVariantAssets(emptyVariantAssets())
+    setAssetFocus(null)
+
     try {
-      if (aiReady) {
-        setGeneratePhase('post')
-        if (textGenMode === 'compare') {
-          const result = await generateAIPostCompareAll(selectedTopic, {
-            customAngle,
-            onProgress: reportPostProgress,
-          })
-          compareContextRef.current = { realtimeData: result.realtimeData, seed: result.seed }
-          setPostVariants(result.variants)
-          setPostProgress(100)
-          setPostStage('Pick your favorite draft')
-          await flashPhaseComplete('post', 'Pick your favorite draft')
-          flashGenerateOk('Three drafts are ready — pick one below. Then use Text + Image for a graphic, or Carousel for a PDF.')
-          return
-        }
-
-        const { post, realtimeData, seed } = await generateAIPost(selectedTopic, {
-          customAngle,
-          onProgress: reportPostProgress,
-          textModelId: selectedTextModelId,
-        })
-        setGeneratedPost(post)
-        const raw = `${post.hook}\n\n${post.body}\n\n${post.cta}\n\n${post.hashtags}`
-        const cited = appendCitations(raw)
-        setLiveText(cited)
-        setPostProgress(100)
-        setPostStage('Post complete')
-        await flashPhaseComplete('post', 'Post complete')
-
-        if (format === 'carousel') {
-          flashGenerateOk('Your post is ready — scroll down to export the carousel PDF and caption.')
-          return
-        }
-
-        setGeneratePhase('graphic')
-        setGraphicProgress(0)
-        setGraphicStage('Planning your infographic…')
-        const graphic = await createCompanionGraphic({
-          postText: cited,
-          topicId: selectedTopic,
-          topicLabel: topic.label,
-          realtimeData,
-          seed,
-          apiKey: getOpenAiKey(),
-          preferNewsroom: true,
-          bumpSeed: false,
-          onProgress: reportGraphicProgress,
-        })
-        setCompanionGraphic(graphic)
-        setGraphicSessionId((n) => n + 1)
-        setGraphicProgress(100)
-        setGraphicStage(graphic.ok ? 'Infographic complete' : 'Infographic finished')
-        await flashPhaseComplete('graphic', graphic.ok ? 'Infographic complete' : 'Infographic finished')
-
-        if (graphic.ok && graphic.mode === 'newsroom') {
-          flashGenerateOk('Your post and infographic are ready — scroll down to save the picture.')
-        } else if (!graphic.ok) {
-          flashGenerateErr(`Your post is ready. ${graphic.error || 'The picture could not be created.'}`, 15000)
-        } else {
-          flashGenerateOk('Post ready. Open API Keys (welcome area) and save your OpenAI key for premium infographics.')
-        }
-        return
-      }
-
       setGeneratePhase('post')
-      reportPostProgress(10, 'Choosing template…')
-      bumpRefreshSeed(selectedTopic)
-      invalidateRealtimeCache(selectedTopic)
-
-      const templates = topic.templates
-      const idx = pickTemplateIndex(selectedTopic, templates.length)
-      const pick = templates[idx]
-      setGeneratedPost(pick)
-      recordGeneratedHook(pick.hook)
-      const freshDataPoint = getRealtimeSprinkle(selectedTopic)
-      const freshLine = freshDataPoint ? `\n\n📊 Fresh data: ${freshDataPoint}` : ''
-      let woven = pick
-      let headlineCount = 0
-      let leadTitle = ''
-      let rt = null
-      try {
-        reportPostProgress(28, 'Loading today\'s headlines…')
-        rt = await fetchRealtimeContext(selectedTopic, {
-          forceRefresh: true,
-          topicLabel: topic?.label || '',
-        })
-        reportPostProgress(52, 'Weaving headlines into post…')
-        const summary = getResearchSummary(rt, selectedTopic)
-        headlineCount = summary.count
-        leadTitle = summary.lead?.title || ''
-        woven = weaveNewsIntoTemplate(pick, rt, selectedTopic)
-      } catch {
-        reportPostProgress(45, 'Using template without live headlines…')
-      }
-
-      const raw = `${woven.hook}\n\n${woven.body}${freshLine}\n\n${woven.cta}\n\n${woven.hashtags}`
-      const cited = appendCitations(raw)
-      setLiveText(cited)
-      setPostProgress(100)
-      setPostStage('Post complete')
-      await flashPhaseComplete('post', 'Post complete')
-
-      if (format === 'carousel') {
-        flashGenerateOk(
-          headlineCount > 0
-            ? leadTitle
-              ? `Post ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'}. Open the carousel section below.`
-              : `Post ready — ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}. Open the carousel section below.`
-            : 'Post ready — scroll down to export your carousel PDF and caption.',
-        )
-        return
-      }
-
-      setGeneratePhase('graphic')
-      setGraphicProgress(0)
-      setGraphicStage('Planning your infographic…')
-      const graphic = await createCompanionGraphic({
-        postText: cited,
-        topicId: selectedTopic,
-        topicLabel: topic.label,
-        realtimeData: rt,
-        apiKey: getOpenAiKey(),
-        preferNewsroom: hasOpenAiKey(),
-        bumpSeed: true,
-        onProgress: reportGraphicProgress,
+      const result = await generateAIPostCompareAll(selectedTopic, {
+        customAngle,
+        onProgress: reportPostProgress,
       })
-      setCompanionGraphic(graphic)
-      setGraphicSessionId((n) => n + 1)
-      setGraphicProgress(100)
-      setGraphicStage(graphic.ok ? 'Infographic complete' : 'Infographic finished')
-      await flashPhaseComplete('graphic', graphic.ok ? 'Infographic complete' : 'Infographic finished')
-
-      if (graphic.ok && graphic.mode === 'newsroom') {
-        flashGenerateOk('Your post and infographic are ready.')
-      } else if (!graphic.ok && hasOpenAiKey()) {
-        flashGenerateErr(`Your post is ready. ${graphic.error || 'The picture could not be created.'}`)
-      } else {
-        flashGenerateOk(
-          headlineCount > 0
-            ? leadTitle
-              ? `Post ready — woven with ${headlineCount} headline${headlineCount === 1 ? '' : 's'}.`
-              : `Post ready — ${headlineCount} live headline${headlineCount === 1 ? '' : 's'}.`
-            : 'Post ready.',
+      compareContextRef.current = { realtimeData: result.realtimeData, seed: result.seed }
+      setDraftVariants(result.variants)
+      setPostProgress(100)
+      const okCount = result.variants.filter((v) => v.post && !v.error).length
+      setPostStage(okCount === 3 ? 'Three drafts ready' : `${okCount} of 3 drafts ready`)
+      await flashPhaseComplete('post', okCount === 3 ? 'Three drafts ready' : `${okCount} of 3 drafts ready`)
+      if (okCount < 3) {
+        flashGenerateErr(
+          'Some models failed — check the red column for the error. Anthropic needs /api/anthropic-messages on the server (fixed in latest deploy).',
+          12000,
         )
       }
+      flashGenerateOk(
+        'Three drafts are below. Use Generate infographic or Generate carousel on any column — you can create more than one per model.',
+      )
     } catch (err) {
-      flashGenerateErr(err?.message || 'Could not generate. Check your connection and API key.')
+      flashGenerateErr(err?.message || 'Could not generate. Check your API keys and connection.')
     } finally {
       setGenerateBusy(false)
+      setGeneratePhase(null)
     }
   }, [
     topic,
     selectedTopic,
     customAngle,
-    format,
-    textGenMode,
-    selectedTextModelId,
-    appendCitations,
     flashGenerateOk,
     flashGenerateErr,
     reportPostProgress,
-    reportGraphicProgress,
     resetGenerateProgress,
     flashPhaseComplete,
+    scrollToSettings,
   ])
 
-  const handlePickCompareVariant = useCallback(
+  const handleVariantGraphic = useCallback(
     async (variant) => {
       if (!variant?.post || !topic) return
-      const raw = `${variant.post.hook}\n\n${variant.post.body}\n\n${variant.post.cta}\n\n${variant.post.hashtags}`
-      const cited = appendCitations(raw)
-      setGeneratedPost(variant.post)
-      setLiveText(cited)
-      setPostVariants(null)
-
-      if (format === 'carousel') {
-        flashGenerateOk('Draft locked in — scroll down for the carousel export.')
-        return
-      }
-
+      const cited = variantPostToLiveText(variant.post, appendCitations)
       const { realtimeData, seed } = compareContextRef.current
-      setGenerateBusy(true)
+
+      setAssetBusy(true)
+      setAssetFocus({ variantId: variant.id, type: 'graphic' })
+      setGraphicProgress(0)
+      setGraphicStage('Planning your infographic…')
       resetGenerateProgress()
-      setCompanionGraphic(null)
+      setGeneratePhase('graphic')
+
       try {
-        setGeneratePhase('graphic')
-        setGraphicProgress(0)
-        setGraphicStage('Planning your infographic…')
         const graphic = await createCompanionGraphic({
           postText: cited,
           topicId: selectedTopic,
@@ -366,51 +214,92 @@ export default function App() {
           seed,
           apiKey: getOpenAiKey(),
           preferNewsroom: true,
-          bumpSeed: false,
+          bumpSeed: true,
           onProgress: reportGraphicProgress,
         })
-        setCompanionGraphic(graphic)
-        setGraphicSessionId((n) => n + 1)
+        const assetId = `${Date.now()}-${variant.id}`
+        setVariantAssets((prev) => {
+          const pack = prev[variant.id] || { graphics: [], carousels: [] }
+          return {
+            ...prev,
+            [variant.id]: {
+              ...pack,
+              graphics: [
+                ...pack.graphics,
+                {
+                  id: assetId,
+                  liveText: cited,
+                  graphic,
+                  sessionId: assetId,
+                },
+              ],
+            },
+          }
+        })
         setGraphicProgress(100)
-        setGraphicStage(graphic.ok ? 'Infographic complete' : 'Infographic finished')
-        await flashPhaseComplete('graphic', graphic.ok ? 'Infographic complete' : 'Infographic finished')
-
-        if (graphic.ok && graphic.mode === 'newsroom') {
-          flashGenerateOk('Your post and infographic are ready — scroll down to save the picture.')
-        } else if (!graphic.ok) {
-          flashGenerateErr(`Your post is ready. ${graphic.error || 'The picture could not be created.'}`, 15000)
+        if (graphic.ok) {
+          flashGenerateOk(`Infographic ready for ${variant.shortLabel || variant.label}.`)
         } else {
-          flashGenerateOk('Post ready. Save your OpenAI key under API Keys (welcome area) for premium infographics.')
+          flashGenerateErr(graphic.error || 'Infographic could not be created.', 12000)
         }
       } catch (err) {
-        flashGenerateErr(err?.message || 'Could not create infographic.')
+        flashGenerateErr(err?.message || 'Infographic failed.')
       } finally {
-        setGenerateBusy(false)
+        setAssetBusy(false)
+        setAssetFocus(null)
+        setGeneratePhase(null)
       }
     },
     [
       topic,
       selectedTopic,
-      format,
       appendCitations,
       reportGraphicProgress,
       resetGenerateProgress,
-      flashPhaseComplete,
       flashGenerateOk,
       flashGenerateErr,
     ],
   )
 
-  const handleTopicSelect = useCallback((id) => {
-    setSelectedTopic(id)
-    setGeneratedPost(null)
-    setLiveText('')
-    setCompanionGraphic(null)
-    setPostVariants(null)
+  const handleVariantCarousel = useCallback(
+    (variant) => {
+      if (!variant?.post) return
+      const cited = variantPostToLiveText(variant.post, appendCitations)
+      const assetId = `${Date.now()}-carousel-${variant.id}`
+      setVariantAssets((prev) => {
+        const pack = prev[variant.id] || { graphics: [], carousels: [] }
+        return {
+          ...prev,
+          [variant.id]: {
+            ...pack,
+            carousels: [...pack.carousels, { id: assetId, liveText: cited }],
+          },
+        }
+      })
+      flashGenerateOk(`Carousel section added for ${variant.shortLabel || variant.label} — scroll that column to preview and download the PDF.`)
+    },
+    [appendCitations, flashGenerateOk],
+  )
+
+  const handleGraphicAssetUpdate = useCallback((variantId, assetId, graphic) => {
+    setVariantAssets((prev) => {
+      const pack = prev[variantId]
+      if (!pack) return prev
+      return {
+        ...prev,
+        [variantId]: {
+          ...pack,
+          graphics: pack.graphics.map((g) => (g.id === assetId ? { ...g, graphic } : g)),
+        },
+      }
+    })
   }, [])
 
-  const handlePostEdit = useCallback((text) => {
-    setLiveText(text)
+  const handleTopicSelect = useCallback((id) => {
+    setSelectedTopic(id)
+    setDraftVariants(null)
+    setVariantAssets(emptyVariantAssets())
+    setAssetFocus(null)
   }, [])
 
   return (
@@ -423,24 +312,16 @@ export default function App() {
       </header>
 
       <main className="app-main">
-        {/* STEP 1: Welcome + Context — sets the personal tone */}
         <section className="hero-greeting">
           <div className="hero-top">
             <div className="hero-welcome">
               <h2 className="hero-hello">{today.greeting}, Prem</h2>
               <p className="hero-date">{today.dateStr}</p>
-              <button
-                type="button"
-                className={`hero-api-keys-btn ${allCompareKeysSaved ? 'hero-api-keys-btn--done' : 'hero-api-keys-btn--need'}`}
-                onClick={openApiKeysPanel}
-              >
-                <span className="hero-api-keys-btn-label">Open API Keys</span>
-                <span className="hero-api-keys-btn-status" aria-live="polite">
-                  {allCompareKeysSaved
-                    ? 'All set — tap to view or rotate keys'
-                    : 'Start here — add OpenAI, Anthropic & Google'}
-                </span>
-              </button>
+              {!allCompareKeysSaved && (
+                <button type="button" className="hero-settings-link" onClick={scrollToSettings}>
+                  First time? Add API keys in Settings ↓
+                </button>
+              )}
             </div>
           </div>
 
@@ -448,31 +329,18 @@ export default function App() {
             <div className="hero-suggestion">
               <span className="hero-suggestion-icon">{suggestedTopic.icon}</span>
               <span className="hero-suggestion-text">
-                <strong>Recommended:</strong> {suggestedTopic.label} — {today.angle.reason}
+                <strong>Recommended for today:</strong> {suggestedTopic.label} — {today.angle.reason}
               </span>
-              <button className="hero-suggestion-btn" onClick={() => handleTopicSelect(today.angle.suggested)}>
-                Use this
+              <button className="hero-suggestion-btn" type="button" onClick={() => handleTopicSelect(today.angle.suggested)}>
+                Use this topic
               </button>
             </div>
           )}
         </section>
 
-        <AIGenerator
-          customAngle={customAngle}
-          onCustomAngleChange={setCustomAngle}
-          textGenMode={textGenMode}
-          onTextGenModeChange={setTextGenMode}
-          selectedTextModelId={selectedTextModelId}
-          onSelectedTextModelIdChange={setSelectedTextModelId}
-          apiKeysPanelOpen={apiKeysPanelOpen}
-          onApiKeysPanelOpenChange={setApiKeysPanelOpen}
-          onLlmKeysSaved={handleLlmKeysSaved}
-        />
-
-        {/* STEP 2: The one action — pick, configure, generate */}
-        <section className="command-bar">
+        <section className="command-bar command-bar--topics">
           <div className="command-row">
-            <div className="command-group">
+            <div className="command-group command-group--full">
               <span className="command-label">Topic</span>
               <div className="topic-chips">
                 {TOPICS.map((t) => (
@@ -483,7 +351,9 @@ export default function App() {
                     onClick={() => handleTopicSelect(t.id)}
                     title={t.description}
                   >
-                    <span className="chip-icon" aria-hidden="true">{t.icon}</span>
+                    <span className="chip-icon" aria-hidden="true">
+                      {t.icon}
+                    </span>
                     <span className="chip-body">
                       <span className="chip-label">{t.label}</span>
                       <span className="chip-desc">{t.description}</span>
@@ -492,120 +362,74 @@ export default function App() {
                 ))}
               </div>
             </div>
-
-            <div className="command-group">
-              <span className="command-label">Format</span>
-              <div className="format-chips">
-                <button className={`format-chip ${format === 'image' ? 'active' : ''}`} onClick={() => setFormat('image')}>
-                  Text + Image
-                </button>
-                <button className={`format-chip ${format === 'carousel' ? 'active' : ''}`} onClick={() => setFormat('carousel')}>
-                  Carousel
-                </button>
-              </div>
-            </div>
-
-            <button
-              className={`command-generate ${generateBusy ? 'is-loading' : ''}`}
-              onClick={() => void handleGenerate()}
-              disabled={
-                !selectedTopic ||
-                generateBusy ||
-                (textGenMode === 'compare' && !canRunCompareAll())
-              }
-            >
-              {generateBusy
-                ? 'Working…'
-                : textGenMode === 'compare'
-                  ? postVariants
-                    ? '↻ Regenerate three drafts'
-                    : 'Generate three drafts'
-                  : generatedPost
-                    ? format === 'image'
-                      ? '↻ Regenerate post + graphic'
-                      : '↻ Regenerate post'
-                    : format === 'image'
-                      ? 'Generate post + graphic'
-                      : 'Generate post'}
-            </button>
           </div>
-          {generateBusy && generatePhase && (
+        </section>
+
+        <OptionalAngleField value={customAngle} onChange={setCustomAngle} disabled={generateBusy || assetBusy} />
+
+        <section className="command-bar command-bar--generate">
+          <button
+            type="button"
+            className={`command-generate command-generate--wide ${generateBusy ? 'is-loading' : ''}`}
+            onClick={() => void handleGenerate()}
+            disabled={!selectedTopic || generateBusy || assetBusy}
+          >
+            {generateBusy
+              ? 'Generating three drafts…'
+              : draftVariants
+                ? '↻ Regenerate three drafts'
+                : 'Generate three drafts'}
+          </button>
+          {generateBusy && generatePhase === 'post' && (
             <CommandProgress
-              progress={generatePhase === 'post' ? postProgress : graphicProgress}
-              stage={
-                generatePhase === 'post'
-                  ? postStage || 'Writing your post…'
-                  : graphicStage || 'Creating your infographic…'
-              }
+              progress={postProgress}
+              stage={postStage || 'Running GPT 5.5, Claude Opus 4.7, and Gemini…'}
               complete={phaseComplete}
-              sub={
-                phaseComplete
-                  ? ''
-                  : generatePhase === 'post'
-                    ? 'Usually 10–20 seconds'
-                    : 'Usually 20–45 seconds'
-              }
+              sub="Usually 15–30 seconds"
             />
           )}
           <ActionFeedback msg={generateMsg} className="command-generate-feedback" />
-          {selectedTopic && textGenMode === 'single' && !hasApiKeyForModelId(selectedTextModelId) && (
-            <div className="command-ai-key-banner" role="status">
-              <p className="command-ai-key-banner-title">No saved key for {selectedTextModelProfile.label}</p>
-              <p className="command-ai-key-banner-body">
-                Generate will use the <strong>template + live headlines</strong> path instead of that model. Tap{' '}
-                <strong>API Keys</strong> in the welcome area, expand the panel, and save {selectedTextModelProfile.keyHint}{' '}
-                to use this model.
-              </p>
-            </div>
-          )}
-          {selectedTopic && textGenMode === 'compare' && !canRunCompareAll() && (
+          {selectedTopic && !allCompareKeysSaved && (
             <p className="command-key-hint">
-              Three-way compare needs all three keys under <strong>API Keys</strong> (OpenAI, Anthropic, Google Gemini).
+              Save <strong>OpenAI</strong>, <strong>Anthropic</strong>, and <strong>Google Gemini</strong> keys in{' '}
+              <button type="button" className="command-key-hint-link" onClick={scrollToSettings}>
+                Settings
+              </button>{' '}
+              before generating.
             </p>
           )}
         </section>
 
-        {postVariants && postVariants.length > 0 && (
-          <ModelComparePicker variants={postVariants} onPick={(v) => void handlePickCompareVariant(v)} busy={generateBusy} />
+        {draftVariants && draftVariants.length > 0 && (
+          <ThreeModelWorkbench
+            variants={draftVariants}
+            topicId={selectedTopic}
+            variantAssets={variantAssets}
+            assetFocus={assetFocus}
+            assetBusy={assetBusy}
+            graphicProgress={graphicProgress}
+            graphicStage={graphicStage}
+            phaseComplete={phaseComplete}
+            onGenerateGraphic={(v) => void handleVariantGraphic(v)}
+            onGenerateCarousel={handleVariantCarousel}
+            onGraphicAssetUpdate={handleGraphicAssetUpdate}
+          />
         )}
 
-        {/* STEP 3: Output — the payoff */}
-        {generatedPost && (
-          <>
-            {format === 'carousel' && (
-              <CarouselGenerator postText={liveText} topicId={selectedTopic} />
-            )}
-
-            <div className="output-columns">
-              <div className="output-left">
-                <PostDisplay post={generatedPost} topicColor={topic.color} onPostEdit={handlePostEdit} />
-                {format === 'image' && (
-                  <DynamicGraphic
-                    postText={liveText}
-                    topicId={selectedTopic}
-                    bundleGraphic={companionGraphic}
-                    graphicSessionId={graphicSessionId}
-                    onGraphicUpdate={setCompanionGraphic}
-                    externalGraphicLoading={generateBusy && generatePhase === 'graphic'}
-                    externalGraphicProgress={graphicProgress}
-                    externalGraphicStage={graphicStage}
-                  />
-                )}
-              </div>
-              <div className="output-right">
-                <PostPreview text={liveText} />
-                <AlgorithmScorer postText={liveText} topicId={selectedTopic} />
-              </div>
-            </div>
-
-            <FirstComment post={generatedPost} liveText={liveText} />
-
-            <FactCheckGate postText={liveText} />
-          </>
-        )}
-
-        {/* STEP 4: Supporting context (progressive disclosure) */}
-        <VoiceProfile />
+        <section id="app-settings" className="app-settings-footer">
+          <div className="app-settings-footer-head">
+            <h2 className="app-settings-footer-title">Settings</h2>
+            <p className="app-settings-footer-lead">
+              API keys and writing style — set up once, then keep this section collapsed while you work on drafts above.
+            </p>
+          </div>
+          <ApiKeysPanel
+            open={apiKeysPanelOpen}
+            onOpenChange={setApiKeysPanelOpen}
+            onLlmKeysSaved={handleLlmKeysSaved}
+          />
+          <VoiceProfile />
+        </section>
       </main>
 
       <footer className="app-footer">
@@ -614,14 +438,9 @@ export default function App() {
         <p className="footer-copy">© Prem Iyer 2026</p>
         <p
           className="footer-build"
-          title={`Host ${typeof window !== 'undefined' ? window.location.host : ''}. Build ${footerBuildSha || __DEPLOY_SHA__}. This line should match the tiny “srv …” stamp bottom-right (from server HTML). If not, add ?resetcache once.`}
+          title={`Host ${typeof window !== 'undefined' ? window.location.host : ''}. Build ${footerBuildSha || __DEPLOY_SHA__}.`}
         >
           Last updated: {footerBuildTime} · build {footerBuildSha || __DEPLOY_SHA__}
-        </p>
-        <p className="footer-build-hint" role="note">
-          Host <span className="footer-mono">{typeof window !== 'undefined' ? window.location.host : ''}</span>. If
-          this line does not match the small <span className="footer-mono">srv …</span> stamp in the corner, visit the
-          same page with <span className="footer-mono">?resetcache</span> once (then remove it).
         </p>
       </footer>
     </div>

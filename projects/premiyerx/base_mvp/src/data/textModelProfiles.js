@@ -1,5 +1,6 @@
 /**
  * Text models for LinkedIn post generation. API ids are pinned; update here when providers ship new defaults.
+ * fallbackApiModels: tried in order if the primary id is unavailable or returns a model-not-found error.
  */
 export const TEXT_MODEL_PROFILES = [
   {
@@ -8,6 +9,7 @@ export const TEXT_MODEL_PROFILES = [
     shortLabel: 'OpenAI',
     provider: 'openai',
     apiModel: 'gpt-5.5',
+    fallbackApiModels: ['gpt-5-mini', 'gpt-4o'],
     keyStorage: 'openai',
     keyHint: 'OpenAI API key (sk-…)',
   },
@@ -17,6 +19,7 @@ export const TEXT_MODEL_PROFILES = [
     shortLabel: 'Anthropic',
     provider: 'anthropic',
     apiModel: 'claude-opus-4-7',
+    fallbackApiModels: ['claude-sonnet-4-6', 'claude-3-5-sonnet-20241022'],
     keyStorage: 'anthropic',
     keyHint: 'Anthropic API key (sk-ant-…)',
   },
@@ -26,6 +29,7 @@ export const TEXT_MODEL_PROFILES = [
     shortLabel: 'Google',
     provider: 'gemini',
     apiModel: 'gemini-3-flash-preview',
+    fallbackApiModels: ['gemini-2.5-flash', 'gemini-2.0-flash'],
     keyStorage: 'gemini',
     keyHint: 'Google AI Studio / Gemini API key',
   },
@@ -37,4 +41,17 @@ export const COMPARE_TEXT_MODEL_IDS = TEXT_MODEL_PROFILES.map((p) => p.id)
 
 export function getTextModelProfile(id) {
   return TEXT_MODEL_PROFILES.find((p) => p.id === id) || TEXT_MODEL_PROFILES[0]
+}
+
+/** Ordered API model ids for one profile (primary + fallbacks, deduped). */
+export function resolveApiModelsForProfile(profile) {
+  const seen = new Set()
+  const out = []
+  for (const m of [profile?.apiModel, ...(profile?.fallbackApiModels || [])]) {
+    const id = String(m || '').trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out.length ? out : ['']
 }
