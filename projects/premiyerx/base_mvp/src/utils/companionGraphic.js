@@ -78,7 +78,7 @@ export async function createCompanionGraphic({
         mode: 'newsroom',
         newsroomImage: img.url,
         newsroomStyle: img.styleName,
-        newsroomVariation: img.variationId,
+        creativeHeadline: img.creativeHeadline || '',
         realtimeData: rt,
         seed,
         model,

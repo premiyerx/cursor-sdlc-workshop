@@ -1,3 +1,5 @@
+import { scrubStaleYearClaims } from './dateFreshness.js'
+
 /**
  * Strip common LLM "tells" from LinkedIn drafts so copy reads like a human operator wrote it.
  * Applied after every model parse — not optional polish.
@@ -104,6 +106,7 @@ export function humanizeLinkedInText(text) {
   }
 
   t = softenDashSpam(t)
+  t = scrubStaleYearClaims(t)
   t = t.replace(/[ \t]+\n/g, '\n')
   t = t.replace(/\n{3,}/g, '\n\n')
   t = t.replace(/  +/g, ' ')

@@ -12,6 +12,7 @@ import { getTopicNarrative, CAROUSEL_CTA_BANK } from '../data/topicNarratives'
 import { slideCopy, subdeckDuplicatesBullet, takeawayCopy, firstSentence, balanceParentheses } from '../utils/completeSentence'
 import { generateCarouselPlatformGraphic } from '../utils/newsroomVisual'
 import { hasOpenAiKey } from '../utils/openaiKey'
+import { pickCreativeCatalogHeadline } from '../utils/creativeHeadlines'
 
 const SLIDE_W = 1080
 const SLIDE_H = 1080
@@ -456,20 +457,25 @@ function platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard) {
   return { primary, accent }
 }
 
-function pillarCatalogHeadline(narrative, topicShort, headlineGuard) {
+function pillarCatalogHeadline(narrative, topicShort, headlineGuard, topicId, postSnippet = '') {
+  const seed = fnv1a(`${topicId}:${postSnippet.slice(0, 320)}`)
+  const creative = pickCreativeCatalogHeadline({
+    topicId,
+    refreshSeed: seed,
+    headlineGuard,
+    postSnippet,
+  })
+  if (creative && creative.length >= 20 && !/^welcome to\b/i.test(creative)) {
+    return creative
+  }
+
   const thesisLead = takeawayCopy(
     `${firstSentence(narrative.coreThesis || '', 160)}`.replace(/\s+/g, ' ').trim(),
     44,
     92,
   )
-  const frameLead = takeawayCopy(
-    `${firstSentence(narrative.competitiveFrame || '', 160)}`.replace(/\s+/g, ' ').trim(),
-    44,
-    92,
-  )
   const candidates = [
     thesisLead && thesisLead.length > 32 ? thesisLead : '',
-    frameLead && frameLead.length > 32 && !shareLongPrefix(frameLead, thesisLead, 28) ? frameLead : '',
     `Where ${topicShort} shows up in budgets, roadmaps, and renewals — not in slide decks alone.`,
   ].filter(Boolean)
 
@@ -482,7 +488,12 @@ function pillarCatalogHeadline(narrative, topicShort, headlineGuard) {
     headlineGuard.add(head)
     return head
   }
-  const fallback = `How ${topicShort} compounds when governance keeps pace with adoption.`
+  const fallback = pickCreativeCatalogHeadline({
+    topicId,
+    refreshSeed: seed + 17,
+    headlineGuard,
+    postSnippet: `${postSnippet}alt`,
+  })
   headlineGuard.add(fallback)
   return fallback
 }
@@ -714,7 +725,7 @@ function parseIntoSlides(text, topicId = '') {
   }
 
   const topicShort = topicShortLabel(topicLabel).slice(0, 44)
-  const pillarHeadline = pillarCatalogHeadline(narrative, topicShort, headlineGuard)
+  const pillarHeadline = pillarCatalogHeadline(narrative, topicShort, headlineGuard, topicId, text)
   slides.push({
     type: 'pillar',
     strike: STRIKE_BY_TOPIC[topicId] || 'HYPE — PILOTS — SLIDEWARE',

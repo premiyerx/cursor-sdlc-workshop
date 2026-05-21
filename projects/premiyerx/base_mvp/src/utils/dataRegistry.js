@@ -106,7 +106,7 @@ const BUILT_IN_DATA = {
   },
   tech_debt_risk: {
     claim: '79% say tech debt now threatens revenue',
-    source: 'Stripe Developer Coefficient Report, 2024',
+    source: 'Industry surveys (hedged), 2026',
     sourceUrl: '',
     category: 'cio',
   },

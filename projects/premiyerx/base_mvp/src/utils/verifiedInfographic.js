@@ -4,6 +4,7 @@ import { selectHeadlinesForTopic } from './newsCraft'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { rotateSlice } from './freshnessRotation'
 import { fnv1a, mulberry32 } from './generationVariety'
+import { registrySourceIsFreshEnough } from './dateFreshness.js'
 
 const TOPIC_REGISTRY_CATEGORIES = {
   cursor: ['cursor', 'market'],
@@ -52,6 +53,7 @@ export function getVerifiedStatsFromPost(postText, limit = 4) {
     if (!claim.registryMatch) continue
     const stat = claimToStat(claim)
     if (!stat || seen.has(stat.registryId)) continue
+    if (!registrySourceIsFreshEnough(stat.source)) continue
     seen.add(stat.registryId)
     stats.push(stat)
     if (stats.length >= limit) return stats
@@ -72,6 +74,7 @@ export function getVerifiedStatsForTopic(topicId, limit = 4, excludeIds = new Se
     if (excludeIds.has(dp.id)) continue
     const stat = parseRegistryStat(dp)
     if (stat.value === '—') continue
+    if (!registrySourceIsFreshEnough(stat.source)) continue
     stats.push(stat)
     if (stats.length >= limit) return stats
   }
@@ -89,7 +92,12 @@ export function assembleVerifiedStats(postText, topicId, limit = 3, refreshSeed 
   const pool = Object.values(registry)
     .filter((dp) => cats.includes(dp.category))
     .map((dp) => parseRegistryStat(dp))
-    .filter((s) => s.value !== '—' && !seen.has(s.registryId))
+    .filter(
+      (s) =>
+        s.value !== '—' &&
+        !seen.has(s.registryId) &&
+        registrySourceIsFreshEnough(s.source),
+    )
 
   const rotatedPool = rotateSlice(pool, refreshSeed ^ fnv1a('stats'), limit)
   const fill = rotatedPool.filter((s) => !seen.has(s.registryId))

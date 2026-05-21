@@ -6,6 +6,7 @@ import { mulberry32 } from './generationVariety'
 import { pickFromPool } from './freshnessRotation'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { buildNewsroomAlgorithmLine } from '../data/linkedinAlgorithm2026'
+import { generateCreativeHeadline } from './creativeHeadlines.js'
 import { getOpenAiKey } from './openaiKey'
 
 /** Rotating “families” = quality bar (polish, hierarchy) without locking every image to the same newspaper trope. */
@@ -143,12 +144,15 @@ const SECTION_KICKERS = [
   'Lens: ROI',
 ]
 
-const TOPIC_HEADLINES = {
+/** Legacy defaults — only used if creative headline generation fails. */
+const TOPIC_HEADLINE_FALLBACK = {
   roi: 'The ROI of AI in Software Development',
   cursor: 'The Business Case for AI-Native Software Development',
   investment: 'Where Capital Is Flowing in AI Software Development',
   cio: 'What Technology Leaders Must Know About AI in the SDLC',
 }
+
+const INFOGRAPHIC_FOOTER = 'Prem Iyer · AI Software Transformation'
 
 /** Each run picks a few of these — not every image needs Sankey + sidebar + five KPIs. */
 const VIZ_ELEMENT_POOL = [
@@ -218,16 +222,27 @@ function formatStatsBlock(stats = []) {
     .join('\n')
 }
 
-function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postTheme, recipe, tier = 'full' }) {
+function buildPrompt({
+  infographicModel,
+  topicId,
+  topicLabel,
+  refreshSeed,
+  postTheme,
+  recipe,
+  tier = 'full',
+  creativeHeadline = '',
+}) {
   const fullRecipe = recipe || pickInfographicRecipe(refreshSeed)
   const { family, layout, palette, kicker, vizFull, vizCompact } = fullRecipe
   const narrative = getTopicNarrative(topicId)
   const stats = (infographicModel?.verifiedStats || []).slice(0, 5)
-  const headline = TOPIC_HEADLINES[topicId] || `The ROI of ${topicLabel || narrative.label}`
+  const headline =
+    creativeHeadline ||
+    TOPIC_HEADLINE_FALLBACK[topicId] ||
+    `The ROI of ${topicLabel || narrative.label}`
   const theme = (postTheme || infographicModel?.hook || narrative.coreThesis || '').slice(0, 120)
   const leadLine = infographicModel?.leadHeadline?.title?.slice(0, 90) || theme
   const statsBlock = formatStatsBlock(stats)
-  const variationId = `v${((refreshSeed >>> 0) + (tier === 'minimal' ? 99 : tier === 'compact' ? 55 : 0)).toString(16).slice(0, 6)}`
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
   const qualityPreamble = [
@@ -248,7 +263,7 @@ function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postT
       prios.length ? ['', 'VISUAL PRIORITIES (this run):', ...prios.map((v, i) => `${i + 1}. ${v}`)].join('\n') : '',
       `Verified numbers ONLY:\n${statsBlock}`,
       `One clear focal insight from the stats (callout, big figure, or simple chart — designer's choice).`,
-      `Small footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
+      `Small footer only: ${INFOGRAPHIC_FOOTER}. No version codes, build IDs, hashes, or deploy stamps.`,
       buildNewsroomAlgorithmLine(),
     ]
       .filter(Boolean)
@@ -276,7 +291,8 @@ function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postT
       statsBlock,
       '',
       'RULES: intentional hierarchy, legible labels, credible tone; no invented statistics.',
-      `Footer: Prem Iyer · AI Software Transformation · ${variationId}.`,
+      `Footer only: ${INFOGRAPHIC_FOOTER}. No version codes or build IDs.`,
+      'Dates on charts: use the current month/year only, or a timeline that includes the current year — never a lone 2024/2025 stat as “this week”.',
       buildNewsroomAlgorithmLine(),
     ].join('\n')
   }
@@ -300,7 +316,8 @@ function buildPrompt({ infographicModel, topicId, topicLabel, refreshSeed, postT
     statsBlock,
     '',
     'FORBIDDEN: invented statistics, illegible micro-labels, stock photos of people, tacky neon gamer UI, clip-art icons, or samey template filler.',
-    `Credit line: Prem Iyer · AI Software Transformation · ${variationId}.`,
+    `Credit line only: ${INFOGRAPHIC_FOOTER}. No version codes, build IDs, or hex stamps.`,
+    'Any year labels must be current or an explicit multi-year timeline — not a random 2024/2025 datapoint.',
     buildNewsroomAlgorithmLine(),
   ].join('\n')
 }
@@ -413,6 +430,16 @@ export async function generateNewsroomImage({
     return { ok: false, error: 'Add your OpenAI key under API Keys (welcome area) first.' }
   }
 
+  const postThemeText = postTheme || model?.hook || ''
+  const creativeHeadline = await generateCreativeHeadline({
+    topicId,
+    topicLabel: topicLabel || model?.topicLabel,
+    postText: postThemeText,
+    leadHeadlineTitle: model?.leadHeadline?.title || '',
+    refreshSeed,
+    variantKey: 'newsroom',
+  })
+
   const errors = []
   for (let i = 0; i < ATTEMPT_PLAN.length; i++) {
     const cfg = ATTEMPT_PLAN[i]
@@ -433,6 +460,7 @@ export async function generateNewsroomImage({
       postTheme,
       recipe,
       tier: cfg.tier,
+      creativeHeadline,
     })
 
     const result = await requestImage({
@@ -450,7 +478,7 @@ export async function generateNewsroomImage({
         url: result.url,
         styleName: `${recipe.family.label} · ${recipe.layout.name}`,
         styleId: `${recipe.family.id}-${recipe.layout.id}`,
-        variationId: ((refreshSeed >>> 0) + cfg.attempt).toString(16).slice(0, 6),
+        creativeHeadline,
         imageModel: cfg.model,
         via: result.via,
       }
