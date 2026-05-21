@@ -3944,6 +3944,17 @@ canvas {
   color: var(--text-primary);
 }
 
+.model-workbench-btn--copy {
+  border-color: rgba(94, 234, 212, 0.35);
+  background: rgba(94, 234, 212, 0.08);
+  color: var(--cyan);
+}
+
+.model-workbench-btn--copy:hover:not(:disabled) {
+  border-color: rgba(94, 234, 212, 0.55);
+  filter: brightness(1.06);
+}
+
 .model-workbench-btn--graphic {
   border-color: rgba(62, 220, 129, 0.35);
   background: var(--green-dim);

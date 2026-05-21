@@ -1,6 +1,10 @@
+import { useState, useCallback } from 'react'
 import DynamicGraphic from './DynamicGraphic'
 import CarouselGenerator from './CarouselGenerator'
 import CommandProgress from './CommandProgress'
+import ActionFeedback from './ActionFeedback'
+import { copyToClipboard } from '../utils/clipboard'
+import { useFlashFeedback } from '../hooks/useFlashFeedback'
 
 export function variantPostToLiveText(post, appendCitations) {
   if (!post) return ''
@@ -21,10 +25,33 @@ export default function ThreeModelWorkbench({
   graphicProgress,
   graphicStage,
   phaseComplete,
+  appendCitations,
   onGenerateGraphic,
   onGenerateCarousel,
   onGraphicAssetUpdate,
 }) {
+  const [copiedVariantId, setCopiedVariantId] = useState(null)
+  const { msg: copyMsg, flashOk, flashErr } = useFlashFeedback()
+
+  const copyVariantPost = useCallback(
+    async (variant) => {
+      if (!variant?.post) return false
+      const text = variantPostToLiveText(variant.post, appendCitations)
+      const res = await copyToClipboard(text)
+      if (!res.ok) {
+        flashErr(res.error || 'Could not copy — try selecting the text manually.')
+        return false
+      }
+      setCopiedVariantId(variant.id)
+      flashOk('Post copied — paste into LinkedIn (Ctrl+V).')
+      setTimeout(() => {
+        setCopiedVariantId((id) => (id === variant.id ? null : id))
+      }, 3000)
+      return true
+    },
+    [appendCitations, flashOk, flashErr],
+  )
+
   if (!variants?.length) return null
 
   const focusId = assetFocus?.variantId || null
@@ -47,7 +74,7 @@ export default function ThreeModelWorkbench({
           ) : (
             <>Pick the column that sounds most like you.</>
           )}{' '}
-          Use the buttons below a draft to build an infographic or carousel PDF for that copy only.
+          Copy a draft to LinkedIn with one tap, or use the combined buttons to copy the post and start an infographic or carousel at the same time.
         </p>
       </div>
 
@@ -61,14 +88,15 @@ export default function ThreeModelWorkbench({
           const graphicLoading = assetBusy && assetFocus?.type === 'graphic' && isFocused
           const carouselLoading = assetBusy && assetFocus?.type === 'carousel' && isFocused
 
+          const isCopied = copiedVariantId === v.id
           const graphicBtnLabel =
             graphicCount === 0
-              ? 'Generate infographic for this draft'
-              : `Generate another infographic (${graphicCount} created)`
+              ? 'Copy post + generate infographic'
+              : `Copy post + generate another infographic (${graphicCount} created)`
           const carouselBtnLabel =
             carouselCount === 0
-              ? 'Generate carousel PDF for this draft'
-              : `Generate another carousel PDF (${carouselCount} created)`
+              ? 'Copy post + generate carousel PDF'
+              : `Copy post + generate another carousel PDF (${carouselCount} created)`
 
           return (
             <article
@@ -119,9 +147,22 @@ export default function ThreeModelWorkbench({
                   <div className="model-workbench-actions">
                     <button
                       type="button"
+                      className="model-workbench-btn model-workbench-btn--copy"
+                      disabled={assetBusy || !v.post}
+                      onClick={() => void copyVariantPost(v)}
+                    >
+                      {isCopied ? '✓ Copied to clipboard' : 'Copy post to clipboard'}
+                    </button>
+                    <button
+                      type="button"
                       className="model-workbench-btn model-workbench-btn--graphic"
                       disabled={assetBusy || !v.post}
-                      onClick={() => onGenerateGraphic?.(v)}
+                      onClick={() => {
+                        void (async () => {
+                          await copyVariantPost(v)
+                          onGenerateGraphic?.(v)
+                        })()
+                      }}
                     >
                       {graphicBtnLabel}
                     </button>
@@ -129,7 +170,12 @@ export default function ThreeModelWorkbench({
                       type="button"
                       className="model-workbench-btn model-workbench-btn--carousel"
                       disabled={assetBusy || !v.post}
-                      onClick={() => onGenerateCarousel?.(v)}
+                      onClick={() => {
+                        void (async () => {
+                          await copyVariantPost(v)
+                          onGenerateCarousel?.(v)
+                        })()
+                      }}
                     >
                       {carouselBtnLabel}
                     </button>
@@ -189,6 +235,7 @@ export default function ThreeModelWorkbench({
           )
         })}
       </div>
+      <ActionFeedback msg={copyMsg} />
     </section>
   )
 }

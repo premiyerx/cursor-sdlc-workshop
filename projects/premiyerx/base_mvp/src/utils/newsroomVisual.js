@@ -545,18 +545,18 @@ export function buildCarouselPlatformSlidePrompt({
   const body = String(bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 520)
   const trio = (trioHints || []).filter(Boolean).slice(0, 3).join(' | ')
   return [
-    'Create ONE infographic image for a single slide in a LinkedIn PDF carousel.',
+    'Create ONE infographic image for a single slide in a LinkedIn PDF carousel (portrait 4:5 page; this art sits in a WIDE horizontal band ~980×700px).',
     'Visual framing: dark background (#050505), cream/ivory typography (#f2efe8), accent green (#3EDC81) for highlights and connectors — high-contrast editorial or financial print style.',
     '',
     `Topic label: ${topicLabel || 'AI × software delivery'}.`,
     `Slide headline (capture the idea, do not paste as a dense wall of text): ${String(titleMain || '').slice(0, 200)} — ${String(titleAccent || '').slice(0, 140)}.`,
     `Supporting copy (paraphrase into chart labels; do NOT invent $ or % figures unless they appear here): ${body}`,
-    trio ? `Three beats to show as stages, columns, or callouts (clear words only): ${trio}` : '',
+    trio ? `Three beats as ONE left-to-right flow (3 equal stages, short labels under each icon): ${trio}` : '',
     '',
-    'DRAW ONE of: a labeled pilot→scale→renewal flow; a simple 2–3 bar or dot comparison with axis words; a system diagram with 3–5 short callouts; or one clean annotated figure.',
-    'Keep labels LARGE and legible as if the art will be shown ~900px wide.',
+    'DRAW ONE horizontal flow or comparison: exactly 3 stages (Plan → Ship → Prove style) with LARGE 2–4 word labels and 1 short line each — every label fully inside the frame with generous padding (nothing clipped at edges).',
+    'Landscape composition (~3:2): icons + arrows in one row; no paragraphs; no text below the diagram band.',
     '',
-    'DO NOT: fake dashboards, meaningless sparklines, tiny unreadable text, stock photos of people, generic clipart, or any 8-tab “THEMES / SCOPE / …” navigation strip.',
+    'DO NOT: fake dashboards, meaningless sparklines, tiny unreadable text, stock photos of people, generic clipart, duplicate caption columns under the art, or any 8-tab “THEMES / SCOPE / …” navigation strip.',
     '',
     'Small footer: Prem Iyer · AI Software Transformation',
   ]

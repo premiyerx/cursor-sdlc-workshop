@@ -63,8 +63,11 @@ const CAROUSEL_TYPE = {
   ctaLineGap: 60,
   platformDeck: 52,
   platformDeckGap: 58,
-  platformBody: 32,
-  platformBodyLineH: 42,
+  /** In-feed platform slide: compact headline band so the diagram fills the frame. */
+  platformHead: 38,
+  platformHeadGap: 42,
+  platformBody: 24,
+  platformBodyLineH: 32,
   trioTitle: 28,
   trioSub: 28,
   trioLineGap: 36,
@@ -603,7 +606,10 @@ function platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard) {
     accent = sp.accent && sp.accent.length > 4 ? sp.accent : shortTopic
   }
   headlineGuard.add(primary)
-  return { primary, accent }
+  return {
+    primary: slideCopy(primary, 88, 130),
+    accent: slideCopy(accent, 36, 56),
+  }
 }
 
 function audiencePillarHeadline(hook, chosenCta, narrative, topicShort, headlineGuard, topicId, postSnippet = '') {
@@ -891,7 +897,7 @@ function parseIntoSlides(text, topicId = '') {
       type: 'platform',
       titleMain: titles.primary,
       titleAccent: titles.accent,
-      body: takeawayCopy(narrativeRaw, 130, 185),
+      body: takeawayCopy(narrativeRaw, 72, 110),
       trio: trioBlocks,
     })
   }
@@ -1025,6 +1031,68 @@ function verticalHeroBaseline(lineCount, lineGap, fontPx) {
   return HERO_REGION_TOP + (regionH - blockH) / 2 + fontPx * 0.72
 }
 
+/** Draw platform diagram without cropping labels (fit entire image inside slot). */
+function drawContainedPlatformImage(ctx, x, y, w, h, img) {
+  ctx.save()
+  roundRect(ctx, x, y, w, h, 6)
+  ctx.clip()
+  ctx.fillStyle = '#080808'
+  ctx.fillRect(x, y, w, h)
+  const iw = img.naturalWidth
+  const ih = img.naturalHeight
+  const scale = Math.min(w / iw, h / ih)
+  const dw = iw * scale
+  const dh = ih * scale
+  const dx = x + (w - dw) / 2
+  const dy = y + (h - dh) / 2
+  ctx.drawImage(img, dx, dy, dw, dh)
+  ctx.restore()
+  ctx.strokeStyle = BOX_EDGE
+  ctx.lineWidth = 1
+  roundRect(ctx, x, y, w, h, 6)
+  ctx.stroke()
+}
+
+/** LinkedIn document slide: headline band + diagram or stacked Plan/Ship/Prove (fills 4:5 frame). */
+function renderPlatformSlide(ctx, slide, index, total, maxW, extra = {}) {
+  drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total, { monoRight: true })
+  const contentFloor = FOOTER_TOP - 22
+  const headFont = CAROUSEL_TYPE.platformHead
+  const headGap = CAROUSEL_TYPE.platformHeadGap
+  const bodyFont = CAROUSEL_TYPE.platformBody
+  const bodyLineH = CAROUSEL_TYPE.platformBodyLineH
+
+  let y = CONTENT_TOP + 8
+  const fullTitle = `${slide.titleMain || ''} ${slide.titleAccent || ''}`.replace(/\s+/g, ' ').trim()
+  y = drawSplitHeadlineMaxLines(ctx, fullTitle, maxW, y, headFont, headGap, 3)
+  y += 12
+
+  ctx.fillStyle = PAPER
+  ctx.font = `400 ${bodyFont}px ${FONT_SANS}`
+  const bodyLines = wrapText(ctx, capSlideWords(slide.body || '', 36), maxW).slice(0, 2)
+  for (const ln of bodyLines) {
+    ctx.fillText(ln, PAD, y)
+    y += bodyLineH
+  }
+  if (bodyLines.length) y += 14
+
+  const img = extra?.platformImage
+  const canUseImg =
+    img instanceof HTMLImageElement && img.complete && img.naturalWidth > 0
+  const hasTrio = slide.trio?.length === 3
+
+  if (canUseImg) {
+    const slotTop = y
+    const slotH = Math.max(320, contentFloor - slotTop - 10)
+    drawContainedPlatformImage(ctx, PAD, slotTop, maxW, slotH, img)
+    y = slotTop + slotH + 8
+  } else if (hasTrio) {
+    y = drawTrioStacked(ctx, y + 6, maxW, slide.trio, contentFloor)
+  }
+
+  drawEditorialFooter(ctx, { railText: slide.topicRail })
+}
+
 function roundRect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, w / 2, h / 2)
   ctx.beginPath()
@@ -1156,6 +1224,27 @@ function hairlineV(ctx, x, y1, y2) {
 function drawSplitHeadline(ctx, fullText, maxW, startY, fontPx = 74, lineGap = 80) {
   const { primary, accent } = headlineSplitForCanvas(fullText)
   return drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, fontPx, lineGap)
+}
+
+function drawSplitHeadlineMaxLines(ctx, fullText, maxW, startY, fontPx, lineGap, maxLines = 4) {
+  const { primary, accent } = headlineSplitForCanvas(fullText)
+  let y = startY
+  let left = maxLines
+  const emit = (text, color) => {
+    if (!text || left <= 0) return
+    ctx.fillStyle = color
+    ctx.font = `700 ${fontPx}px ${FONT_SANS}`
+    for (const line of wrapText(ctx, text, maxW)) {
+      if (left <= 0) return
+      ctx.fillText(line, PAD, y)
+      y += lineGap
+      left -= 1
+    }
+  }
+  emit(primary, PAPER)
+  emit(accent, ACCENT)
+  ctx.fillStyle = PAPER
+  return y
 }
 
 function drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, fontPx, lineGap) {
@@ -1476,107 +1565,9 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
       break
     }
 
-    case 'platform': {
-      drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total, { monoRight: true })
-      ctx.fillStyle = PAPER
-      ctx.font = `700 ${CAROUSEL_TYPE.platformDeck}px ${FONT_SANS}`
-      let y = CONTENT_TOP + 4
-      const m = slide.titleMain || ''
-      const a = slide.titleAccent || ''
-      for (const line of wrapText(ctx, m, maxW)) {
-        ctx.fillText(line, PAD, y)
-        y += CAROUSEL_TYPE.platformDeckGap
-      }
-      ctx.fillStyle = ACCENT
-      ctx.font = `700 ${CAROUSEL_TYPE.platformDeck}px ${FONT_SANS}`
-      for (const line of wrapText(ctx, a, maxW)) {
-        ctx.fillText(line, PAD, y)
-        y += CAROUSEL_TYPE.platformDeckGap
-      }
-      ctx.fillStyle = PAPER
-      ctx.font = `400 ${CAROUSEL_TYPE.platformBody}px ${FONT_SANS}`
-      y += 8
-      for (const ln of wrapText(ctx, slide.body || '', maxW)) {
-        ctx.fillText(ln, PAD, y)
-        y += CAROUSEL_TYPE.platformBodyLineH
-      }
-      y += 12
-      const minTrioReserve = slide.trio?.length === 3 ? 300 : 140
-      const maxGraphicBottom = FOOTER_TOP - minTrioReserve
-      let slotH = slide.trio?.length === 3 ? 200 : 248
-      if (y + slotH > maxGraphicBottom) {
-        slotH = Math.max(112, maxGraphicBottom - y - 8)
-      }
-      const img = extra?.platformImage
-      const canDraw =
-        img instanceof HTMLImageElement &&
-        img.complete &&
-        img.naturalWidth > 0 &&
-        slotH >= 100
-      if (canDraw) {
-        const x0 = PAD
-        const w = maxW
-        const slotTop = y
-        ctx.save()
-        roundRect(ctx, x0, slotTop, w, slotH, 4)
-        ctx.clip()
-        const iw = img.naturalWidth
-        const ih = img.naturalHeight
-        const scale = Math.max(w / iw, slotH / ih)
-        const dw = iw * scale
-        const dh = ih * scale
-        const dx = x0 + (w - dw) / 2
-        const dy = slotTop + (slotH - dh) / 2
-        ctx.drawImage(img, dx, dy, dw, dh)
-        ctx.restore()
-        ctx.strokeStyle = BOX_EDGE
-        ctx.lineWidth = 1
-        roundRect(ctx, x0, slotTop, w, slotH, 4)
-        ctx.stroke()
-        y = slotTop + slotH + 14
-      } else {
-        y += 6
-      }
-      if (slide.trio && slide.trio.length === 3) {
-        const trioTop = y
-        const tw = (maxW - 32) / 3
-        const xb = PAD
-        const trioLineGap = CAROUSEL_TYPE.trioLineGap
-        const trioBottomCap = FOOTER_TOP - 18
-        const maxTrioLines = Math.max(
-          3,
-          Math.min(18, Math.floor((trioBottomCap - trioTop - 52) / trioLineGap)),
-        )
-        let maxColLines = 0
-        const trioWrapped = slide.trio.map((t) => {
-          ctx.font = `400 ${CAROUSEL_TYPE.trioSub}px ${FONT_SANS}`
-          const subLines = wrapText(ctx, t.sub || '', tw - 10)
-          const n = Math.min(maxTrioLines, subLines.length)
-          maxColLines = Math.max(maxColLines, n)
-          return { t, subLines, n }
-        })
-        const trioRailH = 52 + maxColLines * trioLineGap + 8
-        hairlineV(ctx, xb + tw + 16, trioTop, trioTop + trioRailH)
-        hairlineV(ctx, xb + (tw + 16) * 2, trioTop, trioTop + trioRailH)
-        let tx = xb + 8
-        for (const { t, subLines, n } of trioWrapped) {
-          ctx.fillStyle = PAPER
-          ctx.font = `700 ${CAROUSEL_TYPE.trioTitle}px ${FONT_SANS}`
-          ctx.fillText(t.title, tx, trioTop + 22)
-          ctx.font = `400 ${CAROUSEL_TYPE.trioSub}px ${FONT_SANS}`
-          ctx.fillStyle = '#e4e0d8'
-          let subY = trioTop + 48
-          for (let si = 0; si < n; si++) {
-            ctx.fillText(subLines[si], tx, subY)
-            subY += trioLineGap
-          }
-          ctx.fillStyle = PAPER
-          tx += tw + 16
-        }
-      }
-      drawEditorialFooter(ctx, { railText: slide.topicRail })
+    case 'platform':
+      renderPlatformSlide(ctx, slide, index, total, maxW, extra)
       break
-    }
 
     case 'pillar': {
       drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total)
@@ -1847,7 +1838,7 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
       {previewSlides.length > 0 && (
         <div className="carousel-preview">
           <p className="carousel-preview-explainer">
-            <strong>Live preview</strong> — mobile-first 1080×1350 portrait (same as the LinkedIn PDF). Stacked columns and large labels are tuned for phone swipe, not desktop width (use ← → to swipe). Slides are parsed
+            <strong>Live preview</strong> — 1080×1350 portrait PDF (LinkedIn document spec). Platform slides put the full diagram in-frame (no crop) and skip duplicate text when the image already shows Plan/Ship/Prove. Use ← → to swipe. Slides are parsed
             from <strong>your post</strong> and anchored to <strong>{getTopicLabel(topicId) || 'the topic you picked'}</strong>{' '}
             (headlines and stats still come from the same topic in the infographic). Decorative layout only — no
             unrelated “template” storylines.

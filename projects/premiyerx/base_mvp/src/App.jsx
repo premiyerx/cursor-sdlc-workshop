@@ -418,6 +418,7 @@ export default function App() {
             graphicProgress={graphicProgress}
             graphicStage={graphicStage}
             phaseComplete={phaseComplete}
+            appendCitations={appendCitations}
             onGenerateGraphic={(v) => void handleVariantGraphic(v)}
             onGenerateCarousel={handleVariantCarousel}
             onGraphicAssetUpdate={handleGraphicAssetUpdate}
