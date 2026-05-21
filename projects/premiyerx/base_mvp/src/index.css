@@ -36,7 +36,9 @@
 }
 
 html {
-  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -53,7 +55,9 @@ body {
   color: var(--text-primary);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
+  width: 100%;
+  max-width: 100%;
   padding-left: env(safe-area-inset-left, 0);
   padding-right: env(safe-area-inset-right, 0);
   padding-bottom: env(safe-area-inset-bottom, 0);
@@ -61,8 +65,18 @@ body {
 
 #root,
 .app {
+  width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+img,
+picture,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
 }
 
 /* ============ ANIMATIONS ============ */
@@ -146,7 +160,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   width: 100%;
-  max-width: min(720px, calc(100vw - max(1.5rem, env(safe-area-inset-left) + env(safe-area-inset-right))));
+  max-width: min(720px, 100%);
   margin-left: auto;
   margin-right: auto;
   box-sizing: border-box;
@@ -163,8 +177,8 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: color 0.2s ease, background 0.2s ease, transform 0.22s ease, box-shadow 0.22s ease;
-  flex: 1 1 auto;
-  min-width: min(140px, 42vw);
+  flex: 1 1 calc(50% - 0.2rem);
+  min-width: 0;
   text-align: center;
   white-space: nowrap;
   touch-action: manipulation;
@@ -1498,9 +1512,15 @@ body {
   }
 }
 
-@media (max-width: 480px) {
-  .app-title { font-size: 1.45rem; }
-  .app-header { padding: 1.5rem 0.75rem 1.25rem; }
+/* Phones and small tablets (incl. Galaxy S Ultra ~412–480px logical width) */
+@media (max-width: 900px) {
+  .app-title { font-size: clamp(1.35rem, 5vw, 1.75rem); }
+  .app-header {
+    padding: 1.5rem max(0.75rem, env(safe-area-inset-left)) 1.25rem max(0.75rem, env(safe-area-inset-right));
+  }
+  .app-main {
+    padding: 1.25rem max(0.75rem, env(safe-area-inset-left)) 3rem max(0.75rem, env(safe-area-inset-right));
+  }
   .app-tabs .tab-btn {
     flex: 1 1 calc(50% - 0.25rem);
     font-size: 0.72rem;
@@ -1509,8 +1529,21 @@ body {
     white-space: normal;
     line-height: 1.2;
   }
+  .smart-visual-btn {
+    min-width: 0;
+    flex: 1 1 100%;
+  }
   .smart-visual-secondary {
     flex: 1 1 100%;
+    min-width: 0;
+  }
+  .ai-model-select {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+  .carousel-preview-explainer {
+    max-width: 100%;
   }
 }
 
@@ -2023,7 +2056,7 @@ body {
 
 .smart-visual-btn {
   flex: 1 1 auto;
-  min-width: 140px;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2471,6 +2504,8 @@ body {
 
 .carousel-preview {
   margin-bottom: 1rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .carousel-preview-explainer {
@@ -2488,12 +2523,15 @@ body {
 
 .carousel-slide {
   width: 100%;
-  max-width: 480px;
+  max-width: min(100%, 26.25rem);
   height: auto;
+  aspect-ratio: 1080 / 1350;
+  object-fit: contain;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   display: block;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .carousel-nav {
@@ -3696,9 +3734,12 @@ body {
 
 /* ============ THREE-MODEL WORKBENCH ============ */
 .model-workbench {
-  max-width: 1200px;
+  width: 100%;
+  max-width: min(1200px, 100%);
   margin: 0 auto 2rem;
-  padding: 0 1.25rem;
+  padding: 0 max(0.75rem, env(safe-area-inset-left, 0px)) 0 max(0.75rem, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+  overflow-x: clip;
 }
 
 .model-workbench-head {
@@ -3720,14 +3761,16 @@ body {
 
 .model-workbench-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
   gap: 1rem;
   align-items: start;
+  width: 100%;
+  min-width: 0;
 }
 
-@media (max-width: 1024px) {
+@media (min-width: 1100px) {
   .model-workbench-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -3736,6 +3779,10 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
@@ -3925,6 +3972,10 @@ body {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 .model-workbench-asset-label {
@@ -3986,8 +4037,8 @@ body {
 
 .ai-model-select {
   flex: 1;
-  min-width: 200px;
-  max-width: 360px;
+  min-width: 0;
+  max-width: min(360px, 100%);
   padding: 0.45rem 0.65rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);

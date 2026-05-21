@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "stamp": "node scripts/stamp-commit-sha.js",
     "build": "vite build",
+    "deploy:prod": "node scripts/stamp-commit-sha.js && npx vercel deploy --prod --yes",
     "preview": "vite preview",
     "test:images": "node scripts/test-image-gen.mjs",
     "test:llm-smoke": "node scripts/smoke-llm-compare.mjs"
