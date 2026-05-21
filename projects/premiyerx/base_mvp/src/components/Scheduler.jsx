@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { getSchedule, addScheduledPost, removeScheduledPost, markScheduledAsPublished, savePost } from '../utils/storage'
 import { scorePost } from '../data/algorithmRules'
+import { POSTING_WINDOW_CT } from '../data/contentStrategy'
 import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import ActionFeedback from './ActionFeedback'
@@ -8,7 +9,7 @@ import ActionFeedback from './ActionFeedback'
 export default function Scheduler({ currentPost, currentTopic, postText }) {
   const [schedule, setSchedule] = useState(getSchedule)
   const [scheduleDate, setScheduleDate] = useState('')
-  const [scheduleTime, setScheduleTime] = useState('07:30')
+  const [scheduleTime, setScheduleTime] = useState('10:30')
   const [publishStatus, setPublishStatus] = useState(null)
   const { msg: publishMsg, flashOk: flashPublishOk, flashErr: flashPublishErr } = useFlashFeedback()
   const { msg: scheduleMsg, flashOk: flashScheduleOk, flashErr: flashScheduleErr } = useFlashFeedback()
@@ -139,6 +140,9 @@ export default function Scheduler({ currentPost, currentTopic, postText }) {
             {publishStatus === 'opened'
               ? 'Your post is on your clipboard. Paste it into the LinkedIn compose window that just opened.'
               : 'Copies your post to the clipboard and opens LinkedIn in a new window so you can paste and publish.'}
+          </p>
+          <p className="publish-hint">
+            Golden hour: post at {POSTING_WINDOW_CT}, then immediately paste your FIRST_COMMENT as a comment and pin it (••• on the comment → Pin). Reply to comments for ~60 minutes.
           </p>
           <ActionFeedback msg={publishMsg} />
         </div>

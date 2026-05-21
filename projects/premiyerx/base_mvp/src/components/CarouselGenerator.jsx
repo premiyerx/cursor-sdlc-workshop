@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useEffect } from 'react'
 import { jsPDF } from 'jspdf'
 import { findCitationsForLine, findCitations } from '../data/citations'
 import { scorePost } from '../data/algorithmRules'
-import { CAROUSEL_ALGORITHM_TIP } from '../data/linkedinAlgorithm2026'
+import { CAROUSEL_ALGORITHM_TIP, LINKEDIN_MOBILE_CONTEXT } from '../data/linkedinAlgorithm2026'
 import { fnv1a, mulberry32 } from '../utils/generationVariety'
 import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
@@ -14,15 +14,18 @@ import { generateCarouselPlatformGraphic } from '../utils/newsroomVisual'
 import { hasOpenAiKey } from '../utils/openaiKey'
 import { pickCreativeCatalogHeadline } from '../utils/creativeHeadlines'
 
+/** LinkedIn document post (PDF carousel): 1080×1350 portrait, 50px safe margin — Oktopost 2026 spec. */
 const SLIDE_W = 1080
-const SLIDE_H = 1080
-const SIDE = 56
-const PAD = 72
-const CONTENT_TOP = 118
-const FOOTER_TOP = SLIDE_H - 100
+const SLIDE_H = 1350
+const SAFE_MARGIN = 50
+const SIDE = SAFE_MARGIN
+const PAD = SAFE_MARGIN
+const CONTENT_TOP = 128
+const FOOTER_TOP = SLIDE_H - 112
+const CAROUSEL_MAX_SLIDES = 8
 /** Vertical band for hero copy (below header, above footer). */
-const HERO_REGION_TOP = 112
-const HERO_REGION_BOT = FOOTER_TOP - 52
+const HERO_REGION_TOP = 120
+const HERO_REGION_BOT = FOOTER_TOP - 56
 
 /** Editorial deck — near-black, warm paper type, green accent (Prem brand). */
 const BG = '#050505'
@@ -36,55 +39,82 @@ const BOX_EDGE = 'rgba(62, 220, 129, 0.45)'
 const AUTHOR = 'Prem Iyer'
 const PLATFORM_RAIL = 'AI SOFTWARE TRANSFORMATION'
 
-/** Canvas type scale — large display headlines vs. smaller supporting copy (Outtake-style stark hierarchy). */
+/** Mobile-first scale (phone feed ~390px wide; Oktopost 24pt+ body floor on 1080×1350 canvas). */
 const CAROUSEL_TYPE = {
-  coverDisplay: 74,
+  coverEyebrow: 13,
+  coverDisplay: 72,
   coverLineGap: 80,
-  coverSubdeck: 18,
-  coverSubdeckLineH: 28,
-  sectionDisplay: 58,
-  sectionLineGap: 64,
-  sectionSupporting: 18,
-  sectionSupportingLineH: 27,
-  sectionList: 17,
-  sectionListLineH: 26,
-  bulletsTitle: 56,
-  bulletsTitleGap: 62,
-  /** Body copy on bullet slides — sized closer to reference decks (strong title vs. still-readable body). */
-  bulletsItem: 30,
-  bulletsItemLineH: 40,
-  bulletsIndex: 13,
-  quoteDisplay: 62,
-  quoteLineGap: 68,
+  coverSubdeck: 28,
+  coverSubdeckLineH: 38,
+  sectionDisplay: 56,
+  sectionLineGap: 62,
+  sectionSupporting: 28,
+  sectionSupportingLineH: 38,
+  sectionList: 26,
+  sectionListLineH: 36,
+  bulletsTitle: 54,
+  bulletsTitleGap: 60,
+  bulletsItem: 40,
+  bulletsItemLineH: 52,
+  bulletsIndex: 16,
+  quoteDisplay: 60,
+  quoteLineGap: 66,
   ctaDisplay: 54,
   ctaLineGap: 60,
-  platformDeck: 54,
-  platformDeckGap: 60,
-  platformBody: 24,
-  platformBodyLineH: 34,
-  trioTitle: 21,
-  trioSub: 18,
-  trioLineGap: 24,
-  pillarDisplay: 50,
-  pillarLineGap: 56,
-  pillarBody: 19,
-  pillarBodyLineH: 29,
-  pillarColLabel: 12,
-  pillarColBody: 18,
-  pillarColLineGap: 26,
-  closerDisplay: 48,
-  closerLineGap: 54,
-  closerSub: 17,
-  closerSubLineH: 27,
-  closerStatXL: 58,
-  closerStatL: 44,
-  closerMicro: 11,
-  headerMono: 10,
-  compareMeta: 8,
-  compareLabel: 8,
-  compareBody: 16,
-  compareBodyLineH: 24,
+  platformDeck: 52,
+  platformDeckGap: 58,
+  platformBody: 32,
+  platformBodyLineH: 42,
+  trioTitle: 28,
+  trioSub: 28,
+  trioLineGap: 36,
+  pillarDisplay: 54,
+  pillarLineGap: 60,
+  pillarBody: 30,
+  pillarBodyLineH: 40,
+  pillarColLabel: 20,
+  pillarColBody: 28,
+  pillarColLineGap: 36,
+  closerDisplay: 54,
+  closerLineGap: 60,
+  closerSub: 28,
+  closerSubLineH: 38,
+  closerHashtags: 21,
+  closerHashtagsLineH: 30,
+  headerMono: 12,
+  compareMeta: 12,
+  compareLabel: 20,
+  compareBody: 28,
+  compareBodyLineH: 38,
+  strikeLabel: 12,
 }
+
+/** ~60 words/slide max for mobile legibility (Oktopost carousel guidance). */
+const SLIDE_MAX_WORDS = 58
+
+function capSlideWords(text, maxWords = SLIDE_MAX_WORDS) {
+  const t = (text || '').replace(/\s+/g, ' ').trim()
+  if (!t) return ''
+  const words = t.split(/\s+/).filter(Boolean)
+  if (words.length <= maxWords) return t
+  return `${words.slice(0, maxWords).join(' ')}…`
+}
+
+/** Padding inside bordered regions so type never kisses the stroke. */
+const BOX_INSET = 28
+
+const DECK_HEADER_LABEL = {
+  cover: 'START HERE',
+  bullets: 'KEY POINTS',
+  section: 'BREAKDOWN',
+  quote: 'QUOTE',
+  cta: 'QUESTION',
+  platform: 'IN PRACTICE',
+  pillar: 'THE TAKEAWAY',
+  closer: 'YOUR MOVE',
+}
+
+const PILLAR_COL_LABELS = ['What changed', 'What to do', 'What to prove']
 
 const FONT_SANS = 'Inter, system-ui, sans-serif'
 const FONT_MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
@@ -99,10 +129,10 @@ const SHIFT_LABELS = [
 ]
 
 const STRIKE_BY_TOPIC = {
-  cursor: 'LINE-ONLY HELP — NO REPO-WIDE CONTEXT — TOOL-CHAIN GAPS',
-  investment: 'HYPE — FOMO — DECKS WITHOUT OWNERS',
-  cio: 'STRATEGY THEATER — PILOTS — SHELFWARE',
-  roi: 'VANITY METRICS — BENCHMARKS — NO DECISION',
+  cursor: 'PILOTS — LINE-ONLY AI — NO REPO CONTEXT',
+  investment: 'HYPE ROUNDS — NO OWNERS — SHELFWARE AI',
+  cio: 'STRATEGY DECKS — PILOTS — CHANGE THEATER',
+  roi: 'VANITY METRICS — BENCHMARKS — NO PAYBACK',
 }
 
 function getTopicLabel(topicId) {
@@ -113,6 +143,141 @@ function shiftKicker(slideNum) {
   const n = String(slideNum).padStart(2, '0')
   const lab = SHIFT_LABELS[(Math.max(1, slideNum) - 1) % SHIFT_LABELS.length]
   return `SHIFT ${n} · ${lab}`
+}
+
+function deckHeaderLeft(slide) {
+  if (slide.type === 'cover') {
+    const topic = slide.topicLabel || slide.topicRail || 'AI transformation'
+    return `${AUTHOR.toUpperCase()} · ${topicShortLabel(topic).toUpperCase().slice(0, 28)}`
+  }
+  if (slide.type === 'platform') return 'THE PLATFORM'
+  if (slide.type === 'pillar') return 'THE TAKEAWAY'
+  if (slide.type === 'closer') return AUTHOR.toUpperCase()
+  if (slide.kicker) return slide.kicker
+  return DECK_HEADER_LABEL[slide.type] || 'INSIGHT'
+}
+
+const COMMENT_PROMPT_BANK = [
+  'Comment with the one move your team is making this quarter.',
+  'Comment with where you disagree — I read every reply.',
+  'Drop your stack in the comments: tools, owners, and the metric you track.',
+  'Comment with Plan / Ship / Prove — which is hardest for you right now?',
+  'If you had to cut this deck to three slides, what stays?',
+]
+
+function pickCommentPrompt(closerHeadline, bullets, topicId, postText) {
+  const seed = fnv1a(`${topicId}:comment:${(postText || '').slice(0, 120)}`) >>> 0
+  const rng = mulberry32(seed || 0x9e3779b9)
+  const pool = [...COMMENT_PROMPT_BANK]
+  if (allBulletStrings(bullets).length >= 2) {
+    pool.push('Comment with which beat matches how your org is operating.')
+  }
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1)) % (i + 1)
+    ;[pool[i], pool[j]] = [pool[j], pool[i]]
+  }
+  for (const p of pool) {
+    if (!shareLongPrefix(p, closerHeadline, 38)) return p
+  }
+  return pool[0]
+}
+
+/** Final-slide question — same theme as post CTA but never the same wording. */
+function pickCloserQuestion(chosenCta, hook, headlineGuard, narrative, topicId, postText) {
+  const boring = BORING_CTA_RE
+  const bank = [...(narrative.carouselCtas || []), ...CAROUSEL_CTA_BANK]
+    .map((q) => (q || '').replace(/\s+/g, ' ').trim())
+    .filter((q) => q.length > 18 && !boring.test(q))
+  const alts = [
+    'What would you fund first if you had only one sprint?',
+    'Where is your team stuck today — plan, ship, or prove?',
+    'What metric would you put on a board slide in 90 days?',
+    'What would you stop funding to make room for this?',
+  ]
+  const seed = fnv1a(`${topicId}:closer:${(postText || '').slice(0, 160)}`) >>> 0
+  const rng = mulberry32(seed || 0x517cc1b7)
+  const candidates = [...bank, ...alts]
+  for (let k = 0; k < candidates.length * 3; k++) {
+    const q = candidates[Math.floor(rng() * candidates.length) % candidates.length]
+    const line = firstSentence(q, 100)
+    if (line.length < 18) continue
+    if (chosenCta && shareLongPrefix(line, chosenCta, 32)) continue
+    if (shareLongPrefix(line, hook, 36)) continue
+    if (headlineGuard.has(line)) continue
+    if (hookReadsLikePromptRubric(line)) continue
+    return line
+  }
+  return 'What would you ship first in the next 90 days?'
+}
+
+const TRIO_SLOTS = [
+  { title: 'Plan', lead: 'Prioritize', fallback: 'What we fund and sequence in the next 90 days.' },
+  { title: 'Ship', lead: 'Deliver', fallback: 'What we put in production — owners, dates, and scope.' },
+  { title: 'Prove', lead: 'Measure', fallback: 'The metric leadership uses to say it worked.' },
+]
+
+function humanizeTrioLine(raw, slot) {
+  let t = (raw || '').replace(/\s+/g, ' ').trim()
+  if (!t || t.length < 24 || isLabelLikeOrShallowBullet(t)) return slot.fallback
+  if (/^(prioritize|deliver|measure|plan|ship|prove)\s*:/i.test(t)) return takeawayCopy(t, 100, 145)
+  if (/^(we |teams |operators |start |stop |build |fund |ship |track |measure )/i.test(t)) {
+    return takeawayCopy(t, 100, 145)
+  }
+  return takeawayCopy(`${slot.lead}: ${firstSentence(t, 110)}`, 100, 145)
+}
+
+function buildIntuitiveTrio(narrative, fallbackArgs) {
+  const { bullets, hook, subdeck } = fallbackArgs
+  const bt = allBulletStrings(bullets)
+  const built = buildTrioAndPillarCopy(fallbackArgs)
+  const lines =
+    bt.length >= 3
+      ? bt.slice(0, 3)
+      : built.trioSubs?.length === 3
+        ? built.trioSubs
+        : []
+  return TRIO_SLOTS.map((slot, i) => ({
+    title: slot.title,
+    sub: humanizeTrioLine(lines[i], slot),
+  }))
+}
+
+function finalizeDeckSlides(slides) {
+  if (slides.length <= CAROUSEL_MAX_SLIDES) return applyShiftKickersOnDeck(slides)
+  const mustTypes = new Set(['cover', 'pillar', 'closer'])
+  const must = slides.filter((s) => mustTypes.has(s.type))
+  const mid = slides.filter((s) => !mustTypes.has(s.type))
+  const dropOrder = ['cta', 'quote', 'platform', 'bullets', 'section']
+  while (mid.length > CAROUSEL_MAX_SLIDES - must.length) {
+    let dropped = false
+    for (const type of dropOrder) {
+      const idx = mid.findIndex((s) => s.type === type)
+      if (idx >= 0) {
+        mid.splice(idx, 1)
+        dropped = true
+        break
+      }
+    }
+    if (!dropped) mid.pop()
+  }
+  const kept = new Set(mid)
+  const ordered = slides.filter(
+    (s) =>
+      s.type === 'cover' ||
+      s.type === 'pillar' ||
+      s.type === 'closer' ||
+      (kept.has(s) && !mustTypes.has(s.type)),
+  )
+  return applyShiftKickersOnDeck(ordered)
+}
+
+function applyShiftKickersOnDeck(slides) {
+  let shift = 0
+  return slides.map((s) => {
+    if (s.type === 'cover') return s
+    shift += 1
+    return { ...s, kicker: shiftKicker(shift), shiftIndex: shift }
+  })
 }
 
 function rotateTitleBank(titles, topicId, hook) {
@@ -161,7 +326,7 @@ function enrichCarouselBulletItems(bullets, narrative, standaloneStatements, hoo
   const shallow = bullets.map((b, i) => (isLabelLikeOrShallowBullet(normalizeBulletEntry(b).text) ? i : -1)).filter((i) => i >= 0)
   if (!shallow.length) return bullets
 
-  const pool = [...narrativeCandidatePool(narrative, standaloneStatements, hook, subdeck)]
+  const pool = [...carouselPublicPool(narrative, standaloneStatements, hook, subdeck, bullets)]
   const extra = Array.isArray(narrative.carouselBulletFallbacks) ? narrative.carouselBulletFallbacks : []
   for (const s of extra) {
     const t = String(s || '').replace(/\s+/g, ' ').trim()
@@ -171,15 +336,14 @@ function enrichCarouselBulletItems(bullets, narrative, standaloneStatements, hoo
   const guard = allBulletStrings(bullets)
   const replacements = pickBlurbLines(pool, Math.max(shallow.length * 2, 8), guard)
   let r = 0
-  const coreFallback = () =>
-    takeawayCopy(
-      `${narrative.label}: ${firstSentence(narrative.coreThesis || narrative.audience || '', 110)}`.replace(
-        /\s+/g,
-        ' ',
-      ).trim(),
+  const coreFallback = () => {
+    const fb = (narrative.carouselBulletFallbacks || [])[0]
+    return takeawayCopy(
+      fb || 'One concrete shift operators are making this month — not another strategy deck.',
       118,
       168,
     )
+  }
 
   const shallowSet = new Set(shallow)
   return bullets.map((original, i) => {
@@ -256,22 +420,22 @@ function splitDelimitedClauses(text) {
   return [t]
 }
 
-function narrativeCandidatePool(narrative, standaloneStatements, hook, subdeck) {
+/** Post-derived lines only — no internal news lenses / thesis fragments on public slides. */
+function carouselPublicPool(narrative, standaloneStatements, hook, subdeck, bullets) {
   const out = []
   const ban = new Set([normKey(hook).slice(0, 48), normKey(subdeck).slice(0, 48)].filter(Boolean))
   const push = (s) => {
-    const t = (s || '').replace(/\s+/g, ' ').trim()
-    if (t.length < 28) return
+    let t = (s || '').replace(/\s+/g, ' ').trim()
+    if (t.length < 28 || hookReadsLikePromptRubric(t)) return
+    if (/\b(ledger|cross-portfolio|rubric|unless CONTEXT)\b/i.test(t) && t.length < 100) return
     const head = normKey(t).slice(0, 48)
     if (ban.has(head)) return
     out.push(t)
   }
+  for (const s of allBulletStrings(bullets || [])) push(s)
   for (const s of standaloneStatements || []) push(s)
-  for (const s of narrative.newsLenses || []) push(s)
-  // hookDirections are model instructions — never surface them on public carousel/PDF copy.
-  splitDelimitedClauses(narrative.competitiveFrame).forEach(push)
-  for (const part of (narrative.coreThesis || '').split('. ')) push(part)
-  push(narrative.audience)
+  if (subdeck) push(subdeck)
+  for (const s of narrative.carouselBulletFallbacks || []) push(s)
   const seen = new Set()
   const deduped = []
   for (const t of out) {
@@ -307,7 +471,7 @@ function buildTrioAndPillarCopy({
   usedBulletLinesOnSlides,
   sectionsPath,
 }) {
-  const pool = narrativeCandidatePool(narrative, standaloneStatements, hook, subdeck)
+  const pool = carouselPublicPool(narrative, standaloneStatements, hook, subdeck, bullets)
   const bt = allBulletStrings(bullets)
   const blockFromBullets = usedBulletLinesOnSlides
 
@@ -335,25 +499,18 @@ function buildTrioAndPillarCopy({
   }
 
   const fillers = (i) => {
-    const lens = (narrative.newsLenses || [])[i % 4] || narrative.audience || narrative.label
-    return `${narrative.label} — ${firstSentence(lens || narrative.coreThesis, 96)}`
+    const fb = (narrative.carouselBulletFallbacks || [])[i % 3]
+    if (fb) return fb
+    return `One concrete shift operators are making this month — not another strategy deck.`
   }
   while (trioSubs.length < 3) {
-    const f = fillers(trioSubs.length + 1)
-    const line = takeawayCopy(f, 118, 158)
+    const line = takeawayCopy(fillers(trioSubs.length), 100, 145)
     if (!trioSubs.some((t) => shareLongPrefix(t, line, 32))) trioSubs.push(line)
-    else trioSubs.push(takeawayCopy(`${f} (view ${trioSubs.length + 1})`, 118, 158))
   }
   while (colPick.length < 3) {
-    const f = fillers(colPick.length + 4)
-    const line = takeawayCopy(f, 118, 158)
+    const line = takeawayCopy(fillers(colPick.length + 1), 95, 140)
     if (!colPick.some((t) => shareLongPrefix(t, line, 32)) && !trioSubs.some((t) => shareLongPrefix(t, line, 32)))
       colPick.push(line)
-    else {
-      const parts = (narrative.competitiveFrame || '').split(' — ')
-      const chunk = parts[colPick.length % Math.max(1, parts.length)] || f
-      colPick.push(takeawayCopy(chunk, 118, 158))
-    }
   }
   return { trioSubs: trioSubs.slice(0, 3), colPick: colPick.slice(0, 3) }
 }
@@ -361,21 +518,13 @@ function buildTrioAndPillarCopy({
 const BORING_CTA_RE = /bottom-up\s+adoption|top-down\s+mandate/i
 
 function buildCarouselTrioSubs(narrative, fallbackArgs) {
-  const T = narrative.carouselTrio
-  if (T?.roadmap && T?.ship && T?.prove) {
-    return [
-      takeawayCopy(T.roadmap, 200, 320),
-      takeawayCopy(T.ship, 200, 320),
-      takeawayCopy(T.prove, 200, 320),
-    ]
-  }
-  return buildTrioAndPillarCopy(fallbackArgs).trioSubs
+  return buildIntuitiveTrio(narrative, fallbackArgs)
 }
 
 function buildCarouselPillarCols(narrative, fallbackArgs) {
   const cols = narrative.carouselPillarCols
   if (Array.isArray(cols) && cols.length >= 3) {
-    return cols.slice(0, 3).map((c) => takeawayCopy(c, 200, 320))
+    return cols.slice(0, 3).map((c) => takeawayCopy(c, 95, 140))
   }
   return buildTrioAndPillarCopy(fallbackArgs).colPick
 }
@@ -457,6 +606,33 @@ function platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard) {
   return { primary, accent }
 }
 
+function audiencePillarHeadline(hook, chosenCta, narrative, topicShort, headlineGuard, topicId, postSnippet = '') {
+  const publicHook = hookReadsLikePromptRubric(hook) ? '' : (hook || '').replace(/\s+/g, ' ').trim()
+  if (chosenCta && chosenCta.length > 24 && !hookReadsLikePromptRubric(chosenCta)) {
+    const q = firstSentence(chosenCta, 88).replace(/\s+/g, ' ').trim()
+    if (q.length >= 20 && !headlineGuard.has(q)) {
+      headlineGuard.add(q)
+      return q
+    }
+  }
+  if (publicHook.length >= 28) {
+    const h = firstSentence(publicHook, 82)
+    if (h.length >= 20 && !headlineGuard.has(h)) {
+      headlineGuard.add(h)
+      return h
+    }
+  }
+  return pillarCatalogHeadline(narrative, topicShort, headlineGuard, topicId, postSnippet)
+}
+
+function buildPillarColumns(bullets, colPick) {
+  const bt = allBulletStrings(bullets)
+  return PILLAR_COL_LABELS.map((label, i) => ({
+    label,
+    text: takeawayCopy(bt[i] || colPick[i] || '', 88, 130),
+  }))
+}
+
 function pillarCatalogHeadline(narrative, topicShort, headlineGuard, topicId, postSnippet = '') {
   const seed = fnv1a(`${topicId}:${postSnippet.slice(0, 320)}`)
   const creative = pickCreativeCatalogHeadline({
@@ -498,29 +674,24 @@ function pillarCatalogHeadline(narrative, topicShort, headlineGuard, topicId, po
   return fallback
 }
 
-function pillarBodyFallback(subdeck, standaloneStatements, narrative) {
+function pillarBodyFallback(subdeck, standaloneStatements, bullets, narrative) {
+  const bt = allBulletStrings(bullets || [])
+  if (bt.length >= 2) {
+    return takeawayCopy(`${bt[0]} ${bt[1]}`, 130, 190)
+  }
+  if (bt[0]) return bt[0]
   const sd = (subdeck || '').replace(/\s+/g, ' ').trim()
-  if (sd.length > 40) return sd
-  const st = standaloneStatements.find((s) => s.length > 45)
+  if (sd.length > 40 && !hookReadsLikePromptRubric(sd)) return sd
+  const st = (standaloneStatements || []).find((s) => s.length > 45 && !hookReadsLikePromptRubric(s))
   if (st) return st
-  return narrative.coreThesis
+  const fb = (narrative.carouselBulletFallbacks || [])[0]
+  if (fb) return fb
+  return 'Three moves operators are making now — not another strategy deck.'
 }
 
-function topicBoxMeta(narrative) {
-  const parts = (narrative.newsLenses || [])
-    .slice(0, 3)
-    .map((s) =>
-      s
-        .replace(/\s+/g, ' ')
-        .trim()
-        .split(/\s+/)
-        .slice(0, 3)
-        .join(' ')
-        .toUpperCase(),
-    )
-    .filter(Boolean)
-  if (parts.length >= 2) return parts.join(' — ')
-  return slideCopy((narrative.signalLabel || 'TOPIC SIGNAL').toUpperCase(), 28, 48).replace(/\s+/g, ' — ')
+function topicBoxMeta(topicLabel) {
+  const short = topicShortLabel(topicLabel || '').toUpperCase().replace(/\s+/g, ' ')
+  return short.slice(0, 40) || 'THIS WEEK'
 }
 
 function parseIntoSlides(text, topicId = '') {
@@ -596,19 +767,24 @@ function parseIntoSlides(text, topicId = '') {
         118,
       )
     : hook
-  slides.push({ type: 'cover', text: coverText, topicLabel, subdeck })
+  const coverEyebrow = subdeck
+    ? `A note on ${topicShortLabel(topicLabel)}`
+    : `A note on ${topicShortLabel(topicLabel)}`
+  slides.push({ type: 'cover', text: coverText, topicLabel, subdeck, coverEyebrow })
   headlineGuard.add(coverText)
 
   let shiftCounter = 0
 
   if (sections.length >= 2) {
-    for (let si = 0; si < sections.length; si++) {
+    for (let si = 0; si < Math.min(sections.length, 2); si++) {
       const items = sections[si].items.slice(0, 4)
       const cites = items.map((it) => it.cite).filter(Boolean)
       const t0 = items[0]?.text || ''
       const t1 = items[1]?.text || ''
+      const sectionHeadings = ['What changed', 'What teams do now', 'What to prove']
       let heading = sections[si].heading
-      if (headlineGuard.has(heading)) heading = `${sections[si].heading} · beat ${si + 1}`
+      if (hookReadsLikePromptRubric(heading)) heading = sectionHeadings[si % sectionHeadings.length]
+      if (headlineGuard.has(heading)) heading = sectionHeadings[si % sectionHeadings.length]
       headlineGuard.add(heading)
       slides.push({
         type: 'section',
@@ -619,18 +795,19 @@ function parseIntoSlides(text, topicId = '') {
         cites: [...new Set(cites)],
         kicker: shiftKicker(++shiftCounter),
         supporting: takeawayCopy(t0, 125, 170),
-        boxMeta: topicBoxMeta(narrative),
+        boxMeta: topicBoxMeta(topicLabel),
         leftCol: t0
-          ? { title: 'THE CONSTRAINT', body: takeawayCopy(t0, 125, 175) }
+          ? { title: 'The pressure', body: takeawayCopy(t0, 125, 175) }
           : null,
         rightCol: t1
-          ? { title: 'THE LEVERAGE', body: takeawayCopy(t1, 125, 175) }
+          ? { title: 'The move', body: takeawayCopy(t1, 125, 175) }
           : null,
       })
     }
   } else if (bullets.length > 0) {
     const titles = rotateTitleBank(generateBulletTitles(bullets, hook), topicId, hook)
-    for (let i = 0; i < bullets.length; i += 3) {
+    const maxBulletSlides = 2
+    for (let i = 0; i < bullets.length && Math.floor(i / 3) < maxBulletSlides; i += 3) {
       const chunk = bullets.slice(i, i + 3)
       const cites = chunk.map((it) => it.cite).filter(Boolean)
       const slot = Math.floor(i / 3)
@@ -655,7 +832,7 @@ function parseIntoSlides(text, topicId = '') {
     }
   }
 
-  if (standaloneStatements.length > 0) {
+  if (standaloneStatements.length > 0 && slides.length < 5) {
     const candidates = [...standaloneStatements].sort((a, b) => b.length - a.length)
     const best =
       candidates.find(
@@ -684,7 +861,6 @@ function parseIntoSlides(text, topicId = '') {
     postText: text,
   })
   if (chosenCta && chosenCta.length > 18) {
-    slides.push({ type: 'cta', text: chosenCta, kicker: 'YOUR TURN' })
     headlineGuard.add(chosenCta.trim())
   }
 
@@ -704,66 +880,60 @@ function parseIntoSlides(text, topicId = '') {
     usedBulletLinesOnSlides,
     sectionsPath,
   }
-  const trioSubs = buildCarouselTrioSubs(narrative, trioFallbackArgs)
+  const trioBlocks = buildIntuitiveTrio(narrative, trioFallbackArgs)
   const colPick = buildCarouselPillarCols(narrative, trioFallbackArgs)
 
-  if (richEnough) {
+  const midBeforePlatform = slides.length - 1
+  if (richEnough && midBeforePlatform <= 4) {
     const narrativeRaw = pickPlatformNarrative(subdeck, hook, bullets)
     const titles = platformTitlesFromPost(hook, narrative, topicLabel, headlineGuard)
-    const shortTopic = topicShortLabel(topicLabel)
     slides.push({
       type: 'platform',
       titleMain: titles.primary,
       titleAccent: titles.accent,
-      body: takeawayCopy(narrativeRaw, 150, 210),
-      trio: [
-        { title: 'Roadmap', sub: trioSubs[0] },
-        { title: 'Ship', sub: trioSubs[1] },
-        { title: 'Prove', sub: trioSubs[2] },
-      ],
+      body: takeawayCopy(narrativeRaw, 130, 185),
+      trio: trioBlocks,
     })
   }
 
   const topicShort = topicShortLabel(topicLabel).slice(0, 44)
-  const pillarHeadline = pillarCatalogHeadline(narrative, topicShort, headlineGuard, topicId, text)
+  const pillarHeadline = audiencePillarHeadline(
+    hook,
+    chosenCta,
+    narrative,
+    topicShort,
+    headlineGuard,
+    topicId,
+    text,
+  )
   slides.push({
     type: 'pillar',
-    strike: STRIKE_BY_TOPIC[topicId] || 'HYPE — PILOTS — SLIDEWARE',
+    strike: STRIKE_BY_TOPIC[topicId] || 'PILOTS — SLIDEWARE — VANITY METRICS',
     headline: pillarHeadline,
-    body: takeawayCopy(pillarBodyFallback(subdeck, standaloneStatements, narrative), 158, 210),
-    cols: [
-      { label: 'EXTERNAL', text: colPick[0] },
-      { label: 'ENTITY-LEVEL', text: colPick[1] },
-      { label: 'AI-NATIVE', text: colPick[2] },
-    ],
+    body: takeawayCopy(pillarBodyFallback(subdeck, standaloneStatements, bullets, narrative), 120, 175),
+    cols: buildPillarColumns(bullets, colPick),
   })
 
-  const allCites = findCitations(text)
-  const statN = Math.min(5, Math.max(3, Math.ceil(bullets.length / 2) || 3))
-  let closerPrimary = takeawayCopy(
-    `${narrative.label}: ${firstSentence(narrative.coreThesis, 100)}`.replace(/\s+/g, ' ').trim(),
-    86,
-    118,
+  const closerHeadline = pickCloserQuestion(
+    chosenCta,
+    hook,
+    headlineGuard,
+    narrative,
+    topicId,
+    text,
   )
-  if (headlineGuard.has(closerPrimary) || shareLongPrefix(closerPrimary, hook, 34)) {
-    closerPrimary = takeawayCopy(firstSentence(narrative.coreThesis, 110), 86, 118)
-  }
-  headlineGuard.add(closerPrimary)
-  const closerSub = takeawayCopy(narrative.competitiveFrame, 130, 175)
+  headlineGuard.add(closerHeadline)
+  const closerSub = pickCommentPrompt(closerHeadline, bullets, topicId, text)
   slides.push({
     type: 'closer',
-    text: closerPrimary,
+    headline: closerHeadline,
     sub: closerSub,
-    hashtags,
-    allCites,
-    topicLabel,
-    statN,
-    statWord: 'operating modes',
-    statMicro: 'PLAN · SHIP · MEASURE · GOVERN · AGENT',
+    hashtags: hashtags.replace(/\s+/g, ' ').trim(),
   })
 
   const topicRail = topicShortLabel(topicLabel).toUpperCase().slice(0, 40)
-  return slides.map((s) => ({ ...s, topicRail }))
+  const withRail = slides.map((s) => ({ ...s, topicRail }))
+  return finalizeDeckSlides(withRail)
 }
 
 function generateBulletTitles(bullets, hook) {
@@ -777,12 +947,12 @@ function generateBulletTitles(bullets, hook) {
     titles.push('The Market Signal', 'The Capital Flow', 'The Opportunity')
   else if (hookLower.includes('cio') || hookLower.includes('leader') || hookLower.includes('vp'))
     titles.push('The Leadership Challenge', 'The Solution', 'The Path Forward')
-  else titles.push('The Data', 'The Shift', 'The Takeaway')
+  else titles.push('What matters now', 'What to do next', 'What to watch')
   return titles
 }
 
 function wrapText(ctx, text, maxWidth) {
-  const safeMax = maxWidth - 10
+  const safeMax = maxWidth - BOX_INSET
   const words = text.split(' ')
   const lines = []
   let current = ''
@@ -902,7 +1072,7 @@ async function loadCarouselPlatformImage(slides, topicId) {
 
 function drawStrikeLabel(ctx, text, x, y, maxW) {
   ctx.save()
-  ctx.font = `500 9px ${FONT_MONO}`
+  ctx.font = `500 ${CAROUSEL_TYPE.strikeLabel}px ${FONT_MONO}`
   ctx.letterSpacing = '2px'
   ctx.fillStyle = MUTED
   const t = text.toUpperCase().slice(0, 80)
@@ -1008,95 +1178,122 @@ function drawSplitHeadlineParts(ctx, primary, accent, maxW, startY, fontPx, line
   return y
 }
 
+/** Stacked compare (mobile-first): full-width columns, no tiny side-by-side labels. */
 function drawCompareBox(ctx, topY, maxW, meta, leftCol, rightCol) {
   const x0 = PAD
-  const boxH = 200
+  const inset = BOX_INSET
   const w = maxW
-  ctx.strokeStyle = BOX_EDGE
-  ctx.lineWidth = 1
-  roundRect(ctx, x0, topY, w, boxH, 2)
-  ctx.stroke()
+  const colW = w - inset * 2
+  const lx = x0 + inset
+  let innerY = topY + inset
 
-  let y = topY + 22
   if (meta) {
     ctx.font = `500 ${CAROUSEL_TYPE.compareMeta}px ${FONT_MONO}`
     ctx.letterSpacing = '2px'
     ctx.fillStyle = ACCENT_SOFT
-    ctx.fillText(meta.toUpperCase(), x0 + 16, y)
+    ctx.fillText(meta.toUpperCase(), lx, innerY)
     ctx.letterSpacing = '0px'
-    y += 28
-  } else {
-    y += 8
+    innerY += 30
   }
 
-  const midX = x0 + w / 2
-  hairlineV(ctx, midX, topY + (meta ? 48 : 28), topY + boxH - 16)
-
-  const colW = w / 2 - 32
-  const lx = x0 + 16
-  const rx = midX + 16
-
-  ctx.font = `500 ${CAROUSEL_TYPE.compareLabel}px ${FONT_MONO}`
-  ctx.letterSpacing = '2px'
-  ctx.fillStyle = ACCENT_SOFT
-  ctx.fillText((leftCol.title || 'LEFT').toUpperCase(), lx, y)
-  ctx.fillText((rightCol.title || 'RIGHT').toUpperCase(), rx, y)
-  ctx.letterSpacing = '0px'
-
-  const labelBottom = y + 22
-  ctx.font = `400 ${CAROUSEL_TYPE.compareBody}px ${FONT_SANS}`
-  ctx.fillStyle = PAPER
-  let ly = labelBottom
-  for (const line of wrapText(ctx, leftCol.body, colW)) {
-    ctx.fillText(line, lx, ly)
-    ly += CAROUSEL_TYPE.compareBodyLineH
+  const drawCol = (col, startY) => {
+    let y = startY
+    ctx.font = `500 ${CAROUSEL_TYPE.compareLabel}px ${FONT_MONO}`
+    ctx.letterSpacing = '2px'
+    ctx.fillStyle = ACCENT_SOFT
+    ctx.fillText((col.title || '').toUpperCase(), lx, y)
+    ctx.letterSpacing = '0px'
+    y += 26
+    ctx.font = `400 ${CAROUSEL_TYPE.compareBody}px ${FONT_SANS}`
+    ctx.fillStyle = PAPER
+    for (const line of wrapText(ctx, capSlideWords(col.body), colW)) {
+      ctx.fillText(line, lx, y)
+      y += CAROUSEL_TYPE.compareBodyLineH
+    }
+    return y + 14
   }
-  let ry = labelBottom
-  for (const line of wrapText(ctx, rightCol.body, colW)) {
-    ctx.fillText(line, rx, ry)
-    ry += CAROUSEL_TYPE.compareBodyLineH
-  }
+
+  innerY = drawCol(leftCol, innerY)
+  hairlineH(ctx, x0 + inset, x0 + w - inset, innerY)
+  innerY += 20
+  innerY = drawCol(rightCol, innerY)
+
+  const boxH = innerY - topY + inset
+  ctx.strokeStyle = BOX_EDGE
+  ctx.lineWidth = 1
+  roundRect(ctx, x0, topY, w, boxH, 2)
+  ctx.stroke()
+  return topY + boxH
 }
 
+/** Stacked three-up (mobile-first) for takeaway / Plan-Ship-Prove rails. */
 function drawThreeColGrid(ctx, topY, maxW, cols, bottomLimit = FOOTER_TOP - 14) {
-  if (!cols || cols.length < 3) return
-  const w = maxW
-  const cw = (w - 32) / 3
+  if (!cols || cols.length < 1) return topY
   const x0 = PAD
-  const x1 = x0 + 16
-  const x2 = x1 + cw + 16
-  const x3 = x2 + cw + 16
-  const labelH = 22
+  const inset = BOX_INSET
+  const colW = maxW - inset * 2
+  const lx = x0 + inset
+  let y = topY + inset
   const lineGap = CAROUSEL_TYPE.pillarColLineGap
-  const maxH = Math.max(100, bottomLimit - topY - 8)
-  const maxLines = Math.max(4, Math.min(16, Math.floor((maxH - labelH - 10) / lineGap)))
 
-  ctx.font = `400 ${CAROUSEL_TYPE.pillarColBody}px ${FONT_SANS}`
-  const lineSets = cols.map((col) => wrapText(ctx, col.text || '', cw - 8))
-  const usedLines = Math.min(maxLines, Math.max(...lineSets.map((ls) => ls.length), 1))
-  const rowH = labelH + usedLines * lineGap + 10
-
-  hairlineV(ctx, x2 - 8, topY, topY + rowH)
-  hairlineV(ctx, x3 - 8, topY, topY + rowH)
-
-  let i = 0
-  for (const col of cols) {
-    const bx = i === 0 ? x1 : i === 1 ? x2 : x3
+  for (let i = 0; i < cols.length; i++) {
+    const col = cols[i]
+    if (i > 0) {
+      hairlineH(ctx, x0 + inset, x0 + maxW - inset, y)
+      y += 18
+    }
     ctx.font = `500 ${CAROUSEL_TYPE.pillarColLabel}px ${FONT_MONO}`
     ctx.letterSpacing = '2px'
     ctx.fillStyle = ACCENT_SOFT
-    ctx.fillText((col.label || '').toUpperCase(), bx, topY + 4)
+    ctx.fillText((col.label || '').toUpperCase(), lx, y + 4)
     ctx.letterSpacing = '0px'
     ctx.fillStyle = PAPER
     ctx.font = `400 ${CAROUSEL_TYPE.pillarColBody}px ${FONT_SANS}`
-    let ly = topY + labelH
-    const lines = lineSets[i] || []
-    for (let li = 0; li < usedLines; li++) {
-      ctx.fillText(lines[li] || '', bx, ly)
+    let ly = y + 28
+    for (const line of wrapText(ctx, capSlideWords(col.text), colW)) {
+      if (ly > bottomLimit) break
+      ctx.fillText(line, lx, ly)
       ly += lineGap
     }
-    i++
+    y = ly + 12
+    if (y > bottomLimit) break
   }
+
+  const boxH = y - topY + inset
+  ctx.strokeStyle = BOX_EDGE
+  ctx.lineWidth = 1
+  roundRect(ctx, x0, topY, maxW, boxH, 2)
+  ctx.stroke()
+  return y + inset
+}
+
+function drawTrioStacked(ctx, topY, maxW, trio, bottomLimit = FOOTER_TOP - 18) {
+  if (!trio?.length) return topY
+  const x = PAD + BOX_INSET
+  const colW = maxW - BOX_INSET * 2
+  let y = topY
+  for (let i = 0; i < trio.length; i++) {
+    const t = trio[i]
+    if (i > 0) {
+      hairlineH(ctx, PAD, SLIDE_W - PAD, y)
+      y += 20
+    }
+    ctx.fillStyle = PAPER
+    ctx.font = `700 ${CAROUSEL_TYPE.trioTitle}px ${FONT_SANS}`
+    ctx.fillText(t.title, x, y + 24)
+    ctx.font = `400 ${CAROUSEL_TYPE.trioSub}px ${FONT_SANS}`
+    ctx.fillStyle = '#e4e0d8'
+    let sy = y + 52
+    for (const line of wrapText(ctx, capSlideWords(t.sub, 44), colW)) {
+      if (sy > bottomLimit) break
+      ctx.fillText(line, x, sy)
+      sy += CAROUSEL_TYPE.trioLineGap
+    }
+    y = sy + 14
+    ctx.fillStyle = PAPER
+    if (y > bottomLimit) break
+  }
+  return y
 }
 
 function renderSlide(ctx, slide, index, total, extra = {}) {
@@ -1107,14 +1304,23 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
 
   switch (slide.type) {
     case 'cover': {
-      const topic = (slide.topicLabel || 'Your pillar').toUpperCase()
-      drawEditorialHeader(ctx, `${AUTHOR.toUpperCase()} · ${topic.slice(0, 36)}`, index, total)
+      drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total)
+
+      let heroY = CONTENT_TOP + 4
+      if (slide.coverEyebrow) {
+        ctx.font = `500 ${CAROUSEL_TYPE.coverEyebrow}px ${FONT_MONO}`
+        ctx.letterSpacing = '2.4px'
+        ctx.fillStyle = MUTED
+        ctx.fillText(slide.coverEyebrow.toUpperCase().slice(0, 56), PAD, heroY)
+        ctx.letterSpacing = '0px'
+        heroY += 28
+      }
 
       const coverFont = CAROUSEL_TYPE.coverDisplay
       const coverGap = CAROUSEL_TYPE.coverLineGap
       const { primary, accent } = headlineSplitForCanvas(slide.text)
       const nLines = countHeadlineLines(ctx, primary, accent, maxW, coverFont)
-      const headlineStart = verticalHeroBaseline(nLines, coverGap, coverFont)
+      const headlineStart = Math.max(heroY, verticalHeroBaseline(nLines, coverGap, coverFont) - 24)
       let y = drawSplitHeadline(ctx, slide.text, maxW, headlineStart, coverFont, coverGap)
 
       if (slide.subdeck) {
@@ -1147,7 +1353,7 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
     }
 
     case 'section': {
-      drawEditorialHeader(ctx, slide.kicker || shiftKicker(1), index, total)
+      drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total)
       const hFont = CAROUSEL_TYPE.sectionDisplay
       const hGap = CAROUSEL_TYPE.sectionLineGap
       let y = drawSplitHeadline(ctx, slide.heading, maxW, CONTENT_TOP + 8, hFont, hGap)
@@ -1155,15 +1361,14 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
       if (slide.supporting) {
         ctx.font = `400 ${CAROUSEL_TYPE.sectionSupporting}px ${FONT_SANS}`
         ctx.fillStyle = PAPER
-        for (const ln of wrapText(ctx, slide.supporting, maxW)) {
+        for (const ln of wrapText(ctx, capSlideWords(slide.supporting), maxW)) {
           ctx.fillText(ln, PAD, y)
           y += CAROUSEL_TYPE.sectionSupportingLineH
         }
         y += 16
       }
       if (slide.leftCol && slide.rightCol) {
-        drawCompareBox(ctx, y, maxW, slide.boxMeta, slide.leftCol, slide.rightCol)
-        y += 220
+        y = drawCompareBox(ctx, y, maxW, slide.boxMeta, slide.leftCol, slide.rightCol) + 16
       } else {
         hairlineH(ctx, PAD, SLIDE_W - PAD, y)
         y += 20
@@ -1193,7 +1398,7 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
     }
 
     case 'bullets': {
-      drawEditorialHeader(ctx, slide.kicker || shiftKicker(1), index, total)
+      drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total)
       let y = drawSplitHeadline(
         ctx,
         slide.title,
@@ -1206,10 +1411,10 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
       hairlineH(ctx, PAD, SLIDE_W - PAD, y)
       y += 22
 
-      const boxPad = 14
+      const boxPad = BOX_INSET
       const innerW = maxW - boxPad * 2
       const innerTop = y
-      let iy = innerTop + boxPad + 8
+      let iy = innerTop + boxPad + 12
       for (let idx = 0; idx < slide.items.length; idx++) {
         const item = slide.items[idx]
         const itemText = typeof item === 'string' ? item : item.text
@@ -1217,13 +1422,13 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
         ctx.fillStyle = ACCENT_SOFT
         ctx.font = `600 ${CAROUSEL_TYPE.bulletsIndex}px ${FONT_MONO}`
         ctx.letterSpacing = '1.5px'
-        ctx.fillText(String(idx + 1).padStart(2, '0'), PAD + boxPad, iy)
+        ctx.fillText(String(idx + 1).padStart(2, '0'), PAD + boxPad + 4, iy)
         ctx.letterSpacing = '0px'
         ctx.fillStyle = PAPER
         ctx.font = `400 ${CAROUSEL_TYPE.bulletsItem}px ${FONT_SANS}`
         const short = takeawayCopy(itemText, 165, 255)
-        for (const il of wrapText(ctx, short, innerW - 36)) {
-          ctx.fillText(il, PAD + boxPad + 36, iy)
+        for (const il of wrapText(ctx, short, innerW - 44)) {
+          ctx.fillText(il, PAD + boxPad + 44, iy)
           iy += CAROUSEL_TYPE.bulletsItemLineH
         }
         if (itemCite) {
@@ -1248,7 +1453,7 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
     }
 
     case 'quote': {
-      drawEditorialHeader(ctx, slide.kicker || 'SHIFT · PERSPECTIVE', index, total)
+      drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total)
       const qFont = CAROUSEL_TYPE.quoteDisplay
       const qGap = CAROUSEL_TYPE.quoteLineGap
       const { primary, accent } = splitHeadlineForQuote(slide.text)
@@ -1260,7 +1465,7 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
     }
 
     case 'cta': {
-      drawEditorialHeader(ctx, slide.kicker || 'YOUR TURN', index, total)
+      drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total)
       const cFont = CAROUSEL_TYPE.ctaDisplay
       const cGap = CAROUSEL_TYPE.ctaLineGap
       const { primary, accent } = headlineSplitForCanvas(slide.text)
@@ -1272,8 +1477,7 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
     }
 
     case 'platform': {
-      const topicHdr = (slide.topicRail || 'TOPIC').slice(0, 32)
-      drawEditorialHeader(ctx, `FIELD NOTE · ${topicHdr}`, index, total, { monoRight: true })
+      drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total, { monoRight: true })
       ctx.fillStyle = PAPER
       ctx.font = `700 ${CAROUSEL_TYPE.platformDeck}px ${FONT_SANS}`
       let y = CONTENT_TOP + 4
@@ -1297,9 +1501,9 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
         y += CAROUSEL_TYPE.platformBodyLineH
       }
       y += 12
-      const minTrioReserve = 168
+      const minTrioReserve = slide.trio?.length === 3 ? 300 : 140
       const maxGraphicBottom = FOOTER_TOP - minTrioReserve
-      let slotH = 248
+      let slotH = slide.trio?.length === 3 ? 200 : 248
       if (y + slotH > maxGraphicBottom) {
         slotH = Math.max(112, maxGraphicBottom - y - 8)
       }
@@ -1346,7 +1550,7 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
         let maxColLines = 0
         const trioWrapped = slide.trio.map((t) => {
           ctx.font = `400 ${CAROUSEL_TYPE.trioSub}px ${FONT_SANS}`
-          const subLines = wrapText(ctx, t.sub || '', tw - 6)
+          const subLines = wrapText(ctx, t.sub || '', tw - 10)
           const n = Math.min(maxTrioLines, subLines.length)
           maxColLines = Math.max(maxColLines, n)
           return { t, subLines, n }
@@ -1375,11 +1579,12 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
     }
 
     case 'pillar': {
-      const pHdr = (slide.topicRail || '').slice(0, 28)
-      drawEditorialHeader(ctx, pHdr ? `FIELD NOTE · ${pHdr}` : 'FIELD NOTE · PILLAR', index, total)
+      drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total)
       let y = CONTENT_TOP + 8
-      drawStrikeLabel(ctx, slide.strike || '', PAD, y, maxW)
-      y += 52
+      if (slide.strike) {
+        drawStrikeLabel(ctx, slide.strike, PAD, y, maxW)
+        y += 48
+      }
       y = drawSplitHeadline(
         ctx,
         slide.headline || 'How this lands for operators and boards.',
@@ -1396,77 +1601,42 @@ function renderSlide(ctx, slide, index, total, extra = {}) {
         y += CAROUSEL_TYPE.pillarBodyLineH
       }
       y += 22
-      drawThreeColGrid(ctx, y, maxW, slide.cols || [], FOOTER_TOP - 14)
+      drawThreeColGrid(ctx, y + 8, maxW, slide.cols || [], FOOTER_TOP - 14)
       drawEditorialFooter(ctx, { railText: slide.topicRail })
       break
     }
 
     case 'closer': {
-      drawEditorialHeader(ctx, (slide.topicLabel || 'PREM IYER').toUpperCase().slice(0, 32), index, total)
-      let y = CONTENT_TOP + 4
+      drawEditorialHeader(ctx, deckHeaderLeft(slide), index, total)
+      let y = CONTENT_TOP + 6
       y = drawSplitHeadline(
         ctx,
-        slide.text || '',
+        slide.headline || slide.text || '',
         maxW,
         y,
         CAROUSEL_TYPE.closerDisplay,
         CAROUSEL_TYPE.closerLineGap,
       )
-      y += 20
+      y += 24
       ctx.font = `400 ${CAROUSEL_TYPE.closerSub}px ${FONT_SANS}`
       ctx.fillStyle = PAPER
       for (const ln of wrapText(ctx, slide.sub || '', maxW)) {
         ctx.fillText(ln, PAD, y)
         y += CAROUSEL_TYPE.closerSubLineH
       }
-      y += 18
-      hairlineH(ctx, PAD, SLIDE_W - PAD, y)
-      y += 28
-
-      const colW = (maxW - 32) / 3
-      const x1 = PAD
-      const x2 = PAD + colW + 16
-      const x3 = PAD + (colW + 16) * 2
-      hairlineV(ctx, x2 - 8, y, y + 118)
-      hairlineV(ctx, x3 - 8, y, y + 118)
-
-      ctx.fillStyle = PAPER
-      ctx.font = `700 ${CAROUSEL_TYPE.closerStatXL}px ${FONT_SANS}`
-      ctx.fillText(String(slide.statN ?? 5), x1, y + 44)
-      ctx.font = `700 ${CAROUSEL_TYPE.closerStatXL}px ${FONT_SANS}`
-      ctx.textAlign = 'center'
-      ctx.fillText('∞', x2 + colW / 2 - 8, y + 44)
-      ctx.textAlign = 'left'
-      ctx.font = `700 ${CAROUSEL_TYPE.closerStatL}px ${FONT_SANS}`
-      ctx.fillText('Machine', x3, y + 40)
-
-      const microPx = CAROUSEL_TYPE.closerMicro
-      const microLine = microPx + 5
-      ctx.font = `500 ${microPx}px ${FONT_MONO}`
-      ctx.letterSpacing = '1.2px'
-      const drawMicroCol = (x, labelText, bodyText) => {
-        const upper = wrapText(ctx, labelText, colW - 8).slice(0, 2)
-        const lower = wrapText(ctx, bodyText, colW - 8).slice(0, 3)
-        let yy = y + 56
+      if (slide.hashtags) {
+        y += 28
+        hairlineH(ctx, PAD, SLIDE_W - PAD, y)
+        y += 26
+        ctx.font = `500 ${CAROUSEL_TYPE.closerHashtags}px ${FONT_SANS}`
         ctx.fillStyle = ACCENT_SOFT
-        for (const ln of upper) {
-          ctx.fillText(ln, x, yy)
-          yy += microLine
-        }
-        yy += 2
-        ctx.fillStyle = ACCENT
-        for (const ln of lower) {
-          ctx.fillText(ln, x, yy)
-          yy += microLine
+        for (const ln of wrapText(ctx, slide.hashtags, maxW)) {
+          ctx.fillText(ln, PAD, y)
+          y += CAROUSEL_TYPE.closerHashtagsLineH
         }
       }
-      drawMicroCol(x1, (slide.statWord || 'modes').toUpperCase(), slide.statMicro || 'PLAN · SHIP · PROVE')
-      drawMicroCol(x2, 'SURFACES MONITORED', 'THREAD + PDF')
-      drawMicroCol(x3, 'RESPONSE LOOP', 'HOURS, NOT WEEKS')
-      ctx.letterSpacing = '0px'
-
       ctx.textAlign = 'right'
-      ctx.font = `600 15px ${FONT_MONO}`
+      ctx.font = `600 17px ${FONT_MONO}`
       ctx.fillStyle = ACCENT
       ctx.fillText('linkedin.com/in/premiyer →', SLIDE_W - SIDE, FOOTER_TOP - 48)
       ctx.textAlign = 'left'
@@ -1515,10 +1685,10 @@ function generateCarouselCaption(postText, topicId = '', slideCount = 0) {
 
   const captionRng = mulberry32((fnv1a(`${topicId}:${hook.slice(0, 40)}:${Date.now()}`) >>> 0) || 0xace12345)
   const bridgeTemplates = [
-    `I broke this down into a ${slideCountResolved}-slide visual guide.\n\nSwipe through — but here's the preview:\n\n`,
-    `Here is a ${slideCountResolved}-slide walkthrough—tight on purpose.\n\nSkim the preview, then open the PDF:\n\n`,
-    `Turned the thread into a ${slideCountResolved}-slide breakdown.\n\nQuick scan below—full story in the carousel:\n\n`,
-    `Packaged this as ${slideCountResolved} slides so you can share it with your team.\n\nPreview first, PDF attached:\n\n`,
+    `${slideCountResolved}-slide PDF (portrait, phone-first). Swipe the deck — preview below:\n\n`,
+    `Mobile-first ${slideCountResolved}-slide walkthrough. Open the PDF and swipe:\n\n`,
+    `Turned this into ${slideCountResolved} slides sized for the LinkedIn phone feed:\n\n`,
+    `${slideCountResolved} slides you can forward to your team (built for swipe on mobile):\n\n`,
   ]
   const bridge = bridgeTemplates[Math.floor(captionRng() * bridgeTemplates.length) % bridgeTemplates.length]
 
@@ -1548,17 +1718,18 @@ function generateCarouselCaption(postText, topicId = '', slideCount = 0) {
   ]
   caption += closers[Math.floor(captionRng() * closers.length) % closers.length]
 
-  const fallbackQuestions = [
-    `What would you add? Drop your take in the comments.\n\n`,
-    `Which slide would you send to your CFO or CIO first—and why?\n\n`,
-    `If you had to cut this to three slides, what stays?\n\n`,
-  ]
-
-  if (ctaForCaption) {
-    caption += `${ctaForCaption.trim()}\n\n`
-  } else {
-    caption += fallbackQuestions[Math.floor(captionRng() * fallbackQuestions.length) % fallbackQuestions.length]
-  }
+  const captionGuardQ = createHeadlineGuard()
+  if (ctaForCaption) captionGuardQ.add(ctaForCaption.trim())
+  const carouselQuestion = pickCloserQuestion(
+    ctaForCaption,
+    hook,
+    captionGuardQ,
+    narrativeCap,
+    topicId,
+    postText,
+  )
+  const commentLine = pickCommentPrompt(carouselQuestion, [], topicId, postText)
+  caption += `${carouselQuestion}\n\n${commentLine}\n\n`
 
   if (captionRng() > 0.4) {
     caption += `Save the PDF if the framing helps your next leadership conversation.\n\n`
@@ -1670,12 +1841,13 @@ export default function CarouselGenerator({ postText, topicId = '' }) {
       <div className="carousel-info">
         <span className="carousel-count">{slides.length} slides</span>
         <span className="carousel-tip">{CAROUSEL_ALGORITHM_TIP}</span>
+        <span className="carousel-tip">{LINKEDIN_MOBILE_CONTEXT}</span>
       </div>
 
       {previewSlides.length > 0 && (
         <div className="carousel-preview">
           <p className="carousel-preview-explainer">
-            <strong>Live preview</strong> — same 1080×1080 canvas as the PDF (use ← → to swipe). Slides are parsed
+            <strong>Live preview</strong> — mobile-first 1080×1350 portrait (same as the LinkedIn PDF). Stacked columns and large labels are tuned for phone swipe, not desktop width (use ← → to swipe). Slides are parsed
             from <strong>your post</strong> and anchored to <strong>{getTopicLabel(topicId) || 'the topic you picked'}</strong>{' '}
             (headlines and stats still come from the same topic in the infographic). Decorative layout only — no
             unrelated “template” storylines.

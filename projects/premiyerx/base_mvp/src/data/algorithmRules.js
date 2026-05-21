@@ -29,8 +29,10 @@ export const SCORING_RULES = [
 
       let score = 38
 
-      if (l0.length > 0 && l0.length <= 210) score += 14
-      else if (l0.length > 210 && l0.length <= 280) score += 8
+      if (l0.length > 0 && l0.length <= 58) score += 18
+      else if (l0.length > 58 && l0.length <= 90) score += 12
+      else if (l0.length > 90 && l0.length <= 140) score += 6
+      else if (l0.length > 210) score -= 6
 
       if (openerWords >= 3 && openerWords <= 18) score += 16
       else if (openerWords <= 22 || (zoneWords >= 8 && zoneWords <= 42)) score += 10
@@ -74,12 +76,14 @@ export const SCORING_RULES = [
       const doubleBreaks = (body.match(/\n\n/g) || []).length
       const dataPoints = (body.match(/\d+%|\$[\d.]+[BMK]?|\d+x/g) || []).length
       let score = 0
-      if (readTimeSec >= 45 && readTimeSec <= 120) score += 40
-      else if (readTimeSec >= 35 && readTimeSec < 45) score += 32
-      else if (readTimeSec >= 30 && readTimeSec < 35) score += 26
-      else if (readTimeSec > 120 && readTimeSec <= 180) score += 28
-      else if (readTimeSec > 180 && readTimeSec <= 220) score += 22
-      else score += 12
+      if (wordCount >= 120 && wordCount <= 200) score += 42
+      else if (wordCount >= 100 && wordCount < 120) score += 34
+      else if (wordCount > 200 && wordCount <= 240) score += 28
+      else if (wordCount > 240 && wordCount <= 300) score += 14
+      else if (wordCount > 300) score += 4
+      else score += 18
+      if (readTimeSec >= 35 && readTimeSec <= 90) score += 12
+      else if (readTimeSec > 120) score -= 4
       if (hasFramework) score += 25
       else if (lineCount >= 14 && doubleBreaks >= 5) score += 18
       else if (lineCount >= 10 && doubleBreaks >= 3) score += 12
@@ -94,7 +98,7 @@ export const SCORING_RULES = [
   {
     id: 'readability',
     label: 'Mobile Scannability',
-    description: 'Aggressive line breaks, 1-2 sentence paragraphs, zero walls of text. 60% of LinkedIn is mobile.',
+    description: 'Aggressive line breaks, 1-2 sentence paragraphs, zero walls of text. Phone feed first — most LinkedIn consumption is mobile.',
     weight: 14,
     evaluate: (text) => {
       const body = stripHashtagBlock(text)

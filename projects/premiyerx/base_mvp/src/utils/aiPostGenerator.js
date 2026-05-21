@@ -358,7 +358,7 @@ ${realtimeContext}
 
 DATA ACCURACY: Every stat needs inline source tied to CONTEXT headlines when possible. Never invent funding, dates, or customer names. Never output internal drafting labels (e.g. RE-HOOK, ALT HOOK, INTERNAL).
 
-ALGORITHM (2026): Optimize for sustained read depth (dwell), comment threads over passive likes, pillar consistency, and an opening that earns "see more." No engagement bait or naked external URLs in the body. FIRST_COMMENT must add new insight and a follow-up question so you can reply substantively in the first hour.
+ALGORITHM (2026): Mobile feed first. Target ~750–1,150 characters in BODY with 8+ blank-line breaks. Optimize dwell + comment threads (comments >> likes in 2026 heuristics). FIRST_COMMENT within 60 minutes: new insight not in body + second question; founder will pin that comment when possible.
 
 Output format — use these labels ONLY as section markers (each on its own line, then your prose). Do not write the words Hook, Body, CTA, Hashtags, or Content as standalone lines inside the post itself. No JSON. No markdown headings.
 

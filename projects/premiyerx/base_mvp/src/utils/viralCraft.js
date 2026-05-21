@@ -3,6 +3,7 @@
  * Archetypes: field memo, spreadsheet truth, myth-bust, composite VP story, decision fork.
  */
 import { fnv1a, mulberry32 } from './generationVariety'
+import { buildNorthStarBlock, CURSOR_COMPETITIVE_SHADE, CURSOR_SIGNATURE_PHRASES } from '../data/contentStrategy'
 
 const VIRAL_OPERATOR_ARCHETYPES = [
   {
@@ -27,7 +28,7 @@ const VIRAL_OPERATOR_ARCHETYPES = [
     pattern:
       'Name a comfortable lie the feed believes, then dismantle with 2–3 receipts (headline + stat). End before sounding smug.',
     structure: 'Hook names the myth → "Actually:" → evidence stack → respectful reframe → question',
-    voice: 'Contrarian but fair. Acknowledge why the myth is tempting.',
+    voice: 'Provocateur + news-wire: contrarian but fair. Acknowledge why the myth is tempting.',
   },
   {
     id: 'composite_vp',
@@ -73,6 +74,8 @@ const COMMENT_MAGNETS = [
   'Ask for a metric tradeoff: "If you could only move one number this quarter, which would it be?"',
   'Invite a scenario: "What would you do differently if the tool understood your whole repo, not just the current file?"',
   'Ask for scope: "What would you refuse to let an agent touch without a human in the loop?"',
+  'Invite DM (sparingly): "If you are rolling this out at enterprise scale, DM me — happy to share the one-page checklist we use with strategic accounts."',
+  'Invite conversation: "If this matches a live pursuit on your side, DM me ROLLOUT — I will point you to the right next conversation."',
 ]
 
 /**
@@ -94,18 +97,31 @@ export function buildViralCraftBlock(topicId) {
   const stopper = SCROLL_STOPPERS[fnv1a(topicId + 'stop') % SCROLL_STOPPERS.length]
   const comment = COMMENT_MAGNETS[fnv1a(topicId + 'cmt') % COMMENT_MAGNETS.length]
 
+  const cursorShade =
+    topicId === 'cursor'
+      ? CURSOR_COMPETITIVE_SHADE[fnv1a(`${topicId}:shade`) % CURSOR_COMPETITIVE_SHADE.length]
+      : ''
+  const cursorPhrase =
+    topicId === 'cursor'
+      ? CURSOR_SIGNATURE_PHRASES[fnv1a(`${topicId}:sig`) % CURSOR_SIGNATURE_PHRASES.length]
+      : ''
+
   return [
     '',
-    'VIRAL OPERATOR CRAFT (non-celebrity B2B patterns — stay in Prem\'s voice):',
-    `- Archetype this run: ${archetype.label} — ${archetype.pattern}`,
+    buildNorthStarBlock(),
+    '',
+    'VIRAL OPERATOR CRAFT (this run):',
+    `- Archetype: ${archetype.label} — ${archetype.pattern}`,
     `- Structure: ${archetype.structure}`,
     `- Voice: ${archetype.voice}`,
     `- Scroll: ${stopper}`,
     `- Comment magnet: ${comment}`,
-    '- Do NOT sound like a generic LinkedIn guru, life coach, or engagement bait ("Agree?", "Thoughts?", "Comment YES").',
-    '- Do NOT use → arrow bullets, markdown bold, or assistant filler ("Key takeaway", "Furthermore", "leverage").',
-    '- Sound like a peer operator who invests, sells to CxOs, and has seen rollouts — not a motivational poster.',
-    '- End with a fresh closing question: avoid repeating "bottom-up adoption or top-down mandate" and other stock forks across posts; vary the angle (metric, scope, failure mode, procurement, trust).',
+    cursorPhrase ? `- Cursor angle (one phrase max): ${cursorPhrase}` : '',
+    cursorShade ? `- Implicit competitive contrast (do not name competitors): ${cursorShade}` : '',
+    '- Provocative is OK — tension drives views; no personal attacks or named customers.',
+    '- Do NOT sound like generic LinkedIn AI ("Key takeaway", "leverage", "game-changer", "let\'s dive").',
+    '- Do NOT use → arrow bullets or markdown bold.',
+    '- Target ~750–1,150 characters in BODY with 8+ blank-line breaks (mobile scan).',
     '',
   ].join('\n')
 }

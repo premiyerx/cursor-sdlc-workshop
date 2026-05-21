@@ -38,6 +38,8 @@ NOVELTY (non-negotiable for every generation):
 - Ground the post in THIS WEEK's signals from the user's research block when provided — not generic evergreen AI commentary.
 - When headlines are provided: paraphrase the lead story in the hook or re-hook; translate news into operator POV for CIOs/VPs — never paste article titles verbatim.
 - Write like high-performing B2B *operators* on LinkedIn (field memos, spreadsheet math, myth-busts, decision forks) — not celebrity influencers or engagement bait.
+- Provocateur + news-wire tone is encouraged: contrarian hooks, sourced receipts, implicit competitive contrast for Cursor (never name-and-shame a competitor).
+- Never name a specific customer; composite "a VP of Eng told me…" scenes are OK.
 
 PUBLIC PROFILE SNAPSHOT (verify volatile facts externally; use for voice and career arc only):
 - LinkedIn: ${li.profileUrl || 'https://www.linkedin.com/in/premiyer/'} (canonical profile — automated mirrors sometimes lag behind your live headline)
@@ -71,7 +73,7 @@ STRUCTURE (still mandatory):
 2. RE-HOOK: Line 2-3 = parenthetical that earns the "see more" tap
 3. BODY: Aggressive line breaks; evidence as short lines or 1. 2. 3. numbering (no → arrows); at most 2 professional emoji anchors (📊 💡 🔑 🎯) only if they feel natural
 4. FRAMEWORK + STORY: Numbered beats plus one concrete anecdote so the post sustains read depth
-5. CTA: One closing question using "you/your" that can spark threaded replies—not binary bait
+5. CTA: One closing question using "you/your" that can spark threaded replies—not binary bait. Optimize for inbound DMs and strategic-account conversations when natural; occasional low-friction DM invite (e.g. "DM me ROLLOUT") is OK—not every post
 6. HASHTAGS: 3-5 at the end (1 broad + 2 mid + 1-2 niche)
 7. FIRST_COMMENT: 15+ words; new insight not in the body + a second question the author can use to start real back-and-forth in the golden hour
 8. DATA: Inline sources for every stat—never invent numbers
@@ -146,11 +148,12 @@ const PREM_IYER = createVoiceProfile({
       'Punchy, curiosity-driven openers. A surprising stat, contrarian take, or "Here\'s what nobody talks about" framing.',
     paragraphLength: 'Short — 1-3 sentences max. Heavy use of line breaks for scanability.',
     formatting: 'Short lines and numbered beats for frameworks — no arrow bullets, no markdown bold, no assistant filler phrases.',
-    tone: 'Confident but approachable. Not salesy — more "here\'s what I\'m seeing from the inside." Peer operator, not guru.',
-    closingPattern: 'Ends with an engaging question that invites CxO-level conversation, not generic "thoughts?"',
-    hashtagStyle: '3-5 targeted hashtags. Mix of 1 broad + 2 mid + 1-2 niche.',
-    emojiUsage: 'Minimal — 2-3 professional emoji anchors (📊 💡 🔑 🎯) at section transitions. Never scattered.',
-    length: 'Roughly 1000–1800 characters: enough depth for dwell-time signals while still finishable on mobile.',
+    tone: 'Confident, provocative when useful — peer operator with edge. Not salesy; "here\'s what I\'m seeing from the inside." Never generic guru cadence.',
+    closingPattern: 'Ends with a specific you/your question that invites threaded replies — not "thoughts?" or "agree?"',
+    hashtagStyle: '3-5 topical hashtags only (no branded spam).',
+    emojiUsage: 'Minimal — 0-2 professional emoji anchors max. Never scattered.',
+    length:
+      'Target 750–1,150 characters in the body (mobile-first). Use 8+ blank lines between beats. Hook ≤58 characters; earn "see more" in line 2. Shorter beats longer if every line earns its place.',
   },
 
   engagementPatterns: {

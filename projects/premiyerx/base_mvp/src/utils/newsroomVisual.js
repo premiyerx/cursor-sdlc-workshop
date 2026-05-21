@@ -271,6 +271,7 @@ function buildPrompt({
 
   const qualityPreamble = [
     'QUALITY BAR: Publication-grade LinkedIn infographic (landscape ~16:9, 1536×1024).',
+    'MOBILE-FIRST: Phone feed (~390px wide). Default visual story = ONE dominant number or ONE simple chart — not a dashboard collage. Headline type must dominate; axis labels large enough to read without zoom.',
     'Prioritize clarity, typography, and believable visual hierarchy — *high-end fidelity*, not the same layout every time.',
     'Vary composition, chart species, and graphic language between generations; avoid cookie-cutter “ROI dashboard” sameness (identical Sankey + sidebar + metric strip).',
     ...family.styleLines,
