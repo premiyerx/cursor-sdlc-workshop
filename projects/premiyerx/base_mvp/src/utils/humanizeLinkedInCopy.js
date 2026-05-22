@@ -1,4 +1,5 @@
 import { scrubStaleYearClaims } from './dateFreshness.js'
+import { POST_LENGTH } from '../data/contentStrategy.js'
 
 /**
  * Strip common LLM "tells" from LinkedIn drafts so copy reads like a human operator wrote it.
@@ -41,6 +42,17 @@ const PHRASE_STRIPS = [
   /\bFurthermore,?\s*/gim,
   /\bMoreover,?\s*/gim,
   /\bAdditionally,?\s*/gim,
+  /\bI wanted to share\b/gi,
+  /\bI am (?:pleased|excited) to\b/gi,
+  /\bAs (?:we all know|a reminder)\b/gi,
+  /\bIn summary,?\s*/gim,
+  /\bThis is a (?:reminder|testament)\b/gi,
+  /\bNow more than ever\b/gi,
+  /\bThe reality is\b/gi,
+  /\bWhat this means is\b/gi,
+  /\bLet that sink in\b/gi,
+  /\bRead that again\b/gi,
+  /\bSwipe (?:left|through)\b/gi,
 ]
 
 const PHRASE_WORD_SWAP = [
@@ -125,6 +137,54 @@ export function humanizePostSections(post) {
     hashtags: humanizeLinkedInText(post.hashtags || ''),
     firstComment: humanizeLinkedInText(post.firstComment || ''),
   }
+}
+
+export function livePostCharCount(post) {
+  if (!post) return 0
+  return [post.hook, post.body, post.cta, post.hashtags].filter(Boolean).join('\n\n').trim().length
+}
+
+/**
+ * Hard trim after models — favors brevity for mobile feed + "best for reach" picks.
+ * @param {{ hook?: string, body?: string, cta?: string, hashtags?: string, firstComment?: string }} post
+ */
+export function enforceConcisePost(post, maxChars = POST_LENGTH.charHardMax) {
+  if (!post) return post
+  let p = { ...post }
+  const count = () => livePostCharCount(p)
+  if (count() <= maxChars) return p
+
+  let bodyLines = (p.body || '').split('\n').map((l) => l.trim()).filter(Boolean)
+  while (count() > maxChars && bodyLines.length > 2) {
+    bodyLines.pop()
+    p = { ...p, body: bodyLines.join('\n\n') }
+  }
+  while (count() > maxChars && bodyLines.length > 0) {
+    const last = bodyLines[bodyLines.length - 1]
+    if (last.length < 36) {
+      bodyLines.pop()
+    } else {
+      const words = last.split(/\s+/)
+      bodyLines[bodyLines.length - 1] = words.slice(0, Math.max(6, words.length - 8)).join(' ')
+    }
+    p = { ...p, body: bodyLines.join('\n\n') }
+  }
+  if (count() > maxChars && (p.hook || '').length > 72) {
+    const words = p.hook.split(/\s+/)
+    p = { ...p, hook: words.slice(0, 12).join(' ') }
+  }
+  return p
+}
+
+/** Penalty points for ranking — long posts lose "best for reach". */
+export function scoreLengthPenalty(text) {
+  const n = (text || '').length
+  if (n <= POST_LENGTH.charIdealMax) return 0
+  if (n <= POST_LENGTH.charSoftMax) return 4
+  if (n <= 820) return 10
+  if (n <= 950) return 20
+  if (n <= 1100) return 30
+  return 38
 }
 
 /**

@@ -76,12 +76,12 @@ export const SCORING_RULES = [
       const doubleBreaks = (body.match(/\n\n/g) || []).length
       const dataPoints = (body.match(/\d+%|\$[\d.]+[BMK]?|\d+x/g) || []).length
       let score = 0
-      if (wordCount >= 120 && wordCount <= 200) score += 42
-      else if (wordCount >= 100 && wordCount < 120) score += 34
-      else if (wordCount > 200 && wordCount <= 240) score += 28
-      else if (wordCount > 240 && wordCount <= 300) score += 14
-      else if (wordCount > 300) score += 4
-      else score += 18
+      if (wordCount >= 85 && wordCount <= 150) score += 44
+      else if (wordCount >= 120 && wordCount <= 180) score += 36
+      else if (wordCount > 180 && wordCount <= 220) score += 22
+      else if (wordCount > 220 && wordCount <= 280) score += 10
+      else if (wordCount > 280) score += 0
+      else score += 20
       if (readTimeSec >= 35 && readTimeSec <= 90) score += 12
       else if (readTimeSec > 120) score -= 4
       if (hasFramework) score += 25

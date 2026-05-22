@@ -1,8 +1,8 @@
 import { buildLinkedInAlgorithmBlock } from './linkedinAlgorithm2026'
+import { vaultGetCorpusSync, vaultPutCorpusSync } from '../utils/voiceCorpusVault.js'
+import { pushCloudCorpus } from '../utils/voiceCorpusCloud.js'
 
 const STORAGE_KEY = 'lidp_active_voice'
-const CORPUS_KEY = 'lidp_voice_corpus'
-const CORPUS_DATE_KEY = 'lidp_voice_corpus_updated'
 
 function createVoiceProfile(config) {
   return {
@@ -13,11 +13,10 @@ function createVoiceProfile(config) {
 
 function buildVoiceCorpusSuffix() {
   try {
-    const raw = localStorage.getItem(CORPUS_KEY)?.trim()
-    const updated = localStorage.getItem(CORPUS_DATE_KEY) || 'unknown date'
+    const { text: raw, updated } = vaultGetCorpusSync()
     if (!raw || raw.length < 80) return ''
     const clipped = raw.length > 14000 ? `${raw.slice(0, 14000)}\n\n[…truncated]` : raw
-    return `\n\nAUTHOR VOICE ANCHORS — pasted from your real LinkedIn writing (updated ${updated}). Match cadence, POV, and rhetorical habits; do not copy sentences verbatim:\n${clipped}`
+    return `\n\nAUTHOR VOICE ANCHORS — pasted from your real LinkedIn writing (updated ${updated || 'unknown date'}). Match cadence, POV, and rhetorical habits; do not copy sentences verbatim:\n${clipped}`
   } catch {
     return ''
   }
@@ -67,6 +66,7 @@ VOICE RULES:
 - Hashtag style: ${style.hashtagStyle}
 - Tone: ${style.tone}
 - Target ${style.length}
+- Sound human and casual: contractions, short fragments, one aside max — like texting a peer CIO after a board meeting, not a press release or LinkedIn-influencer template.
 
 STRUCTURE (still mandatory):
 1. HOOK: 8-12 words with a number; first-person or direct; never start with "stop/don't/quit"
@@ -148,12 +148,12 @@ const PREM_IYER = createVoiceProfile({
       'Punchy, curiosity-driven openers. A surprising stat, contrarian take, or "Here\'s what nobody talks about" framing.',
     paragraphLength: 'Short — 1-3 sentences max. Heavy use of line breaks for scanability.',
     formatting: 'Short lines and numbered beats for frameworks — no arrow bullets, no markdown bold, no assistant filler phrases.',
-    tone: 'Confident, provocative when useful — peer operator with edge. Not salesy; "here\'s what I\'m seeing from the inside." Never generic guru cadence.',
+    tone: 'Confident, casual, provocative when useful — peer operator with edge. Not salesy; not polished corporate. "Here\'s what I\'m seeing" beats "organizations must." Never generic guru or ChatGPT cadence.',
     closingPattern: 'Ends with a specific you/your question that invites threaded replies — not "thoughts?" or "agree?"',
     hashtagStyle: '3-5 topical hashtags only (no branded spam).',
     emojiUsage: 'Minimal — 0-2 professional emoji anchors max. Never scattered.',
     length:
-      'Target 750–1,150 characters in the body (mobile-first). Use 8+ blank lines between beats. Hook ≤58 characters; earn "see more" in line 2. Shorter beats longer if every line earns its place.',
+      'Target 480–620 characters for hook+body+CTA+hashtags (hard max 680). Six+ blank lines between beats. Hook ≤52 characters; earn "see more" in line 2. Cut every sentence that sounds like a consultant deck.',
   },
 
   engagementPatterns: {
@@ -198,20 +198,14 @@ function migrateStoredVoiceProfile(parsed) {
 }
 
 export function getVoiceCorpusMeta() {
-  try {
-    return {
-      text: localStorage.getItem(CORPUS_KEY) || '',
-      updated: localStorage.getItem(CORPUS_DATE_KEY) || '',
-    }
-  } catch {
-    return { text: '', updated: '' }
-  }
+  return vaultGetCorpusSync()
 }
 
 export function saveVoiceCorpus(text) {
   const trimmed = (text || '').trim()
-  localStorage.setItem(CORPUS_KEY, trimmed)
-  localStorage.setItem(CORPUS_DATE_KEY, new Date().toISOString().slice(0, 10))
+  const updated = new Date().toISOString()
+  vaultPutCorpusSync(trimmed, updated)
+  void pushCloudCorpus(trimmed, updated)
 }
 
 export function getVoiceProfileForDisplay() {

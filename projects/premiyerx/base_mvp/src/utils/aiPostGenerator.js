@@ -12,7 +12,8 @@ import {
   getTextModelProfile,
 } from '../data/textModelProfiles'
 import { generateRawCompletion, getApiKeyForProfile } from './llmPostClient'
-import { humanizePostSections } from './humanizeLinkedInCopy'
+import { humanizePostSections, enforceConcisePost } from './humanizeLinkedInCopy'
+import { POST_LENGTH } from '../data/contentStrategy.js'
 import { annotateVariantsWithRecommendation } from './draftRecommendation'
 
 export { hasOpenAiKey, getOpenAiKey }
@@ -252,8 +253,9 @@ function finalizePost(p) {
   const hashtags = stripStraySectionLabels(sanitizeExternalCopy(p.hashtags || ''))
   const firstComment = stripStraySectionLabels(sanitizeExternalCopy(p.firstComment || ''))
   const humanized = humanizePostSections({ hook, body, cta, hashtags, firstComment })
-  recordGeneratedHook(humanized.hook || humanized.body.slice(0, 200))
-  return humanized
+  const concise = enforceConcisePost(humanized, POST_LENGTH.charHardMax)
+  recordGeneratedHook(concise.hook || concise.body.slice(0, 200))
+  return concise
 }
 
 function salvageUnstructuredPost(text) {
@@ -351,14 +353,15 @@ CONTEXT:
 - Anchor hook in LEAD STORY from research below (paraphrase — never paste headline verbatim).
 - Sound like Prem Iyer: SVP, Global Strategic Accounts at Cursor — operator + investor, peer to CIOs and engineering leaders — NOT generic ChatGPT LinkedIn voice.
 - Ban phrases: "game-changer", "let's dive", "in today's fast-paced", "thoughts?", "agree?"
-- HUMAN VOICE (non-negotiable): Write like a tired-but-sharp operator typing on mobile — not an AI assistant. No → ► ▸ arrow bullets (major ChatGPT tell). No markdown bold. No "Key takeaway", "Here's the thing", "Furthermore", "leverage/utilize", or checklist emoji. Lists = short standalone lines with blank lines between, or "1." / "2." numbering — never arrow prefixes. Use normal punctuation (commas and periods); em dashes sparingly (at most two in the whole post).
+- HUMAN VOICE (non-negotiable): Write like Prem on his phone after a customer call — casual, concise, slightly irreverent. Contractions OK. One short parenthetical re-hook max. Not a memo, keynote, or consultant deck. No → ► ▸ arrow bullets (major ChatGPT tell). No markdown bold. No "Key takeaway", "Here's the thing", "Furthermore", "leverage/utilize", "in today's fast-paced", or checklist emoji. Lists = short standalone lines with blank lines between, or "1." / "2." numbering — never arrow prefixes. Em dashes: at most one in the whole post.
+- LENGTH (hard): HOOK+BODY+CTA+HASHTAGS combined ≤${POST_LENGTH.charSoftMax} characters (ideal ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax}). Max three proof beats in BODY. Cut throat-clearing and duplicate points — if it sounds like ChatGPT, delete it.
 - Never paste CAPITAL_PILLAR rubric lines, “Lead with…”, “Contrast…”, or other prompt instructions as if they were the post — those are private guidance, not public copy.
 - Do not claim a specific slide count (e.g. “11-slide visual guide”); the app attaches the PDF and writes the accurate slide count in the caption.
 ${realtimeContext}
 
 DATA ACCURACY: Every stat needs inline source tied to CONTEXT headlines when possible. Never invent funding, dates, or customer names. Never output internal drafting labels (e.g. RE-HOOK, ALT HOOK, INTERNAL).
 
-ALGORITHM (2026): Mobile feed first. Target ~750–1,150 characters in BODY with 8+ blank-line breaks. Optimize dwell + comment threads (comments >> likes in 2026 heuristics). FIRST_COMMENT within 60 minutes: new insight not in body + second question; founder will pin that comment when possible.
+ALGORITHM (2026): Mobile feed first. Target ~${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax} characters total with ${POST_LENGTH.minDoubleLineBreaks}+ blank-line breaks — brief beats long. Optimize comment threads (comments >> likes). FIRST_COMMENT within 60 minutes: one new insight not in body + a short second question; founder will pin when possible.
 
 Output format — use these labels ONLY as section markers (each on its own line, then your prose). Do not write the words Hook, Body, CTA, Hashtags, or Content as standalone lines inside the post itself. No JSON. No markdown headings.
 

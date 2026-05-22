@@ -47,15 +47,18 @@ export const TRANSCRIPT_INGEST = {
 
 /** Post length — mobile-first; shorter than old 1800-char default */
 export const POST_LENGTH = {
-  /** Hard cap for generation prompts */
-  charSoftMax: 1150,
-  charHardMax: 1300,
-  /** ~38–55 sec read on phone — still enough for dwell if line-broken */
-  wordSweetMin: 120,
-  wordSweetMax: 200,
-  hookMaxChars: 58,
-  rehookMaxChars: 120,
-  minDoubleLineBreaks: 8,
+  /** Sweet spot for reach ranking (colleague feedback: 900+ reads as AI essay) */
+  charIdealMax: 620,
+  /** Soft target in prompts */
+  charSoftMax: 680,
+  /** Post-processor hard trim */
+  charHardMax: 760,
+  /** ~25–40 sec read on phone — casual, not keynote */
+  wordSweetMin: 85,
+  wordSweetMax: 150,
+  hookMaxChars: 52,
+  rehookMaxChars: 90,
+  minDoubleLineBreaks: 6,
 }
 
 /** Default posting window (founder: 10–11a CT weekdays; skip Thu if needed) */
@@ -145,7 +148,7 @@ export function buildPremStrategyBlock() {
     `• Audience: ${AUDIENCE_PRIMARY}. Goals: ${GROWTH_GOALS.join(' + ')}.`,
     buildPipelineBlock(),
     '• Tone: more provocative than typical B2B — earn the swipe with tension, not cruelty.',
-    '• Length: SHORT mobile posts — target ~750–1,150 characters with aggressive line breaks (not essay walls).',
+    '• Length: BRIEF and casual — target ~480–620 characters total (hook+body+CTA+hashtags). Hard ceiling 680. One thesis, max three proof beats, then a question — never essay walls.',
     '• Stories: composite VP/CIO scenes OK; never name a specific customer.',
     '• No Prem headshot/photo in generated visuals. No competitor logos; no faces in graphics.',
     '• Cursor: promote with implicit contrast (repo context, agents, rollout) — subtle shade, no direct attacks.',

@@ -177,8 +177,8 @@ export default function App() {
       const rec = result.recommendation
       flashGenerateOk(
         rec?.label
-          ? `Three drafts are below. ${rec.label} is highlighted as best for reach (score ${rec.algorithmScore}). Arrow bullets and other AI tells were stripped automatically.`
-          : 'Three drafts are below. Use Generate infographic or Generate carousel on any column — you can create more than one per model.',
+          ? `Three drafts are below. ${rec.label} is highlighted as best for reach — shorter, human copy wins over long AI essays.`
+          : 'Three drafts are below. Pick the one that sounds most like you on mobile (brief beats long).',
       )
     } catch (err) {
       flashGenerateErr(err?.message || 'Could not generate. Check your API keys and connection.')

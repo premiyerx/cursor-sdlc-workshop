@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { getVoiceProfileForDisplay, getVoiceCorpusMeta, saveVoiceCorpus } from '../data/voiceProfile'
+import { getCorpusSyncId, fetchCloudCorpusMeta, pushCloudCorpus } from '../utils/voiceCorpusCloud'
 
 export default function VoiceProfile() {
   const [expanded, setExpanded] = useState(false)
@@ -9,6 +10,8 @@ export default function VoiceProfile() {
   const [corpusDraft, setCorpusDraft] = useState(corpusMeta.text)
   const [corpusSavedAt, setCorpusSavedAt] = useState(corpusMeta.updated)
   const [corpusSaveMsg, setCorpusSaveMsg] = useState(null)
+  const [cloudHint, setCloudHint] = useState('')
+  const importRef = useRef(null)
 
   const refreshMeta = useCallback(() => {
     const m = getVoiceCorpusMeta()
@@ -16,20 +19,92 @@ export default function VoiceProfile() {
     setCorpusSavedAt(m.updated)
   }, [])
 
-  const handleSaveCorpus = useCallback(() => {
+  useEffect(() => {
+    refreshMeta()
+  }, [refreshMeta])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const cloud = await fetchCloudCorpusMeta()
+      if (cancelled) return
+      if (cloud.ok) {
+        setCloudHint('Cloud backup is on — your corpus syncs when you save.')
+      } else if (cloud.reason === 'cloud_unconfigured') {
+        setCloudHint(
+          'Cloud: add a Vercel Blob store to this project for cross-device sync. Until then, corpus stays on this browser + IndexedDB backup + export file below.',
+        )
+      } else {
+        setCloudHint('Cloud: not synced yet — save once to upload (when Blob is configured).')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [corpusSavedAt])
+
+  const handleSaveCorpus = useCallback(async () => {
     try {
       saveVoiceCorpus(corpusDraft)
       refreshMeta()
-      setCorpusSaveMsg(
-        corpusDraft.trim().length >= 80
-          ? { type: 'ok', text: 'Voice corpus saved on this device.' }
-          : { type: 'ok', text: 'Saved (add more posts when you can — 80+ characters helps the model).' },
-      )
-      setTimeout(() => setCorpusSaveMsg(null), 5000)
+      const cloud = await pushCloudCorpus(corpusDraft.trim(), new Date().toISOString())
+      const len = corpusDraft.trim().length
+      let text =
+        len >= 80
+          ? 'Voice corpus saved on this device (and IndexedDB backup).'
+          : 'Saved locally (add more posts when you can — 80+ characters helps the model).'
+      if (cloud.ok) text += ' Uploaded to cloud backup.'
+      else if (cloud.reason === 'cloud_unconfigured') {
+        text += ' Cloud sync needs Vercel Blob on the project — use Export backup below.'
+      }
+      setCorpusSaveMsg({ type: 'ok', text })
+      setTimeout(() => setCorpusSaveMsg(null), 7000)
     } catch {
       setCorpusSaveMsg({ type: 'err', text: 'Could not save — browser storage may be blocked.' })
     }
   }, [corpusDraft, refreshMeta])
+
+  const handleExportBackup = useCallback(() => {
+    const payload = {
+      text: corpusDraft,
+      updated: corpusSavedAt || new Date().toISOString(),
+      syncId: getCorpusSyncId(),
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'linkedinfluence-voice-corpus.json'
+    a.click()
+    URL.revokeObjectURL(url)
+    setCorpusSaveMsg({ type: 'ok', text: 'Downloaded backup file — keep it in Drive or email so deploys never wipe your voice.' })
+    setTimeout(() => setCorpusSaveMsg(null), 5000)
+  }, [corpusDraft, corpusSavedAt])
+
+  const handleImportBackup = useCallback(
+    (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => {
+        try {
+          const j = JSON.parse(String(reader.result || '{}'))
+          const text = String(j.text || '').trim()
+          if (!text) throw new Error('empty')
+          setCorpusDraft(text)
+          saveVoiceCorpus(text)
+          refreshMeta()
+          setCorpusSaveMsg({ type: 'ok', text: 'Imported backup and saved locally + cloud (if configured).' })
+        } catch {
+          setCorpusSaveMsg({ type: 'err', text: 'Invalid backup file — use linkedinfluence-voice-corpus.json from Export.' })
+        }
+        setTimeout(() => setCorpusSaveMsg(null), 6000)
+      }
+      reader.readAsText(file)
+      e.target.value = ''
+    },
+    [refreshMeta],
+  )
 
   const hasVoiceCorpus = corpusMeta.text.trim().length >= 80
 
@@ -41,7 +116,7 @@ export default function VoiceProfile() {
           <span>
             <strong>Your LinkedIn Writing Style</strong>
             <span className="voice-toggle-sub">
-              Voice snapshot + optional pasted posts (GNews lives in Settings below)
+              Voice snapshot + pasted posts (saved across updates when you use Save)
             </span>
           </span>
         </span>
@@ -52,7 +127,7 @@ export default function VoiceProfile() {
         <div className="voice-details">
           {hasVoiceCorpus && (
             <p className="voice-corpus-hint voice-corpus-hint--ok">
-              Voice corpus active: pasted posts are appended to the AI system prompt on every generation.
+              Voice corpus active: your pasted posts shape every draft (casual, brief, human — not generic AI).
             </p>
           )}
 
@@ -63,7 +138,7 @@ export default function VoiceProfile() {
                 <a href={vp.linkedinUrl || 'https://www.linkedin.com/in/premiyer/'} target="_blank" rel="noreferrer">
                   LinkedIn profile
                 </a>
-                {' — '}refresh the “Recent posts” paste below every 1–2 weeks (LinkedIn cannot be auto-scraped from this app).
+                {' — '}refresh the corpus below every 1–2 weeks.
               </li>
               <li>{vp.background.currentRole}</li>
               <li>{vp.background.yearsExperience} years enterprise tech experience</li>
@@ -116,33 +191,51 @@ export default function VoiceProfile() {
             {corpusExpanded && (
               <>
                 <p className="voice-corpus-hint">
-                  Every few weeks: copy several recent posts from your{' '}
+                  Paste several recent posts from your{' '}
                   <a href={vp.linkedinUrl || 'https://www.linkedin.com/in/premiyer/'} target="_blank" rel="noreferrer">
                     profile activity
                   </a>
-                  {' '}or from a{' '}
-                  <a
-                    href="https://www.linkedin.com/help/linkedin/answer/a1342447"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    LinkedIn data export
-                  </a>
-                  , paste here, and save. Paste the full post text — profile URLs alone will not work. The app cannot log into LinkedIn on your behalf from the browser. The model uses this for phrasing and POV — not as a fact source about third parties.
+                  , then click Save. Corpus is stored on this device, in a browser backup layer, and in the cloud when Vercel Blob is enabled — not wiped by app deploys.
                 </p>
+                {cloudHint ? <p className="voice-corpus-hint">{cloudHint}</p> : null}
                 <textarea
                   className="voice-corpus-textarea"
                   placeholder="Paste recent LinkedIn posts here (combined is fine)…"
                   value={corpusDraft}
                   onChange={(e) => setCorpusDraft(e.target.value)}
+                  onBlur={() => {
+                    if (corpusDraft.trim().length >= 80) {
+                      saveVoiceCorpus(corpusDraft)
+                      refreshMeta()
+                    }
+                  }}
                   rows={10}
                 />
                 <div className="voice-corpus-actions">
-                  <button type="button" className="voice-corpus-save" onClick={handleSaveCorpus}>
+                  <button type="button" className="voice-corpus-save" onClick={() => void handleSaveCorpus()}>
                     Save voice corpus
                   </button>
+                  <button type="button" className="voice-corpus-clear" onClick={handleExportBackup}>
+                    Export backup
+                  </button>
+                  <button
+                    type="button"
+                    className="voice-corpus-clear"
+                    onClick={() => importRef.current?.click()}
+                  >
+                    Import backup
+                  </button>
+                  <input
+                    ref={importRef}
+                    type="file"
+                    accept="application/json,.json"
+                    hidden
+                    onChange={handleImportBackup}
+                  />
                   {corpusSavedAt && (
-                    <span className="voice-corpus-meta">Last saved: {corpusSavedAt}</span>
+                    <span className="voice-corpus-meta">
+                      Last saved: {corpusSavedAt.slice(0, 19).replace('T', ' ')} UTC
+                    </span>
                   )}
                 </div>
                 {corpusSaveMsg && (

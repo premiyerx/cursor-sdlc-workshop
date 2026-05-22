@@ -1,6 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { restoreApiKeysFromVault } from './utils/apiKeyVault'
+import { restoreVoiceCorpusFromVault } from './utils/voiceCorpusVault'
+import { mergeVoiceCorpusWithCloud } from './utils/voiceCorpusCloud'
+import { vaultGetCorpusSync, vaultPutCorpusSync } from './utils/voiceCorpusVault'
 import App from './App.jsx'
 import './index.css'
 
@@ -21,6 +24,9 @@ async function bootstrap() {
   await restoreApiKeysFromVault().catch(() => {
     /* offline / private mode — app still loads */
   })
+
+  await restoreVoiceCorpusFromVault().catch(() => {})
+  await mergeVoiceCorpusWithCloud(vaultGetCorpusSync, vaultPutCorpusSync).catch(() => {})
 
   createRoot(document.getElementById('root')).render(
     <StrictMode>
