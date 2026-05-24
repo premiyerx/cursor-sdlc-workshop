@@ -1,13 +1,15 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import DynamicGraphic from './DynamicGraphic'
 import CarouselGenerator from './CarouselGenerator'
 import CommandProgress from './CommandProgress'
 import ActionFeedback from './ActionFeedback'
+import ReachScoreBreakdown from './ReachScoreBreakdown'
 import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import { livePostCharCount } from '../utils/humanizeLinkedInCopy'
 import { POST_LENGTH } from '../data/contentStrategy'
 import { getMaxPromisedCount, countNumberedListItems } from '../utils/postListIntegrity'
+import { breakdownReachScore } from '../utils/draftRecommendation'
 
 export function variantPostToLiveText(post, appendCitations) {
   if (!post) return ''
@@ -34,6 +36,8 @@ export default function ThreeModelWorkbench({
   onGraphicAssetUpdate,
 }) {
   const [copiedVariantId, setCopiedVariantId] = useState(null)
+  const [openReachId, setOpenReachId] = useState(null)
+  const reachWrapRef = useRef(null)
   const { msg: copyMsg, flashOk, flashErr } = useFlashFeedback()
 
   const copyVariantPost = useCallback(
@@ -118,10 +122,30 @@ export default function ThreeModelWorkbench({
                 <span className="model-workbench-badge">{v.shortLabel || v.label}</span>
                 <span className="model-workbench-name">{v.label}</span>
                 {(v.isRecommended || v.id === recommendedId) && !v.error && (
-                  <span className="model-workbench-reach-pill" title="Highest reach score among the three drafts">
-                    Best for reach
-                    {typeof v.algorithmScore === 'number' ? ` · ${v.algorithmScore}` : ''}
-                  </span>
+                  <div
+                    className="model-workbench-reach-wrap"
+                    ref={openReachId === v.id ? reachWrapRef : undefined}
+                  >
+                    <button
+                      type="button"
+                      className="model-workbench-reach-pill"
+                      aria-expanded={openReachId === v.id}
+                      aria-controls={`reach-breakdown-${v.id}`}
+                      title="Tap for reach score breakdown — ranked by net score after penalties"
+                      onClick={() => setOpenReachId((id) => (id === v.id ? null : v.id))}
+                    >
+                      Best for reach
+                      {typeof v.reachScore === 'number' ? ` · ${v.reachScore}` : ''}
+                    </button>
+                    {openReachId === v.id && (
+                      <ReachScoreBreakdown
+                        id={`reach-breakdown-${v.id}`}
+                        boundaryRef={reachWrapRef}
+                        breakdown={v.reachBreakdown || (v.post ? breakdownReachScore(v.post) : null)}
+                        onClose={() => setOpenReachId(null)}
+                      />
+                    )}
+                  </div>
                 )}
                 {isFocused && assetBusy && (
                   <span className="model-workbench-focus-pill" aria-live="polite">
@@ -138,6 +162,9 @@ export default function ThreeModelWorkbench({
                     {v.post ? (
                       <p className="model-workbench-char-meta" aria-hidden="true">
                         {livePostCharCount(v.post)} chars
+                        {typeof v.reachScore === 'number' && !(v.isRecommended || v.id === recommendedId)
+                          ? ` · reach ${v.reachScore}`
+                          : ''}
                         {(() => {
                           const text = variantPostToLiveText(v.post, null)
                           const promised = getMaxPromisedCount(text)

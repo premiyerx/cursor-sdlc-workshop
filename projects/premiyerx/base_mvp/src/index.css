@@ -3874,6 +3874,15 @@ canvas {
   opacity: 0.55;
 }
 
+.model-workbench-reach-wrap {
+  position: relative;
+  margin-left: auto;
+  flex: 1 1 100%;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .model-workbench-reach-pill {
   font-size: 0.62rem;
   font-weight: 700;
@@ -3881,10 +3890,187 @@ canvas {
   letter-spacing: 0.06em;
   color: #1a1408;
   background: linear-gradient(135deg, #fdcb6e 0%, #f39c12 100%);
-  padding: 0.2rem 0.5rem;
+  padding: 0.35rem 0.55rem;
   border-radius: 4px;
-  margin-left: auto;
   white-space: nowrap;
+  border: none;
+  cursor: pointer;
+  min-height: 28px;
+  font-family: inherit;
+  line-height: 1.2;
+}
+
+.model-workbench-reach-pill:hover,
+.model-workbench-reach-pill:focus-visible {
+  filter: brightness(1.06);
+  outline: 2px solid rgba(253, 203, 110, 0.85);
+  outline-offset: 2px;
+}
+
+.reach-breakdown {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 12;
+  width: min(100%, 280px);
+  max-height: min(180px, 48vh);
+  overflow-y: auto;
+  padding: 0.5rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(12, 12, 18, 0.97);
+  border: 1px solid rgba(253, 203, 110, 0.35);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+}
+
+.reach-breakdown-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.reach-breakdown-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #fdcb6e;
+  font-size: 0.6rem;
+}
+
+.reach-breakdown-close {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.25rem;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.reach-breakdown-net {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.4rem;
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.reach-breakdown-net-score {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.reach-breakdown-formula {
+  flex: 1 1 100%;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.reach-grade {
+  font-size: 0.58rem;
+  font-weight: 800;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+
+.reach-grade--good {
+  color: #1a1408;
+  background: #3edc81;
+}
+
+.reach-grade--mid {
+  color: #1a1408;
+  background: #fdcb6e;
+}
+
+.reach-grade--low {
+  color: #fff;
+  background: #e17055;
+}
+
+.reach-breakdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reach-breakdown-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.1rem 0.35rem;
+  padding: 0.28rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.reach-breakdown-row--base .reach-breakdown-pts {
+  color: #55efc4;
+}
+
+.reach-breakdown-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.reach-breakdown-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.reach-breakdown-pts {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.reach-breakdown-pts.is-penalty {
+  color: #e17055;
+}
+
+.reach-breakdown-desc {
+  grid-column: 1 / -1;
+  font-size: 0.6rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.reach-breakdown-rules {
+  margin-top: 0.35rem;
+}
+
+.reach-breakdown-rules summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.6rem;
+}
+
+.reach-breakdown-rules-list {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+
+.reach-breakdown-rule {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0;
+}
+
+.reach-breakdown-rule-name {
+  color: var(--text-secondary);
+  font-size: 0.6rem;
 }
 
 .model-workbench-card-h {
