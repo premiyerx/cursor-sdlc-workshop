@@ -14,6 +14,9 @@ import {
 import { generateRawCompletion, getApiKeyForProfile } from './llmPostClient'
 import { humanizePostSections, enforceConcisePost } from './humanizeLinkedInCopy'
 import { repairGrammarInPost } from './postGrammarQuality.js'
+import { applyRoughEdit } from './postRoughEdit.js'
+import { injectRhythmBreak } from './sentenceRhythm.js'
+import { pickStructureTemplate, buildStructureDirective } from './postStructureTemplates.js'
 import { POST_LENGTH } from '../data/contentStrategy.js'
 import { annotateVariantsWithRecommendation } from './draftRecommendation'
 
@@ -247,70 +250,80 @@ function parseLegacyFlexibleColon(text) {
   }
 }
 
-function finalizePost(p) {
+function finalizePost(p, options = {}) {
   const hook = stripStraySectionLabels(sanitizeExternalCopy(p.hook || ''))
   const body = stripStraySectionLabels(sanitizeExternalCopy(p.body || ''))
   const cta = stripStraySectionLabels(sanitizeExternalCopy(p.cta || ''))
   const hashtags = stripStraySectionLabels(sanitizeExternalCopy(p.hashtags || ''))
   const firstComment = stripStraySectionLabels(sanitizeExternalCopy(p.firstComment || ''))
   const humanized = humanizePostSections({ hook, body, cta, hashtags, firstComment })
-  const concise = enforceConcisePost(humanized, POST_LENGTH.charHardMax)
+  // Rough edit pass: strip moral/lesson/conclusion lines and collapse stray lists for
+  // structures that forbid them. Then break up symmetric sentence rhythm. Length and
+  // grammar passes still run last so the post lands inside the hard char cap.
+  const allowList = options.allowList !== false ? Boolean(options.allowList) : false
+  const edited = applyRoughEdit(humanized, { allowList })
+  const rhythmed = { ...edited, body: injectRhythmBreak(edited.body || '', options.rhythmSeed || 0) }
+  const concise = enforceConcisePost(rhythmed, POST_LENGTH.charHardMax)
   const polished = repairGrammarInPost(concise)
   recordGeneratedHook(polished.hook || polished.body.slice(0, 200))
   return polished
 }
 
-function salvageUnstructuredPost(text) {
+function salvageUnstructuredPost(text, finalizeOptions = {}) {
   const clean = sanitizeExternalCopy(stripAssistantPreamble(stripCodeFence(String(text || '').replace(/\r\n/g, '\n'))))
   if (!clean || clean.length < 24) return null
   const lines = clean.split('\n').filter((l) => l.trim())
   if (!lines.length) return null
-  return finalizePost({
-    hook: lines[0],
-    body: lines.length > 1 ? lines.slice(1).join('\n').trim() : clean,
-    cta: '',
-    hashtags: '',
-    firstComment: '',
-  })
+  return finalizePost(
+    {
+      hook: lines[0],
+      body: lines.length > 1 ? lines.slice(1).join('\n').trim() : clean,
+      cta: '',
+      hashtags: '',
+      firstComment: '',
+    },
+    finalizeOptions,
+  )
 }
 
-function parseAIOutput(raw) {
+function parseAIOutput(raw, finalizeOptions = {}) {
   let text = stripCodeFence(String(raw || '').replace(/\r\n/g, '\n'))
   text = stripAssistantPreamble(text)
   text = sanitizeExternalCopy(text)
 
   const json = tryParseJsonPost(text)
   if (json) {
-    const out = finalizePost(json)
+    const out = finalizePost(json, finalizeOptions)
     if (out.hook || out.body) return out
   }
 
   const headers = parseHeaderSections(text)
   if (headers) {
-    const out = finalizePost(headers)
+    const out = finalizePost(headers, finalizeOptions)
     if (out.hook || out.body) return out
   }
 
   const legacyNl = parseLegacyNewlineSections(text)
-  if (legacyNl && (legacyNl.hook || legacyNl.body)) return finalizePost(legacyNl)
+  if (legacyNl && (legacyNl.hook || legacyNl.body)) return finalizePost(legacyNl, finalizeOptions)
 
   const legacyFlex = parseLegacyFlexibleColon(text)
-  if (legacyFlex && (legacyFlex.hook || legacyFlex.body)) return finalizePost(legacyFlex)
+  if (legacyFlex && (legacyFlex.hook || legacyFlex.body)) return finalizePost(legacyFlex, finalizeOptions)
 
   const lines = text.split('\n').filter((l) => l.trim())
   const hook = lines[0] || text.slice(0, 200)
   const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text
-  const out = finalizePost({ hook, body, cta: '', hashtags: '', firstComment: '' })
+  const out = finalizePost({ hook, body, cta: '', hashtags: '', firstComment: '' }, finalizeOptions)
   if (out.hook || out.body) return out
 
-  const salvaged = salvageUnstructuredPost(raw)
+  const salvaged = salvageUnstructuredPost(raw, finalizeOptions)
   if (salvaged?.hook || salvaged?.body) return salvaged
 
   throw new Error('Could not find HOOK or BODY in model output. Try Generate again.')
 }
 
-function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '') {
+function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '', structure = null) {
   const varietyBlock = buildVarietyEnvelope(topicId, topic.label)
+  const structureBlock = buildStructureDirective(structure)
   const narrative = getTopicNarrative(topicId)
   const runStamp = new Date().toISOString()
   const periodLabel = new Date().toLocaleString('en-US', {
@@ -348,14 +361,20 @@ MARKET FRAME: ${narrative.competitiveFrame}
 ${customAngle ? `Specific angle: ${customAngle}` : ''}
 
 ${varietyBlock}
+${structureBlock}
 ${capitalPillarGuard}
 
 CONTEXT:
 - Audience: ${narrative.audience}
 - Anchor hook in LEAD STORY from research below (paraphrase — never paste headline verbatim).
 - Sound like Prem Iyer: SVP, Global Strategic Accounts at Cursor — operator + investor, peer to CIOs and engineering leaders — NOT generic ChatGPT LinkedIn voice.
-- Ban phrases: "game-changer", "let's dive", "in today's fast-paced", "thoughts?", "agree?"
-- HUMAN VOICE (non-negotiable): Write like Prem on his phone after a customer call — casual, concise, slightly irreverent. Contractions OK. One short parenthetical re-hook max. Not a memo, keynote, or consultant deck. No → ► ▸ arrow bullets (major ChatGPT tell). No markdown bold. No "Key takeaway", "Here's the thing", "Furthermore", "leverage/utilize", "in today's fast-paced", or checklist emoji. Lists = short standalone lines with blank lines between, or "1." / "2." numbering — never arrow prefixes. Em dashes: at most one in the whole post.
+- PERSONAL SPECIFICITY (non-negotiable): every post MUST include at least one detail only someone with direct experience would know — a real number (with a unit), a named role in a scene (a VP Eng / CIO who told you something), a specific outcome (closed, shipped, paused, expanded to N seats), or a named mistake you made. No generic observations. If you can't be specific, use a composite labeled as composite — never invent customer names or funding figures.
+- BANNED VOCABULARY (do not use anywhere): "game-changer", "dive into", "leverage", "unlock", "in today's fast-paced", "it's worth noting", "at the end of the day", "the reality is", "buckle up", "the bottom line", "let that sink in", "here's the thing", "crucial", "vital", "landscape", "ever-evolving", "arc", "thoughts?", "agree?". The post-processor strips these — but if you avoid them, the result reads more like a human first draft.
+- HUMAN VOICE (non-negotiable): Write like Prem on his phone after a customer call — casual, concise, slightly irreverent. Contractions OK. One short parenthetical re-hook max. Not a memo, keynote, or consultant deck. No → ► ▸ arrow bullets (major ChatGPT tell). No markdown bold. No bold mid-post headers ever. No "Key takeaway", "Here's the thing", "Furthermore". Lists are short standalone lines with blank lines between, or "1." / "2." numbering — never arrow prefixes.
+- SENTENCE RHYTHM (mandatory): Vary length aggressively. Mix one-word sentences with long, clause-heavy ones. NEVER allow three consecutive sentences of similar length. A one-word reaction line ("Honestly?", "Two things.", "Wild.") is welcome to break the cadence. Mobile-first formatting still rules — the opening line or two plus a blank line break is what earns the "see more" tap.
+- EM-DASHES + UNFINISHED THOUGHTS: Allow up to 2 em-dashes in the whole post to interrupt a thought mid-sentence the way a real person would. Allow ONE sentence per post to feel slightly unfinished or conversational instead of polished. Do not exceed two em-dashes.
+- NO LESSONS / NO MORALS: Do NOT end on a "the lesson is", "the takeaway is", "this is why this matters", "remember:", or "bottom line:" sentence. The post-processor strips them. Replace what would be a moral with a question, a next-step observation, or a thing you're going to try.
+- FORMATTING DISCIPLINE (limit symmetry): Do NOT use bullet points or numbered lists unless STRUCTURE_FOR_THIS_POST explicitly allows them. When you do use bullets, items must be uneven in length and NOT parallel in grammar. Never use bold headers mid-post.
 - LENGTH (hard): HOOK+BODY+CTA+HASHTAGS combined ≤${POST_LENGTH.charSoftMax} characters (ideal ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax}). Max three proof beats in BODY; each beat ≤1 short line. Cut throat-clearing — if it sounds like ChatGPT, delete it.
 - LIST INTEGRITY (non-negotiable): If you write "Three patterns/reasons/ways…" you MUST deliver numbered items 1, 2, and 3 before the CTA — each item one tight line. Never tease a count you cannot finish. Safer: "One pattern I keep seeing…" or two items with "Two…" — no orphan list intros.
 - Never paste CAPITAL_PILLAR rubric lines, “Lead with…”, “Contrast…”, or other prompt instructions as if they were the post — those are private guidance, not public copy.
@@ -409,9 +428,14 @@ async function loadSharedGenerationContext(topicId, options) {
   }
 
   report(44, 'Applying your voice profile…')
-  const userPrompt = buildUserPrompt(topic, topicId, realtimeContext, options.customAngle || '')
+  const structure = pickStructureTemplate(topicId)
+  const userPrompt = buildUserPrompt(topic, topicId, realtimeContext, options.customAngle || '', structure)
+  const finalizeOptions = {
+    allowList: structure?.id === 'before-after',
+    rhythmSeed: Date.now() & 0xffff,
+  }
 
-  return { topic, systemPrompt, userPrompt, realtimeData, seed }
+  return { topic, systemPrompt, userPrompt, realtimeData, seed, structure, finalizeOptions }
 }
 
 /**
@@ -436,9 +460,17 @@ export async function generateAIPost(topicId, options = {}) {
     apiKey,
   })
   report(92, 'Polishing your post…')
-  const post = parseAIOutput(raw)
+  const post = parseAIOutput(raw, ctx.finalizeOptions)
   report(100, 'Post ready')
-  return { post, topic: ctx.topic, usedAI: true, realtimeData: ctx.realtimeData, seed: ctx.seed, textModel: profile }
+  return {
+    post,
+    topic: ctx.topic,
+    usedAI: true,
+    realtimeData: ctx.realtimeData,
+    seed: ctx.seed,
+    textModel: profile,
+    structure: ctx.structure,
+  }
 }
 
 /**
@@ -466,7 +498,7 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
     for (let i = 0; i < attempts; i++) {
       try {
         const raw = await generateRawCompletion(profile, baseArgs)
-        const post = parseAIOutput(raw)
+        const post = parseAIOutput(raw, ctx.finalizeOptions)
         if (!post.hook?.trim() && !post.body?.trim()) {
           throw new Error('Model returned empty HOOK and BODY.')
         }
@@ -512,5 +544,6 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
     usedAI: true,
     realtimeData: ctx.realtimeData,
     seed: ctx.seed,
+    structure: ctx.structure,
   }
 }
