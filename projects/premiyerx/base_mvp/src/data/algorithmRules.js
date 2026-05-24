@@ -345,7 +345,7 @@ export function scorePost(text) {
   const rounded = Math.round(totalScore)
   const afterPremier = applyPremierBand(rounded, details, text)
   const adjusted = applyViralityReachFloor(rounded, afterPremier, details, text)
-  return { total: adjusted, details }
+  return { total: adjusted, rawRounded: rounded, premierAdjusted: afterPremier, details }
 }
 
 export function getOptimalHashtags(topicId, count = 5) {

@@ -9,13 +9,13 @@ function gradeClass(grade) {
 /**
  * Compact reach-score panel inside a variant card (not a modal).
  */
-export default function ReachScoreBreakdown({ id, breakdown, boundaryRef, onClose }) {
+export default function ReachScoreBreakdown({ id, breakdown, onClose, inCard = false, isWinner = false }) {
   const panelRef = useRef(null)
 
   useEffect(() => {
     function onPointerDown(e) {
-      if (boundaryRef?.current?.contains(e.target)) return
       if (panelRef.current?.contains(e.target)) return
+      if (e.target?.closest?.('.model-workbench-reach-pill')) return
       onClose?.()
     }
     function onKeyDown(e) {
@@ -29,18 +29,31 @@ export default function ReachScoreBreakdown({ id, breakdown, boundaryRef, onClos
       document.removeEventListener('touchstart', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [onClose, boundaryRef])
+  }, [onClose])
 
   if (!breakdown) return null
 
-  const { algorithmScore, algorithmGrade, penalties, penaltySum, reachScore, reachGrade, algorithmRules } =
-    breakdown
+  const {
+    algorithmScore,
+    algorithmRawWeighted,
+    algorithmPremierBand,
+    algorithmGrade,
+    penalties,
+    penaltySum,
+    reachScore,
+    reachGrade,
+    algorithmRules,
+  } = breakdown
+
+  const lifted =
+    typeof algorithmRawWeighted === 'number' &&
+    (algorithmScore !== algorithmRawWeighted || algorithmPremierBand !== algorithmRawWeighted)
 
   return (
     <div
       ref={panelRef}
       id={id}
-      className="reach-breakdown"
+      className={['reach-breakdown', inCard ? 'reach-breakdown--in-card' : ''].filter(Boolean).join(' ')}
       role="region"
       aria-label="Reach score breakdown"
     >
@@ -55,9 +68,22 @@ export default function ReachScoreBreakdown({ id, breakdown, boundaryRef, onClos
         <span className="reach-breakdown-net-score">{reachScore}</span>
         <span className={`reach-grade ${gradeClass(reachGrade)}`}>{reachGrade}</span>
         <span className="reach-breakdown-formula">
-          {algorithmScore} base − {penaltySum} penalties
+          {algorithmScore} algorithm − {penaltySum} penalties = {reachScore} net
         </span>
+        {lifted ? (
+          <span className="reach-breakdown-formula reach-breakdown-formula--sub">
+            Weighted rules {algorithmRawWeighted}
+            {algorithmPremierBand !== algorithmRawWeighted ? ` → premier ${algorithmPremierBand}` : ''}
+            {algorithmScore !== algorithmPremierBand ? ` → reach band ${algorithmScore}` : ''}
+          </span>
+        ) : null}
       </div>
+
+      <p className="reach-breakdown-rank-note">
+        {isWinner
+          ? 'Highest net score this run — compared only to the other two drafts above, not a fixed model.'
+          : 'Scored from this draft’s text only. Winner is whoever has the highest net after penalties.'}
+      </p>
 
       <ul className="reach-breakdown-list">
         <li className="reach-breakdown-row reach-breakdown-row--base">

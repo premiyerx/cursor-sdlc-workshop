@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import DynamicGraphic from './DynamicGraphic'
 import CarouselGenerator from './CarouselGenerator'
 import CommandProgress from './CommandProgress'
@@ -37,7 +37,6 @@ export default function ThreeModelWorkbench({
 }) {
   const [copiedVariantId, setCopiedVariantId] = useState(null)
   const [openReachId, setOpenReachId] = useState(null)
-  const reachWrapRef = useRef(null)
   const { msg: copyMsg, flashOk, flashErr } = useFlashFeedback()
 
   const copyVariantPost = useCallback(
@@ -105,6 +104,9 @@ export default function ThreeModelWorkbench({
               ? 'Copy post + generate carousel PDF'
               : `Copy post + generate another carousel PDF (${carouselCount} created)`
 
+          const isWinner = Boolean((v.isRecommended || v.id === recommendedId) && !v.error)
+          const reachOpen = openReachId === v.id
+
           return (
             <article
               key={v.id}
@@ -113,7 +115,7 @@ export default function ThreeModelWorkbench({
                 v.error ? 'is-error' : '',
                 isDimmed ? 'is-dimmed' : '',
                 isFocused ? 'is-focused' : '',
-                v.isRecommended || v.id === recommendedId ? 'is-recommended' : '',
+                isWinner ? 'is-recommended' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -121,30 +123,24 @@ export default function ThreeModelWorkbench({
               <header className="model-workbench-card-h">
                 <span className="model-workbench-badge">{v.shortLabel || v.label}</span>
                 <span className="model-workbench-name">{v.label}</span>
-                {(v.isRecommended || v.id === recommendedId) && !v.error && (
-                  <div
-                    className="model-workbench-reach-wrap"
-                    ref={openReachId === v.id ? reachWrapRef : undefined}
-                  >
+                {!v.error && typeof v.reachScore === 'number' && (
+                  <div className="model-workbench-reach-wrap">
                     <button
                       type="button"
-                      className="model-workbench-reach-pill"
-                      aria-expanded={openReachId === v.id}
+                      className={[
+                        'model-workbench-reach-pill',
+                        isWinner ? '' : 'model-workbench-reach-pill--alt',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      aria-expanded={reachOpen}
                       aria-controls={`reach-breakdown-${v.id}`}
-                      title="Tap for reach score breakdown — ranked by net score after penalties"
+                      title="Tap for reach score breakdown — net score after penalties on this draft"
                       onClick={() => setOpenReachId((id) => (id === v.id ? null : v.id))}
                     >
-                      Best for reach
-                      {typeof v.reachScore === 'number' ? ` · ${v.reachScore}` : ''}
+                      {isWinner ? 'Best for reach' : 'Reach score'}
+                      {` · ${v.reachScore}`}
                     </button>
-                    {openReachId === v.id && (
-                      <ReachScoreBreakdown
-                        id={`reach-breakdown-${v.id}`}
-                        boundaryRef={reachWrapRef}
-                        breakdown={v.reachBreakdown || (v.post ? breakdownReachScore(v.post) : null)}
-                        onClose={() => setOpenReachId(null)}
-                      />
-                    )}
                   </div>
                 )}
                 {isFocused && assetBusy && (
@@ -159,12 +155,18 @@ export default function ThreeModelWorkbench({
               ) : (
                 <>
                   <div className="model-workbench-scroll">
+                    {reachOpen && (
+                      <ReachScoreBreakdown
+                        id={`reach-breakdown-${v.id}`}
+                        breakdown={v.reachBreakdown || (v.post ? breakdownReachScore(v.post) : null)}
+                        onClose={() => setOpenReachId(null)}
+                        inCard
+                        isWinner={isWinner}
+                      />
+                    )}
                     {v.post ? (
                       <p className="model-workbench-char-meta" aria-hidden="true">
                         {livePostCharCount(v.post)} chars
-                        {typeof v.reachScore === 'number' && !(v.isRecommended || v.id === recommendedId)
-                          ? ` · reach ${v.reachScore}`
-                          : ''}
                         {(() => {
                           const text = variantPostToLiveText(v.post, null)
                           const promised = getMaxPromisedCount(text)

@@ -102,13 +102,15 @@ function buildPenalties(text) {
  */
 export function breakdownReachScore(post) {
   const text = postSectionsToLiveText(post)
-  const { total, details } = scorePost(text)
+  const { total, rawRounded, premierAdjusted, details } = scorePost(text)
   const penalties = buildPenalties(text)
   const penaltySum = penalties.reduce((sum, p) => sum + p.points, 0)
   const reachScore = Math.max(0, total - penaltySum)
 
   return {
     algorithmScore: total,
+    algorithmRawWeighted: rawRounded ?? total,
+    algorithmPremierBand: premierAdjusted ?? total,
     algorithmGrade: scoreToGrade(total),
     algorithmRules: details.map((rule) => ({
       id: rule.id,
