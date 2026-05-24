@@ -84,11 +84,11 @@ export default function ThreeModelWorkbench({
           Each model wrote its own version.{' '}
           {recommendedVariant ? (
             <>
-              The highlighted column ({recommendedVariant.label}) scores highest for LinkedIn reach —
-              dwell time, comments, and scannability — after stripping common AI tells.
+              The highlighted column ({recommendedVariant.label}) scored highest after Editors 2 & 3 — only
+              drafts above 86 reach are shown.
             </>
           ) : (
-            <>Pick the column that sounds most like you.</>
+            <>Only drafts that cleared 86+ reach after editor review are shown.</>
           )}{' '}
           Copy a draft to LinkedIn with one tap, or use the combined buttons to copy the post and start an infographic or carousel at the same time.
         </p>
@@ -166,7 +166,12 @@ export default function ThreeModelWorkbench({
               </header>
 
               {v.error ? (
-                <p className="model-workbench-err">{v.error}</p>
+                <div className="model-workbench-err-wrap">
+                  <p className="model-workbench-err">{v.error}</p>
+                  <p className="model-workbench-err-hint">
+                    Editors 2 & 3 revise each draft until net reach is above 85. Regenerate to try again.
+                  </p>
+                </div>
               ) : (
                 <>
                   <div className={['model-workbench-main', reachOpen ? 'has-reach-panel' : ''].filter(Boolean).join(' ')}>

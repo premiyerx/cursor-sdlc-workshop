@@ -6,6 +6,9 @@ import { scorePersonalSpecificityPenalty } from './personalSpecificity.js'
 import { scoreSentenceRhythm } from './sentenceRhythm.js'
 import { scoreConclusionPenalty } from './postRoughEdit.js'
 
+/** Only surface posts with net reach strictly above 85 (minimum 86). */
+export const REACH_PUBLISH_MIN = 86
+
 /** Full post text for algorithm scoring (no citation footer). */
 export function postSectionsToLiveText(post) {
   if (!post) return ''

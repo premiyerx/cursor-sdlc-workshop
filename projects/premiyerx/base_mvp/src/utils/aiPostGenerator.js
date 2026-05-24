@@ -19,6 +19,9 @@ import { injectRhythmBreak } from './sentenceRhythm.js'
 import { pickStructureTemplate, buildStructureDirective } from './postStructureTemplates.js'
 import { POST_LENGTH } from '../data/contentStrategy.js'
 import { annotateVariantsWithRecommendation } from './draftRecommendation'
+import { runReachEditorPipeline, REACH_PUBLISH_MIN } from './reachEditorPipeline.js'
+
+export { REACH_PUBLISH_MIN } from './reachEditorPipeline.js'
 
 export { hasOpenAiKey, getOpenAiKey }
 export { DEFAULT_TEXT_MODEL_ID, getTextModelProfile, TEXT_MODEL_PROFILES } from '../data/textModelProfiles'
@@ -321,6 +324,41 @@ function parseAIOutput(raw, finalizeOptions = {}) {
   throw new Error('Could not find HOOK or BODY in model output. Try Generate again.')
 }
 
+/** Parse model or editor output through the same finalize pipeline. */
+export function parseGeneratedPost(raw, finalizeOptions = {}) {
+  return parseAIOutput(raw, finalizeOptions)
+}
+
+async function polishPostForReach(post, ctx, profile, apiKey, report) {
+  const short = profile.shortLabel || profile.label
+  report(88, `${short}: editor review for 86+ reach…`)
+  const result = await runReachEditorPipeline({
+    post,
+    profile,
+    systemPrompt: ctx.systemPrompt,
+    apiKey,
+    parseRevision: (raw) => parseGeneratedPost(raw, ctx.finalizeOptions),
+    finalizeOptions: ctx.finalizeOptions,
+    onProgress: (stage) => report(90, `${short}: ${stage}`),
+  })
+  if (!result.published) {
+    return {
+      post: null,
+      error: result.message || `Reach score ${result.reachScore} did not clear ${REACH_PUBLISH_MIN} after editor review.`,
+      reachScore: result.reachScore,
+      reachBreakdown: result.reachBreakdown,
+      editorPasses: result.editorPasses,
+    }
+  }
+  return {
+    post: result.post,
+    error: null,
+    reachScore: result.reachScore,
+    reachBreakdown: result.reachBreakdown,
+    editorPasses: result.editorPasses,
+  }
+}
+
 function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '', structure = null) {
   const varietyBlock = buildVarietyEnvelope(topicId, topic.label)
   const structureBlock = buildStructureDirective(structure)
@@ -459,17 +497,22 @@ export async function generateAIPost(topicId, options = {}) {
     userPrompt: ctx.userPrompt,
     apiKey,
   })
-  report(92, 'Polishing your post…')
-  const post = parseAIOutput(raw, ctx.finalizeOptions)
+  report(78, 'Polishing your post…')
+  const draft = parseAIOutput(raw, ctx.finalizeOptions)
+  const polished = await polishPostForReach(draft, ctx, profile, apiKey, report)
+  if (polished.error) throw new Error(polished.error)
   report(100, 'Post ready')
   return {
-    post,
+    post: polished.post,
     topic: ctx.topic,
     usedAI: true,
     realtimeData: ctx.realtimeData,
     seed: ctx.seed,
     textModel: profile,
     structure: ctx.structure,
+    reachScore: polished.reachScore,
+    reachBreakdown: polished.reachBreakdown,
+    editorPasses: polished.editorPasses,
   }
 }
 
@@ -485,24 +528,36 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
 
   const ctx = await loadSharedGenerationContext(topicId, options)
   const profiles = COMPARE_TEXT_MODEL_IDS.map((id) => getTextModelProfile(id))
-  report(52, 'Running GPT 5.5, Claude Opus 4.7, and Gemini in parallel…')
+  report(48, 'Running GPT 5.5, Claude Opus 4.7, and Gemini (then Editors 2 & 3)…')
 
   async function runOneModel(profile) {
+    const apiKey = getApiKeyForProfile(profile)
     const baseArgs = {
       systemPrompt: ctx.systemPrompt,
       userPrompt: ctx.userPrompt,
-      apiKey: getApiKeyForProfile(profile),
+      apiKey,
     }
     const attempts = 2
     let lastErr = 'Request failed'
     for (let i = 0; i < attempts; i++) {
       try {
         const raw = await generateRawCompletion(profile, baseArgs)
-        const post = parseAIOutput(raw, ctx.finalizeOptions)
-        if (!post.hook?.trim() && !post.body?.trim()) {
+        const draft = parseAIOutput(raw, ctx.finalizeOptions)
+        if (!draft.hook?.trim() && !draft.body?.trim()) {
           throw new Error('Model returned empty HOOK and BODY.')
         }
-        return { post, error: null }
+        const noopReport = () => {}
+        const polished = await polishPostForReach(draft, ctx, profile, apiKey, noopReport)
+        if (polished.error) {
+          throw new Error(polished.error)
+        }
+        return {
+          post: polished.post,
+          error: null,
+          reachScore: polished.reachScore,
+          reachBreakdown: polished.reachBreakdown,
+          editorPasses: polished.editorPasses,
+        }
       } catch (e) {
         lastErr = e?.message || 'Request failed'
         if (i < attempts - 1) {
@@ -524,7 +579,14 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
       provider: profile.provider,
     }
     if (s.status === 'fulfilled') {
-      return { ...base, post: s.value.post, error: s.value.error }
+      return {
+        ...base,
+        post: s.value.post,
+        error: s.value.error,
+        reachScore: s.value.reachScore ?? null,
+        reachBreakdown: s.value.reachBreakdown ?? null,
+        editorPasses: s.value.editorPasses ?? null,
+      }
     }
     return {
       ...base,

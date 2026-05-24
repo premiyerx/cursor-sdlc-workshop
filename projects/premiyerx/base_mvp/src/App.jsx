@@ -189,15 +189,19 @@ export default function App() {
       await flashPhaseComplete('post', okCount === 3 ? 'Three drafts ready' : `${okCount} of 3 drafts ready`)
       if (okCount < 3) {
         flashGenerateErr(
-          'Some models failed — check the red column for the error. Anthropic needs /api/anthropic-messages on the server (fixed in latest deploy).',
+          okCount === 0
+            ? 'No draft cleared the 86+ reach bar after Editors 2 & 3 — try Generate again or adjust your angle.'
+            : 'Some columns failed or did not reach 86+ after editor review — check the red message in that column.',
           12000,
         )
       }
       const rec = result.recommendation
       flashGenerateOk(
         rec?.label
-          ? `Three drafts are below. ${rec.label} is highlighted as best for reach — shorter, human copy wins over long AI essays.`
-          : 'Three drafts are below. Pick the one that sounds most like you on mobile (brief beats long).',
+          ? `Drafts below cleared 86+ reach after editor review. ${rec.label} is best for reach this run.`
+          : okCount > 0
+            ? 'Drafts below cleared 86+ reach after editor review. Pick the column that sounds most like you.'
+            : 'Generate again — editors could not lift any draft above the reach bar.',
       )
     } catch (err) {
       flashGenerateErr(err?.message || 'Could not generate. Check your API keys and connection.')

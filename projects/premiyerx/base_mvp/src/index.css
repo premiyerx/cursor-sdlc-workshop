@@ -4247,6 +4247,17 @@ canvas {
   margin: 0;
 }
 
+.model-workbench-err-wrap {
+  padding: 0.5rem 0;
+}
+
+.model-workbench-err-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
 .model-workbench-err {
   font-size: 0.82rem;
   color: #f87171;
