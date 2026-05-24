@@ -10,6 +10,7 @@ import { getOpenAiKey } from './utils/openaiKey'
 import VoiceProfile from './components/VoiceProfile'
 import ApiKeysPanel from './components/ApiKeysPanel'
 import CloudSyncPanel from './components/CloudSyncPanel'
+import SettingsAccordion from './components/SettingsAccordion'
 import OptionalAngleField from './components/OptionalAngleField'
 import ThreeModelWorkbench, { variantPostToLiveText } from './components/ThreeModelWorkbench'
 import { useFlashFeedback } from './hooks/useFlashFeedback'
@@ -54,6 +55,22 @@ export default function App() {
     if (typeof window === 'undefined') return false
     return !canRunCompareAll()
   })
+  const [settingsOpen, setSettingsOpen] = useState(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.localStorage.getItem('lidp_settings_open_v1') === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem('lidp_settings_open_v1', settingsOpen ? '1' : '0')
+    } catch {
+      /* storage unavailable — fall back to in-memory state */
+    }
+  }, [settingsOpen])
   const compareContextRef = useRef({ realtimeData: null, seed: 0 })
   const { msg: generateMsg, flashOk: flashGenerateOk, flashErr: flashGenerateErr } = useFlashFeedback()
 
@@ -115,6 +132,7 @@ export default function App() {
   }, [])
 
   const scrollToSettings = useCallback(() => {
+    setSettingsOpen(true)
     setApiKeysPanelOpen(true)
     queueMicrotask(() => {
       document.getElementById('app-settings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -427,20 +445,19 @@ export default function App() {
         )}
 
         <section id="app-settings" className="app-settings-footer">
-          <div className="app-settings-footer-head">
-            <h2 className="app-settings-footer-title">Settings</h2>
-            <p className="app-settings-footer-lead ai-keys-sub">
+          <SettingsAccordion open={settingsOpen} onOpenChange={setSettingsOpen}>
+            <p className="app-settings-footer-lead ai-keys-sub settings-accordion-lead">
               Cloud sync, API keys, and voice corpus use the same panels below — green border means saved, red means
               still needed. Collapse each block after setup.
             </p>
-          </div>
-          <CloudSyncPanel />
-          <ApiKeysPanel
-            open={apiKeysPanelOpen}
-            onOpenChange={setApiKeysPanelOpen}
-            onLlmKeysSaved={handleLlmKeysSaved}
-          />
-          <VoiceProfile />
+            <CloudSyncPanel />
+            <ApiKeysPanel
+              open={apiKeysPanelOpen}
+              onOpenChange={setApiKeysPanelOpen}
+              onLlmKeysSaved={handleLlmKeysSaved}
+            />
+            <VoiceProfile />
+          </SettingsAccordion>
         </section>
       </main>
 
