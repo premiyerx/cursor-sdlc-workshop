@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "stamp": "node scripts/stamp-commit-sha.js",
-    "build": "vite build",
+    "build": "node scripts/stamp-commit-sha.js && vite build",
     "deploy:prod": "node scripts/stamp-commit-sha.js && npx vercel deploy --prod --yes",
     "preview": "vite preview",
     "test:images": "node scripts/test-image-gen.mjs",
