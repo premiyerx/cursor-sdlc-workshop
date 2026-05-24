@@ -7,29 +7,41 @@ function gradeClass(grade) {
 }
 
 /**
- * Compact reach-score panel inside a variant card (not a modal).
+ * Compact reach-score panel inside a variant card (dropdown or full-card overlay).
  */
-export default function ReachScoreBreakdown({ id, breakdown, onClose, inCard = false, isWinner = false }) {
+export default function ReachScoreBreakdown({
+  id,
+  breakdown,
+  onClose,
+  variant = 'overlay',
+  isWinner = false,
+  anchorRef,
+}) {
   const panelRef = useRef(null)
 
   useEffect(() => {
-    function onPointerDown(e) {
-      if (panelRef.current?.contains(e.target)) return
-      if (e.target?.closest?.('.model-workbench-reach-pill')) return
-      onClose?.()
-    }
+    let removeClick = null
+    const timer = window.setTimeout(() => {
+      function onDocumentClick(e) {
+        if (panelRef.current?.contains(e.target)) return
+        if (anchorRef?.current?.contains(e.target)) return
+        onClose?.()
+      }
+      document.addEventListener('click', onDocumentClick, true)
+      removeClick = () => document.removeEventListener('click', onDocumentClick, true)
+    }, 0)
+
     function onKeyDown(e) {
       if (e.key === 'Escape') onClose?.()
     }
-    document.addEventListener('mousedown', onPointerDown)
-    document.addEventListener('touchstart', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
+
     return () => {
-      document.removeEventListener('mousedown', onPointerDown)
-      document.removeEventListener('touchstart', onPointerDown)
+      window.clearTimeout(timer)
+      removeClick?.()
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [onClose])
+  }, [onClose, anchorRef])
 
   if (!breakdown) return null
 
@@ -49,13 +61,20 @@ export default function ReachScoreBreakdown({ id, breakdown, onClose, inCard = f
     typeof algorithmRawWeighted === 'number' &&
     (algorithmScore !== algorithmRawWeighted || algorithmPremierBand !== algorithmRawWeighted)
 
+  const variantClass =
+    variant === 'dropdown' ? 'reach-breakdown--dropdown' : 'reach-breakdown--overlay'
+
   return (
     <div
       ref={panelRef}
       id={id}
-      className={['reach-breakdown', inCard ? 'reach-breakdown--in-card' : ''].filter(Boolean).join(' ')}
-      role="region"
+      className={['reach-breakdown', variantClass].join(' ')}
+      role="dialog"
+      aria-modal="false"
       aria-label="Reach score breakdown"
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
     >
       <div className="reach-breakdown-head">
         <span className="reach-breakdown-title">Reach score</span>
@@ -81,7 +100,7 @@ export default function ReachScoreBreakdown({ id, breakdown, onClose, inCard = f
 
       <p className="reach-breakdown-rank-note">
         {isWinner
-          ? 'Highest net score this run — compared only to the other two drafts above, not a fixed model.'
+          ? 'Highest net score this run — compared only to the other two drafts, not a fixed model.'
           : 'Scored from this draft’s text only. Winner is whoever has the highest net after penalties.'}
       </p>
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import DynamicGraphic from './DynamicGraphic'
 import CarouselGenerator from './CarouselGenerator'
 import CommandProgress from './CommandProgress'
@@ -37,7 +37,17 @@ export default function ThreeModelWorkbench({
 }) {
   const [copiedVariantId, setCopiedVariantId] = useState(null)
   const [openReachId, setOpenReachId] = useState(null)
+  const reachPillRef = useRef(null)
   const { msg: copyMsg, flashOk, flashErr } = useFlashFeedback()
+
+  const toggleReachPanel = useCallback((variantId, e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.currentTarget instanceof HTMLElement) {
+      reachPillRef.current = e.currentTarget
+    }
+    setOpenReachId((id) => (id === variantId ? null : variantId))
+  }, [])
 
   const copyVariantPost = useCallback(
     async (variant) => {
@@ -124,22 +134,27 @@ export default function ThreeModelWorkbench({
                 <span className="model-workbench-badge">{v.shortLabel || v.label}</span>
                 <span className="model-workbench-name">{v.label}</span>
                 {!v.error && typeof v.reachScore === 'number' && (
-                  <div className="model-workbench-reach-wrap">
+                  <div className={['model-workbench-reach-wrap', reachOpen ? 'is-open' : ''].filter(Boolean).join(' ')}>
                     <button
                       type="button"
                       className={[
                         'model-workbench-reach-pill',
                         isWinner ? '' : 'model-workbench-reach-pill--alt',
+                        reachOpen ? 'is-active' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
                       aria-expanded={reachOpen}
                       aria-controls={`reach-breakdown-${v.id}`}
-                      title="Tap for reach score breakdown — net score after penalties on this draft"
-                      onClick={() => setOpenReachId((id) => (id === v.id ? null : v.id))}
+                      title="Tap to see how this reach score was calculated"
+                      onClick={(e) => toggleReachPanel(v.id, e)}
+                      onPointerDown={(e) => e.stopPropagation()}
                     >
                       {isWinner ? 'Best for reach' : 'Reach score'}
                       {` · ${v.reachScore}`}
+                      <span className="model-workbench-reach-chevron" aria-hidden="true">
+                        {reachOpen ? '▴' : '▾'}
+                      </span>
                     </button>
                   </div>
                 )}
@@ -154,16 +169,18 @@ export default function ThreeModelWorkbench({
                 <p className="model-workbench-err">{v.error}</p>
               ) : (
                 <>
-                  <div className="model-workbench-scroll">
+                  <div className={['model-workbench-main', reachOpen ? 'has-reach-panel' : ''].filter(Boolean).join(' ')}>
                     {reachOpen && (
                       <ReachScoreBreakdown
                         id={`reach-breakdown-${v.id}`}
+                        variant="overlay"
+                        anchorRef={reachPillRef}
                         breakdown={v.reachBreakdown || (v.post ? breakdownReachScore(v.post) : null)}
                         onClose={() => setOpenReachId(null)}
-                        inCard
                         isWinner={isWinner}
                       />
                     )}
+                    <div className="model-workbench-scroll">
                     {v.post ? (
                       <p className="model-workbench-char-meta" aria-hidden="true">
                         {livePostCharCount(v.post)} chars
@@ -189,7 +206,7 @@ export default function ThreeModelWorkbench({
                         <p className="model-workbench-first-body">{v.post.firstComment}</p>
                       </div>
                     ) : null}
-                  </div>
+                    </div>
 
                   <div className="model-workbench-actions">
                     <button
@@ -226,6 +243,7 @@ export default function ThreeModelWorkbench({
                     >
                       {carouselBtnLabel}
                     </button>
+                  </div>
                   </div>
 
                   {graphicLoading && (
