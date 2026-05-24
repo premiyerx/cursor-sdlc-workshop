@@ -97,7 +97,7 @@ const DEFAULT_LENSES = [
   'Contrast two opposing instincts in the market (speed vs. safety, build vs. buy) and resolve with evidence.',
   'Anchor on a specific workflow pain (PR review, security review, hiring loop, vendor bake-off) and go deep.',
   'Use a "before AI / after AI" arc for one concrete team outcome—numbers only where sourced.',
-  'Frame as lessons from three anonymous patterns you keep seeing (composite, not invented stats).',
+  'Frame as one or two anonymous patterns you keep seeing (composite, not invented stats) — if you say "three", ship 1. 2. 3.',
   'Lead with a decision tree: the one fork most teams get wrong, and what the data says instead.',
 ]
 

@@ -9,6 +9,7 @@ import { createCompanionGraphic } from './utils/companionGraphic'
 import { getOpenAiKey } from './utils/openaiKey'
 import VoiceProfile from './components/VoiceProfile'
 import ApiKeysPanel from './components/ApiKeysPanel'
+import CloudSyncPanel from './components/CloudSyncPanel'
 import OptionalAngleField from './components/OptionalAngleField'
 import ThreeModelWorkbench, { variantPostToLiveText } from './components/ThreeModelWorkbench'
 import { useFlashFeedback } from './hooks/useFlashFeedback'
@@ -428,10 +429,12 @@ export default function App() {
         <section id="app-settings" className="app-settings-footer">
           <div className="app-settings-footer-head">
             <h2 className="app-settings-footer-title">Settings</h2>
-            <p className="app-settings-footer-lead">
-              API keys and writing style — set up once, then keep this section collapsed while you work on drafts above.
+            <p className="app-settings-footer-lead ai-keys-sub">
+              Cloud sync, API keys, and voice corpus use the same panels below — green border means saved, red means
+              still needed. Collapse each block after setup.
             </p>
           </div>
+          <CloudSyncPanel />
           <ApiKeysPanel
             open={apiKeysPanelOpen}
             onOpenChange={setApiKeysPanelOpen}

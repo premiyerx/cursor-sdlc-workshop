@@ -1,4 +1,5 @@
 import { fnv1a } from './generationVariety'
+import { vaultGetSync, vaultPutSync } from './apiKeyVault.js'
 import { researchForTopic } from '../data/topicIntel'
 
 const CACHE_KEY = 'lidp_realtime_cache'
@@ -9,6 +10,8 @@ const GNEWS_KEY_STORAGE = 'lidp_gnews_api_key'
 const GNEWS_KEY_SAVED_AT = 'lidp_gnews_api_key_saved_at'
 
 export function getGnewsApiKey() {
+  const fromVault = vaultGetSync(GNEWS_KEY_STORAGE)
+  if (fromVault) return fromVault
   try {
     const k = localStorage.getItem(GNEWS_KEY_STORAGE)?.trim()
     if (k) return k
@@ -28,7 +31,7 @@ export function getGnewsKeyMeta() {
       configured: isGnewsKeyConfigured(),
       savedAt: localStorage.getItem(GNEWS_KEY_SAVED_AT) || '',
       lastFour: (() => {
-        const k = localStorage.getItem(GNEWS_KEY_STORAGE)?.trim()
+        const k = vaultGetSync(GNEWS_KEY_STORAGE) || localStorage.getItem(GNEWS_KEY_STORAGE)?.trim()
         return k && k.length >= 4 ? k.slice(-4) : ''
       })(),
     }
@@ -41,11 +44,10 @@ export function getGnewsKeyMeta() {
 export function saveGnewsApiKey(key) {
   try {
     const trimmed = key?.trim() || ''
+    vaultPutSync(GNEWS_KEY_STORAGE, trimmed)
     if (trimmed) {
-      localStorage.setItem(GNEWS_KEY_STORAGE, trimmed)
       localStorage.setItem(GNEWS_KEY_SAVED_AT, new Date().toISOString().slice(0, 10))
     } else {
-      localStorage.removeItem(GNEWS_KEY_STORAGE)
       localStorage.removeItem(GNEWS_KEY_SAVED_AT)
     }
     return { ok: true, cleared: !trimmed }

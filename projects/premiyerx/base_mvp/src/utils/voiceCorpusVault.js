@@ -97,6 +97,9 @@ export function vaultPutCorpusSync(text, updatedIso) {
     /* quota */
   }
   idbPutDeferred(trimmed ? { text: trimmed, updated } : null)
+  void import('./userVaultCloud.js')
+    .then((m) => m.schedulePushUserVault())
+    .catch(() => {})
 }
 
 /** On startup: restore localStorage from IndexedDB if primary storage was cleared. */

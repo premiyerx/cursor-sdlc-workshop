@@ -1,5 +1,7 @@
 import { scorePost } from '../data/algorithmRules.js'
 import { scoreAiTellPenalty, scoreLengthPenalty } from './humanizeLinkedInCopy.js'
+import { scoreIncompleteListPenalty } from './postListIntegrity.js'
+import { scoreGrammarPenalty } from './postGrammarQuality.js'
 
 /** Full post text for algorithm scoring (no citation footer). */
 export function postSectionsToLiveText(post) {
@@ -12,7 +14,8 @@ function scoreVariantForReach(post) {
   const { total } = scorePost(text)
   const aiPenalty = scoreAiTellPenalty(text)
   const lengthPenalty = scoreLengthPenalty(text)
-  const reachScore = Math.max(0, total - aiPenalty - lengthPenalty)
+  const listPenalty = scoreIncompleteListPenalty(text)
+  const reachScore = Math.max(0, total - aiPenalty - lengthPenalty - listPenalty)
   return { algorithmScore: total, reachScore, aiPenalty }
 }
 

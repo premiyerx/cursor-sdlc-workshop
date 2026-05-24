@@ -509,6 +509,57 @@ canvas {
   color: var(--text-secondary);
 }
 
+#cloud-sync-setup,
+#voice-profile-setup {
+  scroll-margin-top: 5.5rem;
+}
+
+.ai-key-block .ai-input--area {
+  width: 100%;
+  min-height: 8.5rem;
+  box-sizing: border-box;
+  margin-bottom: 0.5rem;
+  resize: vertical;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.ai-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.ai-setup-secondary-btn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.ai-setup-secondary-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.ai-settings-note--inline {
+  margin: 0;
+  flex: 1 1 100%;
+}
+
+.voice-settings-readonly {
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
 .voice-corpus-hint {
   font-size: 0.78rem;
   color: var(--text-muted);
@@ -3870,10 +3921,17 @@ canvas {
 }
 
 .model-workbench-scroll {
-  max-height: min(42vh, 20rem);
-  overflow-y: auto;
-  padding-right: 0.25rem;
-  -webkit-overflow-scrolling: touch;
+  max-height: none;
+  overflow: visible;
+  padding-right: 0;
+}
+
+.model-workbench-char-meta {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 0 0 0.35rem;
+  letter-spacing: 0.04em;
 }
 
 .model-workbench-hook {

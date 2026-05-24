@@ -5,6 +5,9 @@ import CommandProgress from './CommandProgress'
 import ActionFeedback from './ActionFeedback'
 import { copyToClipboard } from '../utils/clipboard'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
+import { livePostCharCount } from '../utils/humanizeLinkedInCopy'
+import { POST_LENGTH } from '../data/contentStrategy'
+import { getMaxPromisedCount, countNumberedListItems } from '../utils/postListIntegrity'
 
 export function variantPostToLiveText(post, appendCitations) {
   if (!post) return ''
@@ -131,7 +134,22 @@ export default function ThreeModelWorkbench({
                 <p className="model-workbench-err">{v.error}</p>
               ) : (
                 <>
-                  <div className="model-workbench-scroll" tabIndex={0}>
+                  <div className="model-workbench-scroll">
+                    {v.post ? (
+                      <p className="model-workbench-char-meta" aria-hidden="true">
+                        {livePostCharCount(v.post)} chars
+                        {(() => {
+                          const text = variantPostToLiveText(v.post, null)
+                          const promised = getMaxPromisedCount(text)
+                          const have = countNumberedListItems(v.post.body || '')
+                          if (promised > 0 && have > 0 && have < promised) {
+                            return ` · list ${have}/${promised}`
+                          }
+                          return ''
+                        })()}
+                        {livePostCharCount(v.post) > POST_LENGTH.charSoftMax ? ' · over target' : ''}
+                      </p>
+                    ) : null}
                     <p className="model-workbench-hook">{v.post?.hook || '—'}</p>
                     {v.post?.body ? <p className="model-workbench-body">{v.post.body}</p> : null}
                     {v.post?.cta ? <p className="model-workbench-cta">{v.post.cta}</p> : null}

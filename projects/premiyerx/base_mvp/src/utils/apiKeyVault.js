@@ -7,7 +7,15 @@
 const BAK = '__lidp_bak_v1'
 const IDB_NAME = 'lidp_api_keys_v1'
 const IDB_STORE = 'keys'
-const TRACKED_KEYS = ['openai_key', 'anthropic_api_key', 'gemini_api_key', 'unsplash_access_key']
+export const TRACKED_VAULT_KEYS = [
+  'openai_key',
+  'anthropic_api_key',
+  'gemini_api_key',
+  'unsplash_access_key',
+  'lidp_gnews_api_key',
+]
+
+const TRACKED_KEYS = TRACKED_VAULT_KEYS
 
 function idbOpen() {
   return new Promise((resolve, reject) => {
@@ -96,6 +104,9 @@ export function vaultPutSync(storageKey, trimmed) {
     /* quota / blocked */
   }
   idbPutDeferred(storageKey, v || undefined)
+  void import('./userVaultCloud.js')
+    .then((m) => m.schedulePushUserVault())
+    .catch(() => {})
 }
 
 /**

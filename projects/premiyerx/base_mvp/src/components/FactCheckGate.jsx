@@ -51,7 +51,7 @@ export default function FactCheckGate({ postText, onApprove }) {
 
   return (
     <CollapsibleSection
-      className="fact-check-wrap"
+      className="fact-check-wrap ai-settings-wrap collapsible-section--setup"
       title="Fact check"
       badge={badge}
       hint={hint}

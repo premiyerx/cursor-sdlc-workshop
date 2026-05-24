@@ -47,7 +47,7 @@ export default function AlgorithmScorer({ postText, topicId }) {
 
   return (
     <CollapsibleSection
-      className="algorithm-scorer-wrap"
+      className="algorithm-scorer-wrap ai-settings-wrap collapsible-section--setup"
       title="Algorithm score"
       badge={`${result.total} · ${scoreLabel}`}
       hint="Tap to see breakdown"

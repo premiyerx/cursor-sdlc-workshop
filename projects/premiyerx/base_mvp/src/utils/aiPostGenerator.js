@@ -13,6 +13,7 @@ import {
 } from '../data/textModelProfiles'
 import { generateRawCompletion, getApiKeyForProfile } from './llmPostClient'
 import { humanizePostSections, enforceConcisePost } from './humanizeLinkedInCopy'
+import { repairGrammarInPost } from './postGrammarQuality.js'
 import { POST_LENGTH } from '../data/contentStrategy.js'
 import { annotateVariantsWithRecommendation } from './draftRecommendation'
 
@@ -254,8 +255,9 @@ function finalizePost(p) {
   const firstComment = stripStraySectionLabels(sanitizeExternalCopy(p.firstComment || ''))
   const humanized = humanizePostSections({ hook, body, cta, hashtags, firstComment })
   const concise = enforceConcisePost(humanized, POST_LENGTH.charHardMax)
-  recordGeneratedHook(concise.hook || concise.body.slice(0, 200))
-  return concise
+  const polished = repairGrammarInPost(concise)
+  recordGeneratedHook(polished.hook || polished.body.slice(0, 200))
+  return polished
 }
 
 function salvageUnstructuredPost(text) {
@@ -354,7 +356,8 @@ CONTEXT:
 - Sound like Prem Iyer: SVP, Global Strategic Accounts at Cursor — operator + investor, peer to CIOs and engineering leaders — NOT generic ChatGPT LinkedIn voice.
 - Ban phrases: "game-changer", "let's dive", "in today's fast-paced", "thoughts?", "agree?"
 - HUMAN VOICE (non-negotiable): Write like Prem on his phone after a customer call — casual, concise, slightly irreverent. Contractions OK. One short parenthetical re-hook max. Not a memo, keynote, or consultant deck. No → ► ▸ arrow bullets (major ChatGPT tell). No markdown bold. No "Key takeaway", "Here's the thing", "Furthermore", "leverage/utilize", "in today's fast-paced", or checklist emoji. Lists = short standalone lines with blank lines between, or "1." / "2." numbering — never arrow prefixes. Em dashes: at most one in the whole post.
-- LENGTH (hard): HOOK+BODY+CTA+HASHTAGS combined ≤${POST_LENGTH.charSoftMax} characters (ideal ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax}). Max three proof beats in BODY. Cut throat-clearing and duplicate points — if it sounds like ChatGPT, delete it.
+- LENGTH (hard): HOOK+BODY+CTA+HASHTAGS combined ≤${POST_LENGTH.charSoftMax} characters (ideal ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax}). Max three proof beats in BODY; each beat ≤1 short line. Cut throat-clearing — if it sounds like ChatGPT, delete it.
+- LIST INTEGRITY (non-negotiable): If you write "Three patterns/reasons/ways…" you MUST deliver numbered items 1, 2, and 3 before the CTA — each item one tight line. Never tease a count you cannot finish. Safer: "One pattern I keep seeing…" or two items with "Two…" — no orphan list intros.
 - Never paste CAPITAL_PILLAR rubric lines, “Lead with…”, “Contrast…”, or other prompt instructions as if they were the post — those are private guidance, not public copy.
 - Do not claim a specific slide count (e.g. “11-slide visual guide”); the app attaches the PDF and writes the accurate slide count in the caption.
 ${realtimeContext}
