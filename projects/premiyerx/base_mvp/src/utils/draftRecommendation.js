@@ -6,8 +6,8 @@ import { scorePersonalSpecificityPenalty } from './personalSpecificity.js'
 import { scoreSentenceRhythm } from './sentenceRhythm.js'
 import { scoreConclusionPenalty } from './postRoughEdit.js'
 
-/** Only surface posts with net reach strictly above 85 (minimum 86). */
-export const REACH_PUBLISH_MIN = 86
+/** Gold "Best for reach" bar — net reach strictly above 80 (minimum 81). */
+export const REACH_PUBLISH_MIN = 81
 
 /** Full post text for algorithm scoring (no citation footer). */
 export function postSectionsToLiveText(post) {
@@ -150,18 +150,26 @@ export function annotateVariantsWithRecommendation(variants) {
   for (const v of variants) {
     if (!v.post || v.error) continue
     const s = scoreVariantForReach(v.post)
-    scores.push({ id: v.id, ...s })
+    const reachClearedBar =
+      v.reachClearedBar !== undefined
+        ? Boolean(v.reachClearedBar)
+        : s.reachScore >= REACH_PUBLISH_MIN
+    scores.push({ id: v.id, ...s, reachClearedBar })
   }
   scores.sort((a, b) => b.reachScore - a.reachScore || b.algorithmScore - a.algorithmScore)
-  const top = scores[0]
+
+  const cleared = scores.filter((s) => s.reachClearedBar)
+  const top = cleared.length > 0 ? cleared[0] : scores[0]
 
   const annotated = variants.map((v) => {
     const row = scores.find((s) => s.id === v.id)
+    const clearedBar = row?.reachClearedBar ?? false
     return {
       ...v,
-      algorithmScore: row?.algorithmScore ?? null,
-      reachScore: row?.reachScore ?? null,
-      reachBreakdown: row?.reachBreakdown ?? null,
+      algorithmScore: row?.algorithmScore ?? v.algorithmScore ?? null,
+      reachScore: row?.reachScore ?? v.reachScore ?? null,
+      reachBreakdown: row?.reachBreakdown ?? v.reachBreakdown ?? null,
+      reachClearedBar: row ? clearedBar : v.reachClearedBar,
       isRecommended: Boolean(top && v.id === top.id && v.post && !v.error),
     }
   })
@@ -175,6 +183,7 @@ export function annotateVariantsWithRecommendation(variants) {
           label: winner?.label || '',
           algorithmScore: top.algorithmScore,
           reachScore: top.reachScore,
+          reachClearedBar: top.reachClearedBar,
         }
       : null,
   }

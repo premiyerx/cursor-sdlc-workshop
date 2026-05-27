@@ -331,7 +331,7 @@ export function parseGeneratedPost(raw, finalizeOptions = {}) {
 
 async function polishPostForReach(post, ctx, profile, apiKey, report) {
   const short = profile.shortLabel || profile.label
-  report(88, `${short}: editor review for 86+ reach…`)
+  report(88, `${short}: Editors 2 & 3 (target 81+ reach)…`)
   const result = await runReachEditorPipeline({
     post,
     profile,
@@ -341,13 +341,15 @@ async function polishPostForReach(post, ctx, profile, apiKey, report) {
     finalizeOptions: ctx.finalizeOptions,
     onProgress: (stage) => report(90, `${short}: ${stage}`),
   })
-  if (!result.published) {
+  if (!result.post) {
     return {
       post: null,
-      error: result.message || `Reach score ${result.reachScore} did not clear ${REACH_PUBLISH_MIN} after editor review.`,
+      error: result.message || 'Editor review produced an empty draft.',
       reachScore: result.reachScore,
       reachBreakdown: result.reachBreakdown,
       editorPasses: result.editorPasses,
+      reachClearedBar: false,
+      reachWarning: null,
     }
   }
   return {
@@ -356,6 +358,8 @@ async function polishPostForReach(post, ctx, profile, apiKey, report) {
     reachScore: result.reachScore,
     reachBreakdown: result.reachBreakdown,
     editorPasses: result.editorPasses,
+    reachClearedBar: result.reachClearedBar,
+    reachWarning: result.reachWarning,
   }
 }
 
@@ -557,6 +561,8 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
           reachScore: polished.reachScore,
           reachBreakdown: polished.reachBreakdown,
           editorPasses: polished.editorPasses,
+          reachClearedBar: polished.reachClearedBar,
+          reachWarning: polished.reachWarning,
         }
       } catch (e) {
         lastErr = e?.message || 'Request failed'
@@ -586,6 +592,8 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
         reachScore: s.value.reachScore ?? null,
         reachBreakdown: s.value.reachBreakdown ?? null,
         editorPasses: s.value.editorPasses ?? null,
+        reachClearedBar: s.value.reachClearedBar ?? null,
+        reachWarning: s.value.reachWarning ?? null,
       }
     }
     return {

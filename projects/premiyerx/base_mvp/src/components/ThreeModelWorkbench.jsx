@@ -9,7 +9,7 @@ import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import { livePostCharCount } from '../utils/humanizeLinkedInCopy'
 import { POST_LENGTH } from '../data/contentStrategy'
 import { getMaxPromisedCount, countNumberedListItems } from '../utils/postListIntegrity'
-import { breakdownReachScore } from '../utils/draftRecommendation'
+import { breakdownReachScore, REACH_PUBLISH_MIN } from '../utils/draftRecommendation'
 
 export function variantPostToLiveText(post, appendCitations) {
   if (!post) return ''
@@ -84,11 +84,11 @@ export default function ThreeModelWorkbench({
           Each model wrote its own version.{' '}
           {recommendedVariant ? (
             <>
-              The highlighted column ({recommendedVariant.label}) scored highest after Editors 2 & 3 — only
-              drafts above 86 reach are shown.
+              The highlighted column ({recommendedVariant.label}) scored highest after Editors 2 & 3.
+              Gold badge means reach is above {REACH_PUBLISH_MIN - 1}; you can still copy any draft.
             </>
           ) : (
-            <>Only drafts that cleared 86+ reach after editor review are shown.</>
+            <>Editors 2 & 3 run on every draft. Copy any column — regenerate to chase a higher reach score.</>
           )}{' '}
           Copy a draft to LinkedIn with one tap, or use the combined buttons to copy the post and start an infographic or carousel at the same time.
         </p>
@@ -115,7 +115,14 @@ export default function ThreeModelWorkbench({
               : `Copy post + generate another carousel PDF (${carouselCount} created)`
 
           const isWinner = Boolean((v.isRecommended || v.id === recommendedId) && !v.error)
+          const reachClearedBar =
+            v.reachClearedBar != null ? Boolean(v.reachClearedBar) : (v.reachScore ?? 0) >= REACH_PUBLISH_MIN
           const reachOpen = openReachId === v.id
+          const pillLabel = isWinner
+            ? reachClearedBar
+              ? 'Best for reach'
+              : 'Highest reach'
+            : 'Reach score'
 
           return (
             <article
@@ -125,7 +132,8 @@ export default function ThreeModelWorkbench({
                 v.error ? 'is-error' : '',
                 isDimmed ? 'is-dimmed' : '',
                 isFocused ? 'is-focused' : '',
-                isWinner ? 'is-recommended' : '',
+                isWinner && reachClearedBar ? 'is-recommended' : '',
+                isWinner && !reachClearedBar ? 'is-recommended-soft' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -139,7 +147,8 @@ export default function ThreeModelWorkbench({
                       type="button"
                       className={[
                         'model-workbench-reach-pill',
-                        isWinner ? '' : 'model-workbench-reach-pill--alt',
+                        isWinner && reachClearedBar ? '' : 'model-workbench-reach-pill--alt',
+                        isWinner && !reachClearedBar ? 'model-workbench-reach-pill--soft' : '',
                         reachOpen ? 'is-active' : '',
                       ]
                         .filter(Boolean)
@@ -150,7 +159,7 @@ export default function ThreeModelWorkbench({
                       onClick={(e) => toggleReachPanel(v.id, e)}
                       onPointerDown={(e) => e.stopPropagation()}
                     >
-                      {isWinner ? 'Best for reach' : 'Reach score'}
+                      {pillLabel}
                       {` · ${v.reachScore}`}
                       <span className="model-workbench-reach-chevron" aria-hidden="true">
                         {reachOpen ? '▴' : '▾'}
@@ -168,9 +177,6 @@ export default function ThreeModelWorkbench({
               {v.error ? (
                 <div className="model-workbench-err-wrap">
                   <p className="model-workbench-err">{v.error}</p>
-                  <p className="model-workbench-err-hint">
-                    Editors 2 & 3 revise each draft until net reach is above 85. Regenerate to try again.
-                  </p>
                 </div>
               ) : (
                 <>
@@ -186,6 +192,11 @@ export default function ThreeModelWorkbench({
                       />
                     )}
                     <div className="model-workbench-scroll">
+                    {v.reachWarning ? (
+                      <p className="model-workbench-reach-warning" role="status">
+                        {v.reachWarning}
+                      </p>
+                    ) : null}
                     {v.post ? (
                       <p className="model-workbench-char-meta" aria-hidden="true">
                         {livePostCharCount(v.post)} chars

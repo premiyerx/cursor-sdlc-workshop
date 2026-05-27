@@ -187,21 +187,25 @@ export default function App() {
       const okCount = result.variants.filter((v) => v.post && !v.error).length
       setPostStage(okCount === 3 ? 'Three drafts ready' : `${okCount} of 3 drafts ready`)
       await flashPhaseComplete('post', okCount === 3 ? 'Three drafts ready' : `${okCount} of 3 drafts ready`)
+      const belowBar = result.variants.filter((v) => v.post && v.reachWarning).length
       if (okCount < 3) {
         flashGenerateErr(
-          okCount === 0
-            ? 'No draft cleared the 86+ reach bar after Editors 2 & 3 — try Generate again or adjust your angle.'
-            : 'Some columns failed or did not reach 86+ after editor review — check the red message in that column.',
-          12000,
+          'Some models failed to generate — check the red column. Other columns may still have copy you can use.',
+          10000,
+        )
+      } else if (belowBar > 0) {
+        flashGenerateErr(
+          `${belowBar} draft${belowBar > 1 ? 's' : ''} scored below the 81+ reach bar — copy is still available; regenerate to try for a higher score.`,
+          11000,
         )
       }
       const rec = result.recommendation
       flashGenerateOk(
         rec?.label
-          ? `Drafts below cleared 86+ reach after editor review. ${rec.label} is best for reach this run.`
-          : okCount > 0
-            ? 'Drafts below cleared 86+ reach after editor review. Pick the column that sounds most like you.'
-            : 'Generate again — editors could not lift any draft above the reach bar.',
+          ? rec.reachClearedBar !== false
+            ? `${rec.label} is best for reach (${rec.reachScore}) after editor review.`
+            : `${rec.label} scored highest (${rec.reachScore}) — below the 81+ bar but ready to copy.`
+          : 'Three drafts are below — pick the one that sounds most like you.',
       )
     } catch (err) {
       flashGenerateErr(err?.message || 'Could not generate. Check your API keys and connection.')

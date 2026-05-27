@@ -1,17 +1,24 @@
 /**
- * Second and third editor passes — revise drafts until net reach score exceeds 85.
- * Only posts that clear the bar are returned for display.
+ * Editors 2 & 3 (plus optional boost) revise drafts toward the reach bar.
+ * Drafts are always returned for copy — the bar gates the gold "Best for reach" badge only.
  */
 import { generateRawCompletion } from './llmPostClient.js'
-import { breakdownReachScore, postSectionsToLiveText, REACH_PUBLISH_MIN } from './draftRecommendation.js'
-import { applyDeterministicReachFixes } from './reachScoreOptimizer.js'
+import {
+  breakdownReachScore,
+  postSectionsToLiveText,
+  REACH_PUBLISH_MIN,
+} from './draftRecommendation.js'
+import {
+  applyDeterministicReachFixes,
+  applyAggressiveDeterministicReachFixes,
+} from './reachScoreOptimizer.js'
 import { POST_LENGTH } from '../data/contentStrategy.js'
 
 export { REACH_PUBLISH_MIN }
 
-export const REACH_TARGET_HINT = 88
+/** Target shown to editors (over 80). */
+export const REACH_TARGET_HINT = 85
 
-/** Editor 2 and Editor 3 — two LLM revision passes after deterministic fixes. */
 const MAX_LLM_EDITOR_PASSES = 2
 
 function formatPostForPrompt(post) {
@@ -44,7 +51,7 @@ function formatBreakdownBrief(breakdown) {
     .join('\n')
 
   return `
-CURRENT NET REACH SCORE: ${breakdown.reachScore} (must be > 85 to publish — aim for ${REACH_TARGET_HINT}+)
+CURRENT NET REACH SCORE: ${breakdown.reachScore} (target > ${REACH_PUBLISH_MIN - 1} — aim for ${REACH_TARGET_HINT}+)
 Algorithm base: ${breakdown.algorithmScore} − penalties ${breakdown.penaltySum} = ${breakdown.reachScore}
 
 PENALTIES TO FIX FIRST:
@@ -52,12 +59,20 @@ ${penaltyLines || '  • (none — push algorithm: hook, dwell, scannability, co
 
 WEAKEST ALGORITHM PILLARS:
 ${weakRules || '  • (n/a)'}
+
+SCORING CHEAT SHEET (what moves the needle):
+- Hook: 8–12 words, include a number, parenthetical re-hook on line 2.
+- Body: ${POST_LENGTH.minDoubleLineBreaks}+ blank-line breaks; mix one-word lines with longer lines.
+- CTA: one "you/your" question (not "thoughts?").
+- Specificity: one number + one named role or scene.
+- Length: stay ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax} chars total.
 `.trim()
 }
 
 function buildEditorUserPrompt(post, breakdown, editorIndex) {
-  const passLabel = editorIndex === 1 ? 'Editor 2' : editorIndex === 2 ? 'Editor 3' : 'Editor 4 (final boost)'
-  return `${passLabel} — revise this LinkedIn draft so NET reach score exceeds 85 (target ${REACH_TARGET_HINT}+).
+  const passLabel =
+    editorIndex === 1 ? 'Editor 2' : editorIndex === 2 ? 'Editor 3' : 'Reach boost editor'
+  return `${passLabel} — revise this LinkedIn draft so NET reach score is above ${REACH_PUBLISH_MIN - 1} (target ${REACH_TARGET_HINT}+).
 
 ${formatBreakdownBrief(breakdown)}
 
@@ -78,15 +93,27 @@ ${formatPostForPrompt(post)}
 Output ONLY the revised post using the same section labels (HOOK, BODY, CTA, HASHTAGS, FIRST_COMMENT). No commentary.`
 }
 
+function finishPipelineResult(current, editorPasses) {
+  const breakdown = breakdownReachScore(current)
+  const reachClearedBar = breakdown.reachScore >= REACH_PUBLISH_MIN
+  const reachWarning = reachClearedBar
+    ? null
+    : `Reach ${breakdown.reachScore} — below the ${REACH_PUBLISH_MIN - 1}+ bar after editor review. You can still copy this draft, or regenerate for a higher score.`
+
+  return {
+    post: current,
+    published: true,
+    reachClearedBar,
+    reachScore: breakdown.reachScore,
+    reachBreakdown: breakdown,
+    editorPasses,
+    reachWarning,
+    message: null,
+  }
+}
+
 /**
  * @param {object} params
- * @param {object} params.post
- * @param {object} params.profile — text model profile used for generation
- * @param {string} params.systemPrompt — author voice / algorithm block
- * @param {string} params.apiKey
- * @param {function(string): Promise<string>} params.parseRevision — raw LLM text → finalized post
- * @param {object} params.finalizeOptions
- * @param {function(string, number)} [params.onProgress]
  */
 export async function runReachEditorPipeline({
   post,
@@ -101,9 +128,11 @@ export async function runReachEditorPipeline({
     return {
       post: null,
       published: false,
+      reachClearedBar: false,
       reachScore: 0,
       reachBreakdown: null,
       editorPasses: [],
+      reachWarning: null,
       message: 'Empty draft — nothing to edit.',
     }
   }
@@ -111,79 +140,53 @@ export async function runReachEditorPipeline({
   let current = { ...post }
   const editorPasses = []
 
-  const scoreAndMaybePublish = (label) => {
+  const scoreStep = (label) => {
     const breakdown = breakdownReachScore(current)
-    const published = breakdown.reachScore >= REACH_PUBLISH_MIN
-    editorPasses.push({ label, reachScore: breakdown.reachScore, published })
-    return { breakdown, published }
+    const reachClearedBar = breakdown.reachScore >= REACH_PUBLISH_MIN
+    editorPasses.push({ label, reachScore: breakdown.reachScore, reachClearedBar })
+    return { breakdown, reachClearedBar }
   }
 
   onProgress?.('Scoring draft for reach…', 0)
-  let { breakdown, published } = scoreAndMaybePublish('Initial draft')
-  if (published) {
-    return {
-      post: current,
-      published: true,
-      reachScore: breakdown.reachScore,
-      reachBreakdown: breakdown,
-      editorPasses,
-      message: null,
-    }
-  }
+  let { breakdown, reachClearedBar } = scoreStep('Initial draft')
+  if (reachClearedBar) return finishPipelineResult(current, editorPasses)
 
-  onProgress?.('Applying reach fixes (deterministic)…', 1)
+  onProgress?.('Applying reach fixes…', 1)
   current = applyDeterministicReachFixes(current, {
     allowList: finalizeOptions.allowList,
     rhythmSeed: finalizeOptions.rhythmSeed,
     penaltyHints: breakdown.penalties,
   })
-  ;({ breakdown, published } = scoreAndMaybePublish('After deterministic fixes'))
-  if (published) {
-    return {
-      post: current,
-      published: true,
-      reachScore: breakdown.reachScore,
-      reachBreakdown: breakdown,
-      editorPasses,
-      message: null,
-    }
-  }
+  ;({ breakdown, reachClearedBar } = scoreStep('After reach fixes'))
+  if (reachClearedBar) return finishPipelineResult(current, editorPasses)
 
   const editorSystem = `${systemPrompt}
 
-You are a LinkedIn reach editor (not the author). Your job is to raise the measurable reach score above 85 by fixing hook strength, mobile scannability, comment-driving CTA, penalties (AI tells, length, specificity, rhythm), and list integrity — without sounding like ChatGPT.`
+You are a LinkedIn reach editor. Raise measurable reach above ${REACH_PUBLISH_MIN - 1} by fixing hook (number + curiosity), mobile line breaks, comment-driving CTA, specificity, and penalties — without ChatGPT cadence.`
 
   for (let i = 0; i < MAX_LLM_EDITOR_PASSES; i++) {
     const editorNum = i + 1
     onProgress?.(`Editor ${editorNum + 1} reviewing (${profile.shortLabel})…`, i + 2)
     breakdown = breakdownReachScore(current)
 
-    const raw = await generateRawCompletion(profile, {
-      systemPrompt: editorSystem,
-      userPrompt: buildEditorUserPrompt(current, breakdown, editorNum),
-      apiKey,
-    })
-
     try {
+      const raw = await generateRawCompletion(profile, {
+        systemPrompt: editorSystem,
+        userPrompt: buildEditorUserPrompt(current, breakdown, editorNum),
+        apiKey,
+      })
       current = parseRevision(raw)
     } catch (e) {
       editorPasses.push({
         label: `Editor ${editorNum + 1} parse failed`,
         reachScore: breakdown.reachScore,
-        published: false,
+        reachClearedBar: false,
         error: e?.message,
       })
       continue
     }
 
-    if (!current?.hook?.trim() && !current?.body?.trim()) {
-      editorPasses.push({
-        label: `Editor ${editorNum + 1} empty`,
-        reachScore: breakdown.reachScore,
-        published: false,
-      })
-      continue
-    }
+    if (!current?.hook?.trim() && !current?.body?.trim()) continue
 
     current = applyDeterministicReachFixes(current, {
       allowList: finalizeOptions.allowList,
@@ -191,28 +194,35 @@ You are a LinkedIn reach editor (not the author). Your job is to raise the measu
       penaltyHints: breakdown.penalties,
     })
 
-    ;({ breakdown, published } = scoreAndMaybePublish(`Editor ${editorNum + 1}`))
-    if (published) {
-      return {
-        post: current,
-        published: true,
-        reachScore: breakdown.reachScore,
-        reachBreakdown: breakdown,
-        editorPasses,
-        message: null,
-      }
-    }
+    ;({ breakdown, reachClearedBar } = scoreStep(`Editor ${editorNum + 1}`))
+    if (reachClearedBar) return finishPipelineResult(current, editorPasses)
   }
 
-  const finalBreakdown = breakdownReachScore(current)
-  const livePreview = postSectionsToLiveText(current).slice(0, 120)
+  onProgress?.('Final reach boost…', 5)
+  current = applyAggressiveDeterministicReachFixes(current, {
+    allowList: finalizeOptions.allowList,
+    rhythmSeed: (finalizeOptions.rhythmSeed || 0) + 9,
+    penaltyHints: breakdown.penalties,
+  })
+  ;({ breakdown, reachClearedBar } = scoreStep('Final boost'))
+  if (reachClearedBar) return finishPipelineResult(current, editorPasses)
 
-  return {
-    post: null,
-    published: false,
-    reachScore: finalBreakdown.reachScore,
-    reachBreakdown: finalBreakdown,
-    editorPasses,
-    message: `Reach score ${finalBreakdown.reachScore} is still below ${REACH_PUBLISH_MIN} after ${MAX_LLM_EDITOR_PASSES} editor passes. Regenerate or tweak angle. Preview: "${livePreview}…"`,
+  try {
+    const raw = await generateRawCompletion(profile, {
+      systemPrompt: editorSystem,
+      userPrompt: buildEditorUserPrompt(current, breakdown, 3),
+      apiKey,
+    })
+    current = parseRevision(raw)
+    current = applyAggressiveDeterministicReachFixes(current, {
+      allowList: finalizeOptions.allowList,
+      rhythmSeed: (finalizeOptions.rhythmSeed || 0) + 12,
+      penaltyHints: breakdown.penalties,
+    })
+    scoreStep('Reach boost editor')
+  } catch {
+    /* keep best effort */
   }
+
+  return finishPipelineResult(current, editorPasses)
 }

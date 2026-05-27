@@ -100,8 +100,8 @@ export default function ReachScoreBreakdown({
 
       <p className="reach-breakdown-rank-note">
         {isWinner
-          ? 'Highest net score this run — compared only to the other two drafts, not a fixed model.'
-          : 'Scored from this draft’s text only. Winner is whoever has the highest net after penalties.'}
+          ? 'Highest net score this run — gold badge when reach is above 80. Compared only to the other two drafts.'
+          : 'Scored from this draft’s text only. Tap other columns to compare penalty breakdowns.'}
       </p>
 
       <ul className="reach-breakdown-list">
