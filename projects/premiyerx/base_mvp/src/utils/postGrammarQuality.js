@@ -1,6 +1,10 @@
 /**
  * Grammar, clarity, and "solid English" checks for LinkedIn drafts (all models).
  */
+import {
+  repairSentenceIntegrityInPost,
+  scoreIncompleteSentencePenalty,
+} from './postSentenceIntegrity.js'
 
 const LINE_FIXES = [
   [/\bwent back terminal\b/gi, 'went back to the terminal'],
@@ -86,7 +90,7 @@ export function repairGrammarInPost(post) {
   if (!post) return post
   let hook = fixSection(post.hook || '')
   hook = clarifyBareQuarterInHook(hook)
-  return {
+  const patched = {
     ...post,
     hook,
     body: fixSection(post.body || ''),
@@ -94,6 +98,7 @@ export function repairGrammarInPost(post) {
     hashtags: post.hashtags || '',
     firstComment: fixSection(post.firstComment || ''),
   }
+  return repairSentenceIntegrityInPost(patched)
 }
 
 /** @returns {number} penalty points for reach ranking */
@@ -115,7 +120,8 @@ export function scoreGrammarPenalty(text) {
     }
   }
 
-  return Math.min(32, penalty)
+  penalty += scoreIncompleteSentencePenalty(text)
+  return Math.min(40, penalty)
 }
 
 export function grammarIssuesSummary(post) {

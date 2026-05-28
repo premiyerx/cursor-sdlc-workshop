@@ -58,8 +58,8 @@ export const REACH_PENALTY_SPECS = [
   {
     id: 'grammar',
     label: 'Grammar & clarity',
-    maxPoints: 32,
-    description: 'Broken phrasing, bare quarters, and vague one-line list beats.',
+    maxPoints: 40,
+    description: 'Broken phrasing, truncated lines, bare quarters, and vague one-line list beats.',
     score: scoreGrammarPenalty,
   },
   {

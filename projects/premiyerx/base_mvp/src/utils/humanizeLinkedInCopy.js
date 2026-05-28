@@ -6,6 +6,7 @@ import {
   repairPromisedLists,
   shortenLineWords,
 } from './postListIntegrity.js'
+import { repairSentenceIntegrityInPost } from './postSentenceIntegrity.js'
 
 /**
  * Strip common LLM "tells" from LinkedIn drafts so copy reads like a human operator wrote it.
@@ -224,12 +225,14 @@ function compressPostToFit(post, maxChars) {
     }
 
     if ((p.cta || '').split(/\s+/).length > 14) {
-      p = { ...p, cta: shortenLineWords(p.cta, 4) }
+      const nextCta = shortenLineWords(p.cta, 4)
+      if (nextCta) p = { ...p, cta: nextCta }
       continue
     }
 
     if ((p.hook || '').split(/\s+/).length > 14) {
-      p = { ...p, hook: shortenLineWords(p.hook, 3) }
+      const nextHook = shortenLineWords(p.hook, 3)
+      if (nextHook) p = { ...p, hook: nextHook }
       continue
     }
 
@@ -239,7 +242,9 @@ function compressPostToFit(post, maxChars) {
     let shortened = false
     for (const i of [...introIdx].reverse()) {
       if (bodyLines[i].split(/\s+/).length > 12) {
-        bodyLines[i] = shortenLineWords(bodyLines[i], 4)
+        const next = shortenLineWords(bodyLines[i], 4)
+        if (next) bodyLines[i] = next
+        else bodyLines.splice(i, 1)
         shortened = true
         break
       }
@@ -251,7 +256,9 @@ function compressPostToFit(post, maxChars) {
 
     for (const i of [...numberedIdx].reverse()) {
       if (bodyLines[i].split(/\s+/).length > 14) {
-        bodyLines[i] = shortenLineWords(bodyLines[i], 5)
+        const next = shortenLineWords(bodyLines[i], 5)
+        if (next) bodyLines[i] = next
+        else bodyLines.splice(i, 1)
         shortened = true
         break
       }
@@ -326,16 +333,19 @@ export function enforceConcisePost(post, maxChars = POST_LENGTH.charHardMax) {
     if (last.length < 36 || NUMBERED_LINE_RE.test(last)) {
       bodyLines.pop()
     } else {
-      bodyLines[bodyLines.length - 1] = shortenLineWords(last, 8)
+      const next = shortenLineWords(last, 8)
+      if (next) bodyLines[bodyLines.length - 1] = next
+      else bodyLines.pop()
     }
     p = { ...p, body: joinBodyLines(bodyLines) }
   }
 
   if (livePostCharCount(p) > maxChars && (p.hook || '').length > 72) {
-    p = { ...p, hook: shortenLineWords(p.hook, 6) }
+    const nextHook = shortenLineWords(p.hook, 6)
+    if (nextHook) p = { ...p, hook: nextHook }
   }
 
-  return repairPromisedLists(p)
+  return repairSentenceIntegrityInPost(repairPromisedLists(p))
 }
 
 /** Penalty points for ranking — long posts lose "best for reach". */

@@ -1,6 +1,7 @@
 /**
  * Keeps numbered-list promises in sync with actual items (e.g. "Three patterns" → 1. 2. 3.).
  */
+import { shortenLineSafely } from './postSentenceIntegrity.js'
 
 const COUNT_WORDS = {
   one: 1,
@@ -132,10 +133,9 @@ export function renumberListItems(body) {
     .join('\n')
 }
 
+/** @deprecated Prefer shortenLineSafely — keeps sentence boundaries intact. */
 export function shortenLineWords(line, wordsToDrop = 5) {
-  const words = line.trim().split(/\s+/)
-  if (words.length <= 7) return line.trim()
-  return words.slice(0, Math.max(6, words.length - wordsToDrop)).join(' ')
+  return shortenLineSafely(line, wordsToDrop)
 }
 
 /** Penalty when post teases N list items but delivers fewer. */
