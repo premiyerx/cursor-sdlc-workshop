@@ -5,6 +5,7 @@ import { getTopicNarrative } from '../data/topicNarratives'
 import { rotateSlice } from './freshnessRotation'
 import { fnv1a, mulberry32 } from './generationVariety'
 import { registrySourceIsFreshEnough } from './dateFreshness.js'
+import { formatStatForDisplay, sanitizeHeadlineGrammar } from './factualClaims.js'
 
 const TOPIC_REGISTRY_CATEGORIES = {
   cursor: ['cursor', 'market'],
@@ -23,7 +24,7 @@ function parseRegistryStat(dataPoint) {
   if (numMatch) context = claim.replace(numMatch[0], '').replace(/^[,\s:-]+/, '').trim()
   if (context.length > 52) context = slideCopy(context, 48, 140)
 
-  return {
+  const base = {
     value,
     context,
     source: dataPoint.source || 'Registry',
@@ -31,6 +32,7 @@ function parseRegistryStat(dataPoint) {
     status: getStaleStatus(dataPoint),
     registryBacked: true,
   }
+  return { ...base, ...formatStatForDisplay(base) }
 }
 
 function claimToStat(claim) {
@@ -162,7 +164,7 @@ export function buildHeadlineInfographicModel({ postText, topicId, topicLabel, r
     topicLabel: topicLabel || narrative.label,
     topicBadge: narrative.signalLabel,
     topicFocusLine: slideCopy(narrative.coreThesis, 88, 200),
-    hook: truncateHeadline(hook, 72),
+    hook: sanitizeHeadlineGrammar(truncateHeadline(hook, 72)),
     leadHeadline: lead
       ? {
           title: truncateHeadline(lead.title, 120),

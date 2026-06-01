@@ -14,7 +14,7 @@ const BUILT_IN_DATA = {
     category: 'cursor',
   },
   cursor_fortune500: {
-    claim: 'Over half of the Fortune 500 use Cursor',
+    claim: 'Majority (50%+) of Fortune 500 companies use Cursor — not 500+ customers',
     source: 'Cursor, 2026',
     sourceUrl: 'https://www.cursor.com',
     category: 'cursor',

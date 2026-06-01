@@ -13,6 +13,7 @@ import { slideCopy, subdeckDuplicatesBullet, takeawayCopy, firstSentence, balanc
 import { generateCarouselPlatformGraphic } from '../utils/newsroomVisual'
 import { hasOpenAiKey } from '../utils/openaiKey'
 import { pickCreativeCatalogHeadline } from '../utils/creativeHeadlines'
+import { sanitizeCarouselBulletText, sanitizeCopyText, sanitizeHeadlineGrammar } from '../utils/factualClaims'
 
 /** LinkedIn document post (PDF carousel): 1080×1350 portrait, 50px safe margin — Oktopost 2026 spec. */
 const SLIDE_W = 1080
@@ -274,12 +275,46 @@ function finalizeDeckSlides(slides) {
   return applyShiftKickersOnDeck(ordered)
 }
 
+function sanitizeCarouselSlide(slide) {
+  if (!slide) return slide
+  const out = { ...slide }
+  if (out.text) out.text = sanitizeCopyText(out.text)
+  if (out.headline) out.headline = sanitizeHeadlineGrammar(sanitizeCopyText(out.headline))
+  if (out.body) out.body = sanitizeCopyText(out.body)
+  if (out.sub) out.sub = sanitizeCopyText(out.sub)
+  if (out.titleMain) out.titleMain = sanitizeHeadlineGrammar(out.titleMain)
+  if (out.titleAccent) out.titleAccent = sanitizeCopyText(out.titleAccent)
+  if (out.heading) out.heading = sanitizeHeadlineGrammar(out.heading)
+  if (out.strike) out.strike = sanitizeCopyText(out.strike)
+  if (Array.isArray(out.cols)) {
+    out.cols = out.cols.map((c) => ({
+      ...c,
+      text: sanitizeCarouselBulletText(c.text),
+    }))
+  }
+  if (Array.isArray(out.items)) {
+    out.items = out.items.map((it) => {
+      const raw = typeof it === 'string' ? it : it?.text || ''
+      const text = sanitizeCarouselBulletText(raw)
+      return typeof it === 'string' ? { text, cite: null } : { ...it, text }
+    })
+  }
+  if (Array.isArray(out.trio)) {
+    out.trio = out.trio.map((block) => ({
+      ...block,
+      text: sanitizeCarouselBulletText(block?.text || ''),
+    }))
+  }
+  return out
+}
+
 function applyShiftKickersOnDeck(slides) {
   let shift = 0
   return slides.map((s) => {
-    if (s.type === 'cover') return s
+    const base = sanitizeCarouselSlide(s)
+    if (base.type === 'cover') return base
     shift += 1
-    return { ...s, kicker: shiftKicker(shift), shiftIndex: shift }
+    return { ...base, kicker: shiftKicker(shift), shiftIndex: shift }
   })
 }
 
@@ -353,8 +388,9 @@ function enrichCarouselBulletItems(bullets, narrative, standaloneStatements, hoo
     if (!shallowSet.has(i)) return original
     let line = replacements[r++]
     if (!line || isLabelLikeOrShallowBullet(line)) line = coreFallback()
-    if (typeof original === 'string') return { text: line, cite: null }
-    return { text: line, cite: null }
+    const safe = sanitizeCarouselBulletText(line)
+    if (typeof original === 'string') return { text: safe, cite: null }
+    return { text: safe, cite: null }
   })
 }
 
@@ -728,7 +764,7 @@ function parseIntoSlides(text, topicId = '') {
     if (!line) continue
 
     if (/^(→|➜|►|▸|•|\d+\.|-)/.test(line)) {
-      const clean = line.replace(/^(→|➜|►|▸|•|\d+\.|-)\s*/, '')
+      const clean = sanitizeCarouselBulletText(line.replace(/^(→|➜|►|▸|•|\d+\.|-)\s*/, ''))
       const cite = findCitationsForLine(clean)
       const item = { text: clean, cite }
       if (currentSection) {

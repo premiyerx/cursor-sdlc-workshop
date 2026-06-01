@@ -81,6 +81,7 @@ RULES (non-negotiable):
 - Add or sharpen ONE lived-in detail if specificity is weak: a number, named role, scene, time anchor, or mistake.
 - Vary sentence length; break three same-length sentences in a row; one short reaction line is fine.
 - Every line must be grammatically complete (ends with . ! or ?; all parentheses closed). Never stop mid-phrase or mid-parenthetical.
+- Facts: never "500+ Fortune 500" (only 500 companies). Use "back to the terminal" not "back terminal". No naked "The demo passes." — say where it passes or stalls.
 - Ban: game-changer, leverage, unlock, dive into, in today's fast-paced, the bottom line, here's the thing, crucial, vital, landscape, ever-evolving, arc, → arrows, bold headers, lesson/moral closers.
 - HOOK+BODY+CTA+HASHTAGS ≤ ${POST_LENGTH.charSoftMax} chars (ideal ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax}).
 - Mobile: short hook line, blank line, scannable body with ${POST_LENGTH.minDoubleLineBreaks}+ paragraph breaks.

@@ -3,6 +3,7 @@ import { getTextModelProfile } from '../data/textModelProfiles.js'
 import { generateRawCompletion } from './llmPostClient.js'
 import { getOpenAiKey } from './openaiKey.js'
 import { getTopicNarrative } from '../data/topicNarratives.js'
+import { sanitizeHeadlineGrammar } from './factualClaims.js'
 
 const BANNED_REPEAT = /where capital is flowing in ai software development/i
 
@@ -84,7 +85,7 @@ function cleanHeadlineLine(raw) {
     .trim()
   if (t.length > 110) t = `${t.slice(0, 107)}…`
   if (BANNED_REPEAT.test(t)) return ''
-  return t
+  return sanitizeHeadlineGrammar(t)
 }
 
 /**
@@ -144,6 +145,9 @@ export async function generateCreativeHeadline({
     postText ? `Post angle (paraphrase): ${postText.slice(0, 280).replace(/\n/g, ' ')}.` : '',
     `Do NOT repeat or closely imitate: ${banned}.`,
     'Write ONE fresh title (8–14 words) that sounds like breaking news THIS WEEK in AI — not a 2023/2024 retrospective.',
+    'GRAMMAR: use "back to the terminal" (with "the"), never "back terminal".',
+    'FACTS: never claim "500+ Fortune 500" — the list has only 500 companies; say "majority of Fortune 500" or a percent if needed.',
+    'If you use Q1–Q4, write "Q2 (second quarter)" once for clarity.',
     'Return only the title text.',
   ]
     .filter(Boolean)

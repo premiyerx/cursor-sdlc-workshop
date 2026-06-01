@@ -14,6 +14,7 @@ import {
 import { generateRawCompletion, getApiKeyForProfile } from './llmPostClient'
 import { humanizePostSections, enforceConcisePost } from './humanizeLinkedInCopy'
 import { repairGrammarInPost } from './postGrammarQuality.js'
+import { repairFactualInPost } from './factualClaims.js'
 import { applyRoughEdit } from './postRoughEdit.js'
 import { injectRhythmBreak } from './sentenceRhythm.js'
 import { pickStructureTemplate, buildStructureDirective } from './postStructureTemplates.js'
@@ -267,7 +268,7 @@ function finalizePost(p, options = {}) {
   const edited = applyRoughEdit(humanized, { allowList })
   const rhythmed = { ...edited, body: injectRhythmBreak(edited.body || '', options.rhythmSeed || 0) }
   const concise = enforceConcisePost(rhythmed, POST_LENGTH.charHardMax)
-  const polished = repairGrammarInPost(concise)
+  const polished = repairFactualInPost(repairGrammarInPost(concise))
   recordGeneratedHook(polished.hook || polished.body.slice(0, 200))
   return polished
 }
@@ -424,6 +425,7 @@ CONTEXT:
 ${realtimeContext}
 
 DATA ACCURACY: Every stat needs inline source tied to CONTEXT headlines when possible. Never invent funding, dates, or customer names. Never output internal drafting labels (e.g. RE-HOOK, ALT HOOK, INTERNAL).
+- FACTUAL ENGLISH: Never write "500+ Fortune 500" (only 500 companies exist). Say "majority of Fortune 500" or "50%+" with source. Use "back to the terminal" not "back terminal". Spell out "Q2 (second quarter)" if you use quarter shorthand. List beats must be full sentences — not naked "The demo passes." without where/why.
 
 ALGORITHM (2026): Mobile feed first. Target ~${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax} characters total with ${POST_LENGTH.minDoubleLineBreaks}+ blank-line breaks — brief beats long. Optimize comment threads (comments >> likes). FIRST_COMMENT within 60 minutes: one new insight not in body + a short second question; founder will pin when possible.
 
@@ -532,7 +534,7 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
 
   const ctx = await loadSharedGenerationContext(topicId, options)
   const profiles = COMPARE_TEXT_MODEL_IDS.map((id) => getTextModelProfile(id))
-  report(48, 'Running GPT 5.5, Claude Opus 4.7, and Gemini (then Editors 2 & 3)…')
+  report(48, 'Running GPT 5.5, Claude Opus 4.8, and Gemini (then Editors 2 & 3)…')
 
   async function runOneModel(profile) {
     const apiKey = getApiKeyForProfile(profile)

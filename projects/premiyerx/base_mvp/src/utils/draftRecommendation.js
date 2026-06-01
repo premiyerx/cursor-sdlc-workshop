@@ -5,6 +5,7 @@ import { scoreGrammarPenalty } from './postGrammarQuality.js'
 import { scorePersonalSpecificityPenalty } from './personalSpecificity.js'
 import { scoreSentenceRhythm } from './sentenceRhythm.js'
 import { scoreConclusionPenalty } from './postRoughEdit.js'
+import { scoreFactualPenalty } from './factualClaims.js'
 
 /** Gold "Best for reach" bar — net reach strictly above 80 (minimum 81). */
 export const REACH_PUBLISH_MIN = 81
@@ -61,6 +62,13 @@ export const REACH_PENALTY_SPECS = [
     maxPoints: 40,
     description: 'Broken phrasing, truncated lines, bare quarters, and vague one-line list beats.',
     score: scoreGrammarPenalty,
+  },
+  {
+    id: 'factual',
+    label: 'Factual accuracy',
+    maxPoints: 36,
+    description: 'Impossible Fortune 500 counts, bad headline grammar, or unverified invented stats.',
+    score: scoreFactualPenalty,
   },
   {
     id: 'specificity',
