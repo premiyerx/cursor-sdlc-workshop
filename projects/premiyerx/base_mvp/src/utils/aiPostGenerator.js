@@ -383,7 +383,7 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
 
   const ctx = await loadSharedGenerationContext(topicId, options)
   const profiles = COMPARE_TEXT_MODEL_IDS.map((id) => getTextModelProfile(id))
-  report(48, 'Running GPT 5.5, Claude Opus 4.8, and Gemini 3.5 (then Editors 2 & 3)…')
+  report(48, 'Running GPT 5.5, Claude Opus 4.8, and Gemini 3 Pro (then Editors 2 & 3)…')
 
   async function runOneModel(profile) {
     const apiKey = getApiKeyForProfile(profile)
