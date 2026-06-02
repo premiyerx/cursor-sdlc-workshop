@@ -5,6 +5,7 @@ import { buildHeadlineInfographicModel, assembleVerifiedStats } from '../utils/v
 import TOPICS from '../data/postTemplates'
 import { createCompanionGraphic } from '../utils/companionGraphic'
 import { hasOpenAiKey, getOpenAiKey } from '../utils/aiPostGenerator'
+import { generateBrandedPhotoCard } from '../utils/brandedPhotoCard'
 import { getOpenAiKeyStatus } from '../utils/openaiKey'
 import HeadlineInfographic from './HeadlineInfographic'
 import InfographicTextOverlay from './InfographicTextOverlay'
@@ -542,14 +543,21 @@ export default function DynamicGraphic({
   async function loadStockPhoto() {
     setSmartBusy(true)
     try {
-      const stock = await tryUnsplashPhoto(parsed, topic)
-      if (stock) {
-        setPhoto(stock)
+      const card = await generateBrandedPhotoCard({
+        parsed,
+        topic,
+        topicId,
+        postText,
+        accent: palette.accent,
+      })
+      if (card?.dataUrl) {
+        // Reuse the photo slot — the existing render block already supports it.
+        setPhoto({ url: card.dataUrl, credit: card.credit, link: card.link })
         setImageMode('photo')
-        setSmartHint('Stock photo from Unsplash.')
-        flashOk('Stock photo ready.')
+        setSmartHint('Branded photo card — hook + verified stats over a topic-relevant photo.')
+        flashOk('Branded photo ready.')
       } else {
-        flashErr('No stock photo match — try the news infographic instead.')
+        flashErr('Branded photo unavailable for this topic — try AI infographic or AI banner.')
       }
     } finally {
       setSmartBusy(false)
@@ -579,20 +587,20 @@ export default function DynamicGraphic({
 
   const modeLabel = {
     newsroom: 'AI infographic',
-    headline: 'Basic chart',
+    headline: 'News infographic',
     failed: 'Picture needed',
-    generated: 'Classic',
-    photo: 'Stock photo',
+    photo: 'Branded photo card',
     ai: 'AI banner',
   }[imageMode] || 'Graphic'
 
   const keyStatus = getOpenAiKeyStatus()
+  const hasUnsplashKey = Boolean(unsplashAccessKey())
 
   const showGraphicPreview =
     !isGraphicLoading &&
     imageMode !== 'failed' &&
     (newsroomImage ||
-      ((imageMode === 'headline' || imageMode === 'generated') && !keyStatus.saved) ||
+      (imageMode === 'headline' && !keyStatus.saved) ||
       photo ||
       aiImage)
 
@@ -658,24 +666,16 @@ export default function DynamicGraphic({
               {smartBusy && !newsroomImage ? 'Creating…' : 'Newsroom'}
             </button>
           )}
-          <button
-            type="button"
-            className={`smart-visual-secondary ${imageMode === 'generated' ? 'active' : ''}`}
-            onClick={() => {
-              setLayoutSalt(String(Date.now()))
-              switchVisualMode('generated', 'Classic layout from post text.', 'Showing classic infographic.')
-            }}
-          >
-            Classic
-          </button>
-          <button
-            type="button"
-            className="smart-visual-secondary"
-            onClick={() => void loadStockPhoto()}
-            disabled={smartBusy}
-          >
-            Stock photo
-          </button>
+          {hasUnsplashKey && (
+            <button
+              type="button"
+              className="smart-visual-secondary"
+              onClick={() => void loadStockPhoto()}
+              disabled={smartBusy}
+            >
+              Branded photo card
+            </button>
+          )}
           <button
             type="button"
             className="smart-visual-secondary"
@@ -748,7 +748,7 @@ export default function DynamicGraphic({
         </div>
       )}
 
-      {showGraphicPreview && imageMode === 'generated' && (
+      {false && showGraphicPreview && imageMode === 'generated' && (
         <div className="image-wrapper image-wrapper-graphic" ref={canvasRef}>
           <svg viewBox="0 0 1200 627" xmlns="http://www.w3.org/2000/svg">
             <rect width="1200" height="627" fill="#0a0a0a" />
@@ -775,7 +775,14 @@ export default function DynamicGraphic({
 
       {showGraphicPreview && imageMode === 'photo' && photo && (
         <div className="image-wrapper image-wrapper-graphic">
-          <img src={photo.url} alt="LinkedIn post companion" className="companion-photo" />
+          <InfographicTextOverlay
+            imageSrc={photo.url}
+            accent={palette.accent}
+            onCommit={(dataUrl) => {
+              setPhoto({ ...photo, url: dataUrl })
+              flashOk('Text edits applied. Save the graphic to download the updated version.')
+            }}
+          />
           <div className="unsplash-credit">
             Photo by <a href={photo.link} target="_blank" rel="noopener noreferrer">{photo.credit}</a> on Unsplash
           </div>

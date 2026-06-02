@@ -1,5 +1,25 @@
 /**
- * Newsroom editorial SVG — rotates layout variant on each refresh.
+ * Editorial news infographic — designed to read like an Axios / Bloomberg chart card.
+ *
+ * Layout (1200 x 627, LinkedIn share size):
+ *   ┌──────────────────────────────────────────────────────────────────────┐
+ *   │ MASTHEAD ribbon (topic label + accent + date)                        │
+ *   ├──────────────────────────────────────────────────────────────────────┤
+ *   │ HOOK headline (Georgia serif, 2 lines)                               │
+ *   │ Sub-deck (Inter, 1 line)                                             │
+ *   ├──────────────────────────────────────────────────────────────────────┤
+ *   │ News chip (left)                  · Topic chip (right)                │
+ *   │ "Lead headline from GNews — wrapped to 2 lines"                      │
+ *   ├──────────────────────────────────────────────────────────────────────┤
+ *   │ STAT CARDS row (1-3 cards): big value + context + source + bar       │
+ *   ├──────────────────────────────────────────────────────────────────────┤
+ *   │ THE TAKEAWAY · 1-2 implication lines                                  │
+ *   ├──────────────────────────────────────────────────────────────────────┤
+ *   │ Footer: Prem Iyer · AI Software Transformation · sources             │
+ *   └──────────────────────────────────────────────────────────────────────┘
+ *
+ * Everything is real SVG so it composites pixel-perfect at any resolution and
+ * stays editable by the InfographicTextOverlay editor.
  */
 
 import { slideCopy } from '../utils/completeSentence'
@@ -22,7 +42,6 @@ function wrapText(text, maxChars, maxLines = 2) {
   return lines.slice(0, maxLines)
 }
 
-/** Real magnitude of a stat value, unit-aware ($B/M/K, %, x, plain count). */
 function statMagnitude(value) {
   const s = String(value || '')
   const num = parseFloat((s.match(/-?\d+(?:\.\d+)?/) || ['0'])[0]) || 0
@@ -33,72 +52,123 @@ function statMagnitude(value) {
   return { num, scale, isPercent: /%/.test(s) }
 }
 
-/**
- * Accurate, legible bar heights. If every stat is a percentage we use the true 0–100 scale;
- * otherwise we scale each bar relative to the largest value in the set (with a visible floor),
- * so mixed units ($, x, counts) still read honestly with the real value printed on top.
- */
-function computeBarHeights(stats, maxH = 120) {
+/** Bar fill ratio for each stat, on the same 0-1 scale we use to draw inline bars. */
+function computeBarRatios(stats) {
   const mags = stats.map((s) => statMagnitude(s.value))
   const allPercent = mags.length > 0 && mags.every((m) => m.isPercent)
   if (allPercent) {
-    return mags.map((m) => Math.max(8, (Math.min(100, m.num) / 100) * maxH))
+    return mags.map((m) => Math.max(0.08, Math.min(1, m.num / 100)))
   }
   const maxScale = Math.max(...mags.map((m) => m.scale), 1)
-  return mags.map((m) => {
-    const ratio = maxScale > 0 ? m.scale / maxScale : 0
-    return Math.max(maxH * 0.18, ratio * maxH)
-  })
+  return mags.map((m) => Math.max(0.18, maxScale > 0 ? m.scale / maxScale : 0.18))
 }
 
-function BarChartStats({ stats, palette, yBase }) {
-  const barW = 280
-  const gap = 40
-  const startX = 600 - ((stats.length * barW + (stats.length - 1) * gap) / 2)
-  const heights = computeBarHeights(stats, 120)
-  return stats.map((stat, i) => {
-    const x = startX + i * (barW + gap)
-    const barH = heights[i]
-    return (
-      <g key={stat.registryId || i}>
-        <rect x={x} y={yBase} width={barW} height={130} rx="4" fill="#111" stroke="#222" strokeWidth="1" />
-        <rect x={x + 12} y={yBase + 130 - barH} width={barW - 24} height={barH} rx="3" fill={palette.accent} opacity="0.75" />
-        <text x={x + barW / 2} y={yBase - 12} textAnchor="middle" fill="#fff" fontSize="28" fontWeight="800" fontFamily="Georgia, serif">
-          {stat.value}
-        </text>
-        <text x={x + barW / 2} y={yBase + 150} textAnchor="middle" fill="#666" fontSize="9" fontFamily="Inter, sans-serif">
-          {slideCopy(stat.context, 34, 110)}
-        </text>
-        <text x={x + barW / 2} y={yBase + 166} textAnchor="middle" fill="#444" fontSize="8" fontFamily="Inter, sans-serif" fontStyle="italic">
-          {stat.source}
-        </text>
-      </g>
-    )
-  })
+function StatCard({ x, y, w, h, accent, stat, ratio }) {
+  const valueY = y + 80
+  const contextY = y + 116
+  const barTrackY = y + h - 56
+  const barTrackH = 14
+  const barFillW = Math.round((w - 48) * ratio)
+  const sourceY = y + h - 18
+
+  return (
+    <g>
+      {/* Card background — subtle glass over dark */}
+      <rect
+        x={x}
+        y={y}
+        width={w}
+        height={h}
+        rx="14"
+        fill="#0d0d0d"
+        stroke="rgba(255,255,255,0.06)"
+        strokeWidth="1"
+      />
+      {/* Left accent rail */}
+      <rect x={x} y={y} width="6" height={h} rx="3" fill={accent} />
+      {/* Subtle top highlight */}
+      <rect x={x} y={y} width={w} height="1" fill="rgba(255,255,255,0.08)" />
+
+      {/* Big value (Georgia serif, like a chart magazine) */}
+      <text
+        x={x + 28}
+        y={valueY}
+        fill="#f6f6f6"
+        fontSize="58"
+        fontWeight="800"
+        fontFamily="Georgia, 'Times New Roman', serif"
+        letterSpacing="-1"
+      >
+        {stat.value}
+      </text>
+
+      {/* Context line */}
+      <text
+        x={x + 28}
+        y={contextY}
+        fill="#9aa0a8"
+        fontSize="13"
+        fontFamily="Inter, sans-serif"
+      >
+        {slideCopy(stat.context, 56, 140)}
+      </text>
+
+      {/* Bar */}
+      <rect
+        x={x + 24}
+        y={barTrackY}
+        width={w - 48}
+        height={barTrackH}
+        rx="7"
+        fill="rgba(255,255,255,0.06)"
+      />
+      <rect
+        x={x + 24}
+        y={barTrackY}
+        width={barFillW}
+        height={barTrackH}
+        rx="7"
+        fill={accent}
+        opacity="0.95"
+      />
+
+      {/* Source line */}
+      <text
+        x={x + 28}
+        y={sourceY}
+        fill="#5a5f66"
+        fontSize="10"
+        fontFamily="Inter, sans-serif"
+        letterSpacing="0.4"
+      >
+        SOURCE · {String(stat.source || '').slice(0, 48).toUpperCase()}
+      </text>
+    </g>
+  )
 }
 
-function CardStats({ stats, palette, yBase }) {
-  const cardW = stats.length === 1 ? 400 : stats.length === 2 ? 480 : 340
-  const gap = 36
-  const startX = 600 - ((stats.length * cardW + (stats.length - 1) * gap) / 2)
-  return stats.map((stat, i) => {
-    const x = startX + i * (cardW + gap)
-    return (
-      <g key={stat.registryId || i}>
-        <rect x={x} y={yBase} width={cardW} height={175} rx="2" fill="#fafafa" opacity="0.04" stroke="#333" strokeWidth="1" />
-        <line x1={x} y1={yBase} x2={x} y2={yBase + 175} stroke={palette.accent} strokeWidth="3" />
-        <text x={x + 24} y={yBase + 58} fill="#fff" fontSize="38" fontWeight="800" fontFamily="Georgia, serif">
-          {stat.value}
-        </text>
-        <text x={x + 24} y={yBase + 92} fill="#999" fontSize="11" fontFamily="Inter, sans-serif">
-          {slideCopy(stat.context, 58, 150)}
-        </text>
-        <text x={x + 24} y={yBase + 155} fill="#555" fontSize="8" fontFamily="Inter, sans-serif">
-          SOURCE: {stat.source}
-        </text>
-      </g>
-    )
-  })
+function StatCardRow({ stats, accent, yBase }) {
+  if (!stats.length) return null
+  const n = Math.min(stats.length, 3)
+  const visible = stats.slice(0, n)
+  const ratios = computeBarRatios(visible)
+  const margin = 56
+  const gap = 24
+  const totalW = 1200 - margin * 2
+  const cardW = (totalW - gap * (n - 1)) / n
+  const cardH = 200
+  return visible.map((stat, i) => (
+    <StatCard
+      key={stat.registryId || i}
+      x={margin + i * (cardW + gap)}
+      y={yBase}
+      w={cardW}
+      h={cardH}
+      accent={accent}
+      stat={stat}
+      ratio={ratios[i]}
+    />
+  ))
 }
 
 export default function HeadlineInfographic({ model, palette }) {
@@ -114,93 +184,176 @@ export default function HeadlineInfographic({ model, palette }) {
     implications,
     sources,
     displayDate,
-    layoutVariant = 0,
-    refreshId,
   } = model
 
-  const headlineLines = leadHeadline ? wrapText(leadHeadline.title, 58, 2) : []
-  const variant = layoutVariant % 4
-  const statsY = leadHeadline ? 250 : 200
+  const accent = palette?.accent || '#3EDC81'
+  const hookLines = wrapText(slideCopy(hook, 92, 220), 60, 2)
 
   return (
-    <g key={refreshId || 'infographic'}>
-      {/* Editorial grid */}
-      {[...Array(12)].map((_, i) => (
-        <line key={`g${i}`} x1={100 * i} y1="0" x2={100 * i} y2="590" stroke="#151515" strokeWidth="1" />
-      ))}
-      <line x1="0" y1="120" x2="1200" y2="120" stroke="#1a1a1a" strokeWidth="1" />
-
-      {/* Masthead */}
-      <text x="56" y="42" fill={palette.accent} fontSize="10" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="2.5">
-        {topicLabel.toUpperCase().slice(0, 38)}
+    <g>
+      {/* ─── Masthead ─────────────────────────────────────────────────── */}
+      <rect x="0" y="0" width="1200" height="56" fill="#0d100d" />
+      <rect x="0" y="55" width="1200" height="1" fill={accent} opacity="0.45" />
+      <text
+        x="56"
+        y="35"
+        fill={accent}
+        fontSize="13"
+        fontWeight="800"
+        fontFamily="Inter, sans-serif"
+        letterSpacing="4"
+      >
+        {String(topicLabel || 'INSIGHT').toUpperCase().slice(0, 42)}
       </text>
       {topicFocusLine ? (
-        <text x="56" y="56" fill="#666" fontSize="9" fontFamily="Inter, sans-serif" letterSpacing="0.2">
-          {topicFocusLine}
+        <text
+          x="56"
+          y="50"
+          fill="#6e7480"
+          fontSize="10"
+          fontFamily="Inter, sans-serif"
+          letterSpacing="0.4"
+        >
+          {topicFocusLine.slice(0, 80)}
         </text>
       ) : null}
-      <text x="1144" y="42" textAnchor="end" fill="#555" fontSize="9" fontFamily="Inter, sans-serif">
-        {displayDate}
-      </text>
-      <text x="56" y="78" fill="#f5f5f5" fontSize="22" fontWeight="700" fontFamily="Georgia, serif">
-        {slideCopy(hook, 96, 200)}
+      <text
+        x="1144"
+        y="35"
+        textAnchor="end"
+        fill="#9aa0a8"
+        fontSize="11"
+        fontWeight="600"
+        fontFamily="Inter, sans-serif"
+        letterSpacing="2"
+      >
+        {String(displayDate || '').toUpperCase()}
       </text>
 
-      {/* News ribbon */}
-      <rect x="56" y="100" width="1088" height={leadHeadline ? 96 : 52} fill="#0d0d0d" stroke="#2a2a2a" strokeWidth="1" />
-      <text x="76" y="122" fill={palette.accent} fontSize="9" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="1.5">
-        {topicBadge.toUpperCase()}
-      </text>
+      {/* ─── Hook (serif headline) ────────────────────────────────────── */}
+      {hookLines.map((line, i) => (
+        <text
+          key={`hook-${i}`}
+          x="56"
+          y={106 + i * 38}
+          fill="#f6f6f6"
+          fontSize="32"
+          fontWeight="700"
+          fontFamily="Georgia, 'Times New Roman', serif"
+          letterSpacing="-0.5"
+        >
+          {line}
+        </text>
+      ))}
+
+      {/* ─── Lead headline ribbon ─────────────────────────────────────── */}
       {leadHeadline ? (
         <>
-          {headlineLines.map((ln, i) => (
-            <text key={i} x="76" y={144 + i * 24} fill="#e8e8e8" fontSize="14" fontWeight="600" fontFamily="Georgia, serif">
+          <rect
+            x="56"
+            y="200"
+            width="1088"
+            height="74"
+            rx="10"
+            fill="#0d0d0d"
+            stroke="rgba(255,255,255,0.06)"
+            strokeWidth="1"
+          />
+          <rect x="56" y="200" width="6" height="74" rx="3" fill={accent} opacity="0.7" />
+          <text
+            x="80"
+            y="222"
+            fill={accent}
+            fontSize="10"
+            fontWeight="700"
+            fontFamily="Inter, sans-serif"
+            letterSpacing="2"
+          >
+            {String(topicBadge || 'NEWS').toUpperCase().slice(0, 50)}
+          </text>
+          {wrapText(leadHeadline.title, 92, 2).map((ln, i) => (
+            <text
+              key={`lead-${i}`}
+              x="80"
+              y={244 + i * 20}
+              fill="#dcdde0"
+              fontSize="13"
+              fontWeight="600"
+              fontFamily="Georgia, 'Times New Roman', serif"
+            >
               {ln}
             </text>
           ))}
-          <text x="76" y="186" fill="#555" fontSize="8" fontFamily="Inter, sans-serif">
-            {leadHeadline.source}{leadHeadline.date ? ` · ${leadHeadline.date}` : ''}
-          </text>
         </>
+      ) : null}
+
+      {/* ─── Stat cards ───────────────────────────────────────────────── */}
+      {verifiedStats?.length ? (
+        <StatCardRow stats={verifiedStats} accent={accent} yBase={leadHeadline ? 296 : 220} />
       ) : (
-        <text x="76" y="132" fill="#666" fontSize="11" fontFamily="Inter, sans-serif">
-          Fetching headlines — stats below are registry-verified.
+        <text
+          x="600"
+          y={leadHeadline ? 360 : 320}
+          textAnchor="middle"
+          fill="#4a4d54"
+          fontSize="13"
+          fontFamily="Inter, sans-serif"
+        >
+          Add cited stats to your post to populate this card row.
         </text>
       )}
 
-      {/* Stats — layout rotates */}
-      {verifiedStats.length > 0 ? (
-        variant === 0 || variant === 2 ? (
-          <BarChartStats stats={verifiedStats} palette={palette} yBase={statsY + 20} />
-        ) : (
-          <CardStats stats={verifiedStats} palette={palette} yBase={statsY} />
-        )
-      ) : (
-        <text x="600" y="340" textAnchor="middle" fill="#555" fontSize="12" fontFamily="Inter, sans-serif">
-          Add cited stats to your post for data cards.
-        </text>
-      )}
-
-      {/* So what */}
-      {implications.length > 0 && (
+      {/* ─── Takeaway block ───────────────────────────────────────────── */}
+      {implications?.length ? (
         <>
-          <line x1="56" y1="455" x2="200" y2="455" stroke={palette.accent} strokeWidth="2" />
-          <text x="56" y="478" fill="#888" fontSize="9" fontWeight="700" fontFamily="Inter, sans-serif" letterSpacing="1.2">
+          <line
+            x1="56"
+            y1="528"
+            x2="180"
+            y2="528"
+            stroke={accent}
+            strokeWidth="2"
+          />
+          <text
+            x="56"
+            y="548"
+            fill={accent}
+            fontSize="11"
+            fontWeight="800"
+            fontFamily="Inter, sans-serif"
+            letterSpacing="3"
+          >
             THE TAKEAWAY
           </text>
-          {implications.map((line, i) => (
-            <text key={i} x="56" y={502 + i * 26} fill="#bbb" fontSize="12" fontFamily="Inter, sans-serif">
-              {slideCopy(line, 120, 240)}
+          {implications.slice(0, 2).map((line, i) => (
+            <text
+              key={`imp-${i}`}
+              x="56"
+              y={570 + i * 22}
+              fill="#c8cbd0"
+              fontSize="13"
+              fontFamily="Inter, sans-serif"
+            >
+              {slideCopy(line, 140, 260)}
             </text>
           ))}
         </>
-      )}
+      ) : null}
 
-      {sources.length > 0 && (
-        <text x="600" y="565" textAnchor="middle" fill="#3a3a3a" fontSize="8" fontFamily="Inter, sans-serif">
-          Verified registry data · {sources.join(' · ')}
+      {/* ─── Sources line (sits inside footer band) ───────────────────── */}
+      {sources?.length ? (
+        <text
+          x="1144"
+          y="582"
+          textAnchor="end"
+          fill="#4a4d54"
+          fontSize="9"
+          fontFamily="Inter, sans-serif"
+          letterSpacing="0.4"
+        >
+          Verified · {sources.slice(0, 3).join(' · ')}
         </text>
-      )}
+      ) : null}
     </g>
   )
 }
