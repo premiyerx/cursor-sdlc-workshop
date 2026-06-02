@@ -16,7 +16,7 @@ export const STRUCTURE_TEMPLATES = [
     summary: 'A specific moment with a person, time, and outcome — not a framework.',
     rules: [
       'Open with a scene line (a person, time, or place) in 6–10 words. One short opening line, then a blank line for "see more".',
-      'Tell what happened in 2–3 plain sentences. Vary length: a one-word reaction is welcome.',
+      'Tell what happened in 2–3 plain sentences. Vary length, but every line must be a complete thought. NO standalone one-word exclamations like "Wild." / "Brutal." / "Two things." — those read as AI tics. A short complete clause ("She didn\'t deny it.", "The room went quiet.") is fine and welcome.',
       'No numbered list. No "patterns/lessons" framework. The story IS the proof.',
       'Close with what you DM\'d, asked, or did next — not a moral.',
     ],
@@ -52,7 +52,7 @@ export const STRUCTURE_TEMPLATES = [
     summary: 'Open with a real question a peer would actually ask. The post is the answer.',
     rules: [
       'Hook IS the question — concrete, peer-to-peer, under 14 words. Includes a number or named role when natural.',
-      'First body line: a one-word or one-phrase reaction ("Honestly?" / "Depends on this:") to break the AI cadence.',
+      'First body line: a short COMPLETE clause that sets up the answer ("It depends on one thing." / "I keep landing on the same answer."). NEVER a standalone one-word exclamation like "Wild." / "Honestly?" — those read as AI tics.',
       'Then 2–3 short paragraphs answering. Avoid numbered lists unless the answer truly enumerates.',
       'Close with a follow-up question that pushes for THEIR specific answer (not "thoughts?").',
     ],

@@ -62,7 +62,7 @@ ${weakRules || '  • (n/a)'}
 
 SCORING CHEAT SHEET (what moves the needle):
 - Hook: 8–12 words, include a number, parenthetical re-hook on line 2.
-- Body: ${POST_LENGTH.minDoubleLineBreaks}+ blank-line breaks; mix one-word lines with longer lines.
+- Body: ${POST_LENGTH.minDoubleLineBreaks}+ blank-line breaks; mix SHORT COMPLETE CLAUSES ("She paused." / "The CFO marked it.") with longer lines. NEVER standalone one-word exclamations ("Wild." / "Two things." / "Brutal." / "Same.") and NEVER orphan anaphora ("Same complaint both times" with no antecedent).
 - CTA: one "you/your" question (not "thoughts?").
 - Specificity: one number + one named role or scene.
 - Length: stay ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax} chars total.

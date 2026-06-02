@@ -15,9 +15,19 @@ const TACTIC_TESTS = {
       t,
     ) || /:\s*$/m.test(t),
   memorableQuote: (t) => /[""].{12,}[""]|"[^"]{12,}"/.test(t),
+  /**
+   * Pattern interrupt = a SHORT STANDALONE LINE between newlines. Used to
+   * cut the AI cadence. We count any 4-45 char line ending in punctuation.
+   *
+   * The old rule matched ≤ 18-char fragments and rewarded "Wild." /
+   * "Two things." — the AI tic the user surfaced as "code, not part of the
+   * copy." Now we count COMPLETE short clauses ("I read it twice.",
+   * "She paused.") instead. The bare 1-word tics are dropped upstream by
+   * the icpCritique coherence pass before this detector ever sees them, so
+   * the floor is "complete clause," not "any fragment."
+   */
   patternInterrupt: (t) =>
-    /^(?:\s*)(wrong\.|nope\.|honestly\?|two things\.|wild\.|here'?s the thing|plot twist)/im.test(t) ||
-    /\n\s*\S{1,18}[.?!]\s*\n/.test(t),
+    /\n\s*[^\n]{4,45}[.?!]\s*\n/.test(t),
   polarization: (t) =>
     /\b(everyone|most people|conventional wisdom|unpopular opinion|hot take|controversial|nobody tells|the myth)\b/i.test(
       t,
@@ -89,7 +99,7 @@ export function buildTacticStackDirective() {
   return [
     '',
     'VIRAL TACTIC STACK (2026 data — viral posts stack 4–6 of these, not just one):',
-    '- Quantified proof (a real number/%/$), an open loop early, one memorable one-line quote, a pattern interrupt (a 1–3 word line), and social proof (a named role/scale).',
+    '- Quantified proof (a real number/%/$), an open loop early, one memorable one-line quote, a pattern interrupt (a SHORT COMPLETE clause like "I had to read it twice." — NEVER a one-word fragment like "Wild." or "Brutal."), and social proof (a named role/scale).',
     '- Stack at least 4 of these naturally across hook + body. A single-tactic post rarely travels.',
     '- Reward depth over polish: one specific, save-worthy insight beats five generic lines.',
     'PROVEN SKELETONS (pick whichever fits the angle; do not announce it):',

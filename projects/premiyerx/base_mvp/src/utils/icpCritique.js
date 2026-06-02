@@ -195,6 +195,200 @@ function applyIcpSwaps(text) {
   return t.replace(/[ \t]{2,}/g, ' ').replace(/\s+\n/g, '\n').trim()
 }
 
+/**
+ * Standalone "punchy" lines that LLMs love to emit but that read as filler.
+ * These are matched against an entire trimmed body line — never against
+ * substrings — so a sentence like "Wild ride for the dev team this quarter."
+ * is kept while a bare "Wild." line is dropped.
+ *
+ * Why this exists: a real failure case looked like
+ *   "A staff engineer deleted 4 AI editors in one sprint."
+ *   "Two Fortune 500 calls, 48 hours apart."
+ *   "Two things can be true at once."
+ *   "Wild."
+ *   "Same complaint both times."
+ *
+ * The hook is fine; the rest is fragmentary one-liners with no connecting
+ * tissue. We strip the obvious filler lines and the orphan anaphora.
+ */
+const AI_FILLER_LINES = [
+  /^(?:Wild|Brutal|Real|Truth|Facts?|Yikes|Oof|Welp|Damn|Wow|Same|Both|This|That|Right|Exactly|Indeed|Painful|Honest|Fact|Crazy|Insane)[.!?]*$/i,
+  /^(?:Right|Same|This|That)\??$/i,
+  /^Two things can be true(?: at once)?[.!?]*$/i,
+  /^Two truths(?: at once)?[.!?]*$/i,
+  /^Both can be true[.!?]*$/i,
+  /^Make it make sense[.!?]*$/i,
+  /^Read that again[.!?]*$/i,
+  /^Let that sink in[.!?]*$/i,
+  /^Let me say that again[.!?]*$/i,
+  /^Say it (?:again|louder)(?: for the people in the back)?[.!?]*$/i,
+  /^I'?ll wait[.!?]*$/i,
+  /^Just saying[.!?]*$/i,
+  /^Just sayin[.!?]*$/i,
+  /^Make of (?:that|this) what you will[.!?]*$/i,
+  /^Food for thought[.!?]*$/i,
+  /^Big if true[.!?]*$/i,
+  /^Tell me I'?m wrong[.!?]*$/i,
+  /^Fight me[.!?]*$/i,
+  /^Change my mind[.!?]*$/i,
+  /^Trust the process[.!?]*$/i,
+  /^Iykyk[.!?]*$/i,
+  /^IYKYK[.!?]*$/i,
+]
+
+/**
+ * Orphan anaphora: "Same complaint both times", "Both teams agreed", "Either
+ * way it lands the same" — these phrases REFER to something earlier (the
+ * complaint, the teams, the path). If no earlier line in the body has named
+ * that subject, the line is dangling and reads incoherent.
+ *
+ * Implementation: capture the head noun ("complaint" / "teams" / "answer"),
+ * scan prior body lines for it (or its singular/plural). If absent, drop.
+ */
+const ORPHAN_ANAPHORA_PATTERNS = [
+  // "Same X both times." / "Same X all around." / "Same X everywhere."
+  /^Same\s+(\w+)\s+(?:both\s+(?:times|sides|ways|teams)|all\s+(?:times|around|over|the\s+way)|every\s+time|everywhere)[.!?]*$/i,
+  // "Both X said the same thing." / "Both X agreed."
+  /^Both\s+(\w+)\s+(?:said|agreed|did|saw|wanted|asked|paused|stalled|froze|laughed)[^.!?\n]*[.!?]*$/i,
+  // "Either way, X."  — anaphoric "either way" wants two preceding options
+  /^Either\s+way[,.!?]\s*([\w ]+)[.!?]*$/i,
+]
+
+/**
+ * For an anaphoric line, look back up to 4 prior non-blank lines for any
+ * mention of the head noun (with simple plural collapsing). Returns true
+ * when an antecedent is present.
+ */
+function hasAntecedent(noun, priorLines) {
+  if (!noun) return false
+  const base = noun.toLowerCase().replace(/s$/, '')
+  if (!base) return false
+  const re = new RegExp(`\\b${base}s?\\b`, 'i')
+  let scanned = 0
+  for (let i = priorLines.length - 1; i >= 0 && scanned < 4; i--) {
+    const line = priorLines[i]
+    if (!line.trim()) continue
+    scanned++
+    if (re.test(line)) return true
+  }
+  return false
+}
+
+/**
+ * Pass: drop AI-filler exclamations and orphan-anaphora lines from a body.
+ *
+ * Hook and CTA are NOT processed — short, punchy hooks are intentional;
+ * orphan anaphora doesn't make sense in a 1-line hook anyway, and CTAs
+ * sometimes use rhetorical brevity by design.
+ */
+export function dropFillerAndOrphanLines(text) {
+  if (!text) return ''
+  const lines = String(text).split('\n')
+  const kept = []
+  const keptText = [] // for antecedent lookups, mirrors `kept` line-by-line
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]
+    const trimmed = raw.trim()
+
+    if (!trimmed) {
+      kept.push(raw)
+      keptText.push('')
+      continue
+    }
+
+    if (AI_FILLER_LINES.some((re) => re.test(trimmed))) continue
+
+    let isOrphan = false
+    for (const pat of ORPHAN_ANAPHORA_PATTERNS) {
+      const m = trimmed.match(pat)
+      if (!m) continue
+      if (!hasAntecedent(m[1], keptText)) {
+        isOrphan = true
+        break
+      }
+    }
+    if (isOrphan) continue
+
+    kept.push(raw)
+    keptText.push(trimmed)
+  }
+
+  return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+/**
+ * Coherence heuristic. Returns a 0-100 score where lower = more fragmentary.
+ * Used both as a scoring penalty and as a retry-trigger after stripping.
+ *
+ * Signals it counts:
+ *  - "Substantive line ratio": fraction of non-blank body lines that have
+ *    BOTH a verb-shape AND a noun-shape (i.e. read like a complete thought).
+ *  - "Orphan anaphora count": lines that refer back to something unstated.
+ *  - "Single-word exclamation count": "Wild.", "Brutal.", etc. that survived.
+ *  - "Average words per substantive line" (very low = fragmentary).
+ *
+ * Cheap, deterministic; no LLM call.
+ */
+export function scoreBodyCoherence(body) {
+  if (!body) return 100
+  const lines = String(body)
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+  if (!lines.length) return 100
+
+  let substantive = 0
+  let totalWords = 0
+  let orphans = 0
+  let fillers = 0
+  const priorAcc = []
+
+  // Heuristics:
+  // - "verb-shape": presence of a common auxiliary, copula, or -ed/-ing verb
+  // - "noun-shape": at least one word longer than 3 chars that isn't a stopword
+  const VERB_LIKE = /\b(?:is|was|were|are|am|be|been|being|has|have|had|do|does|did|will|would|could|should|may|might|must|can|cannot|won|wo|got|gets|getting|move|moved|moves|moving|tell|told|tells|say|said|says|see|saw|sees|seeing|run|runs|running|ran|cut|cuts|cutting|build|built|building|ship|shipped|ships|shipping|kill|killed|kills|killing|switch|switched|switches|switching|deleted?|removed?|spent|spend|paid|pays|paying|made|makes|making|talk|talks|talking|talked|asked|asks|asking|wrote|writes|writing|sent|sends|sending|gave|gives|giving|set|sets|setting|put|puts|putting|came|come|comes|coming|went|goes|going|left|leaves|leaving|took|takes|taking|let|lets|letting|find|finds|finding|found|know|knows|knowing|knew|need|needs|needed|needing|use|uses|used|using|work|works|worked|working|seem|seems|seemed|seeming|look|looks|looking|looked|feel|feels|felt|feeling|read|reads|reading|hear|hears|hearing|heard)\b|\b\w+(?:ed|ing|s)\b/i
+  const NOUN_LIKE = /\b[A-Za-z]{4,}\b/
+
+  for (const line of lines) {
+    const words = line.split(/\s+/).filter(Boolean)
+    totalWords += words.length
+
+    if (AI_FILLER_LINES.some((re) => re.test(line))) {
+      fillers++
+      continue
+    }
+
+    let isOrphan = false
+    for (const pat of ORPHAN_ANAPHORA_PATTERNS) {
+      const m = line.match(pat)
+      if (m && !hasAntecedent(m[1], priorAcc)) { isOrphan = true; break }
+    }
+    if (isOrphan) {
+      orphans++
+      priorAcc.push(line)
+      continue
+    }
+
+    if (VERB_LIKE.test(line) && NOUN_LIKE.test(line) && words.length >= 4) {
+      substantive++
+    }
+    priorAcc.push(line)
+  }
+
+  const substantiveRatio = substantive / lines.length
+  const avgWords = totalWords / lines.length
+  const fillerRatio = fillers / lines.length
+  const orphanRatio = orphans / lines.length
+
+  let score = 100
+  score -= (1 - substantiveRatio) * 50          // up to 50 off for fragmentation
+  score -= Math.max(0, 7 - avgWords) * 4         // up to ~28 off for sub-7-word lines
+  score -= fillerRatio * 50                      // big penalty if filler is dense
+  score -= orphanRatio * 40                      // big penalty for unresolved anaphora
+  return Math.max(0, Math.min(100, Math.round(score)))
+}
+
 /** Lookup table for short + long month names → 0-indexed month. */
 const MONTH_INDEX = {
   jan: 0, january: 0,
@@ -299,10 +493,31 @@ export function applyIcpCritique(post) {
       scrubStaleDateRefs(scrubMetaLabels(applyIcpSwaps(dropEmojis(text || '')))),
     )
   const hook = clean(post.hook)
-  const body = clean(post.body)
+  // Body gets an extra coherence pass: drop AI-filler one-liners ("Wild.",
+  // "Two things can be true at once.") and orphan anaphora ("Same complaint
+  // both times" with no antecedent). Hook and CTA stay short by design and
+  // are exempt from this pass.
+  const body = dropFillerAndOrphanLines(clean(post.body))
   const cta = ensureIcpCtaQuestion(clean(post.cta))
   const firstComment = clean(post.firstComment)
   return { ...post, hook, body, cta, firstComment }
+}
+
+/**
+ * Convert the 0-100 coherence score into a 0-30 reach penalty so a body
+ * full of "Wild." / "Two things can be true at once." fragments takes a
+ * real bite out of reach score, triggering the editor's anti-fragmentation
+ * pass before final output.
+ *
+ * Scaling chosen so a body that scores 50 (clearly fragmented) loses ~15
+ * points, and a body that scores 30 (badly broken) loses the full ~30.
+ */
+export function scoreCoherencePenalty(text) {
+  if (!text) return 0
+  const score = scoreBodyCoherence(text)
+  if (score >= 80) return 0
+  const missing = 80 - score
+  return Math.min(30, Math.round(missing * 0.5))
 }
 
 /**

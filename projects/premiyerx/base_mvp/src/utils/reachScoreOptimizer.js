@@ -83,12 +83,16 @@ export function applyDeterministicReachFixes(post, options = {}) {
   p = applyIcpCritique(p)
   p = boostAlgorithmSignals(p)
 
-  if (topIds.has('rhythm') || topIds.has('aiTell') || options.aggressive) {
-    p = {
-      ...p,
-      body: injectRhythmBreak(p.body || '', options.rhythmSeed ?? 0),
-      hook: injectRhythmBreak(p.hook || '', (options.rhythmSeed ?? 0) + 1),
-    }
+  // Always run rhythm injection — it's idempotent and only acts when 3+
+  // consecutive same-bucket sentences are present. We can't gate this on
+  // `topIds.has('rhythm')` anymore because applyIcpCritique now strips
+  // 1-word filler lines ("Wild.") that USED to satisfy the "very-short"
+  // bucket; their absence can leave behind 3 same-bucket sentences in a
+  // row that the original scoring missed.
+  p = {
+    ...p,
+    body: injectRhythmBreak(p.body || '', options.rhythmSeed ?? 0),
+    hook: injectRhythmBreak(p.hook || '', (options.rhythmSeed ?? 0) + 1),
   }
 
   const maxChars =

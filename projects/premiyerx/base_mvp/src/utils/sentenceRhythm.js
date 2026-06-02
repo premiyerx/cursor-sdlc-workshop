@@ -80,18 +80,25 @@ export function scoreSentenceRhythm(text) {
   return Math.min(12, penalty)
 }
 
-const ONE_WORD_REACTIONS = [
-  'Honestly?',
-  'Look.',
-  'Quietly.',
-  'Wild.',
-  'So.',
-  'Read that twice.',
+/**
+ * Short rhythm-break clauses. MUST be complete clauses (subject + verb),
+ * 2-4 words long so they still land in the "very-short" sentence bucket
+ * the rhythm scorer rewards. Bare "Wild." / "Honestly?" lines read as AI
+ * tics; a complete short clause does the same cadence work AND stays
+ * coherent as narrative.
+ */
+const SHORT_RHYTHM_CLAUSES = [
+  'The room shifted.',
+  'Nobody flinched.',
+  'I read it twice.',
+  'The math changed.',
+  'She paused.',
+  'The CFO nodded.',
 ]
 
 /**
  * If the body has three consecutive medium-length sentences with no short break, insert
- * a one-word reaction line between sentence 2 and 3 to break the AI cadence.
+ * a short complete clause between sentence 2 and 3 to break the AI cadence.
  * Conservative: only acts on the first run of three same-bucket sentences in the body.
  */
 export function injectRhythmBreak(body, seed = 0) {
@@ -111,7 +118,7 @@ export function injectRhythmBreak(body, seed = 0) {
       }
     }
     if (runStart < 0) continue
-    const reaction = ONE_WORD_REACTIONS[Math.abs(seed) % ONE_WORD_REACTIONS.length]
+    const reaction = SHORT_RHYTHM_CLAUSES[Math.abs(seed) % SHORT_RHYTHM_CLAUSES.length]
     const before = sentences.slice(0, runStart + 2).join(' ')
     const after = sentences.slice(runStart + 2).join(' ')
     lines.splice(li, 1, before, reaction, after)

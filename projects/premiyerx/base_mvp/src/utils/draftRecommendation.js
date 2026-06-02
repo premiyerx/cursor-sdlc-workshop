@@ -9,7 +9,7 @@ import { scoreFactualPenalty } from './factualClaims.js'
 import { scoreReasoningLeakagePenalty } from './modelReasoningLeakage.js'
 import { scoreHookPenalty } from './hookLab.js'
 import { scoreTacticStackPenalty } from './viralTactics.js'
-import { scoreIcpPenalty } from './icpCritique.js'
+import { scoreIcpPenalty, scoreCoherencePenalty } from './icpCritique.js'
 
 /** Gold "Best for reach" bar — net reach strictly above 80 (minimum 81). */
 export const REACH_PUBLISH_MIN = 81
@@ -122,6 +122,13 @@ export const REACH_PENALTY_SPECS = [
     maxPoints: 24,
     description: 'Lesson/moral wrap-ups (“the takeaway is…”) that read like AI memos.',
     score: scoreConclusionPenalty,
+  },
+  {
+    id: 'coherence',
+    label: 'Body coherence',
+    maxPoints: 30,
+    description: 'Penalizes "Wild." / "Two things can be true at once." filler and orphan "Same X both times" anaphora — the fragmentary one-liner tic that reads as nonsense to a CIO.',
+    score: scoreCoherencePenalty,
   },
 ]
 

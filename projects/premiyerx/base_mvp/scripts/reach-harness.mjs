@@ -68,7 +68,7 @@ BODY:
 A CFO at a $2B enterprise pulled the numbers last week.
 Token spend tripled in 90 days. Cycle time improved 11%. The ratio is what woke up the board.
 
-Two things can be true at once.
+The room shifted.
 
 The teams winning this measure cost per shipped change, not raw productivity.
 
@@ -245,7 +245,7 @@ HASHTAGS:
 The AI bill arrived. Three Fortune 500 CFOs called the same vendor by Wednesday.
 
 BODY:
-Wild.
+The room shifted.
 
 A CFO told me the ratio was the issue. Token spend up 4x. Cycle time down 12%.
 Across mid-market teams the pattern is consistent.

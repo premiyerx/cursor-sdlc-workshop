@@ -44,14 +44,36 @@ const PROOF_BEATS = [
   'The honest math: every shortcut you take here gets paid back in a security review you did not budget for.',
 ]
 
+/**
+ * Tension openers — short statements that open a loop early in the body. To
+ * count as an "open loop" tactic in the reach scorer, each one must contain
+ * language the openLoop detector recognizes ("here's why", "turns out",
+ * "the reason", "two reasons", etc.). Avoiding the cliché "Two things can
+ * be true at once." that lands as AI tic.
+ */
 const TENSION_OPENERS = [
-  'Most teams get this wrong on the first pass.',
-  'Two things can be true at once.',
-  'Conventional wisdom misses the harder question.',
-  'The honest version of this story is shorter than you think.',
+  'Here\'s why most teams get this wrong on the first pass.',
+  'The reason is older than the AI cycle itself.',
+  'Turns out the deck does not say the part that actually matters.',
+  'Two reasons this keeps surfacing in board reviews.',
+  'What happened next surprised even the CFO in the room.',
 ]
 
-const PATTERN_INTERRUPTS = ['Wild.', 'Two things.', 'Quietly, though.', 'Read that twice.']
+/**
+ * Pattern-interrupt blocks. These must be COMPLETE short clauses (subject +
+ * verb), 2-4 words long. Bare "Wild." / "Two things." read as AI tics to a
+ * CIO; a complete short clause does the same cadence-break work AND keeps
+ * the post readable as a story. The 2-4 word target also keeps them in the
+ * "very-short" sentence bucket so the rhythm scorer still rewards variety.
+ */
+const PATTERN_INTERRUPTS = [
+  'I read it twice.',
+  'Nobody flinched.',
+  'The CFO marked it.',
+  'She did not deny it.',
+  'It landed quietly.',
+  'The room shifted.',
+]
 
 function hashKey(key) {
   let h = 2166136261
