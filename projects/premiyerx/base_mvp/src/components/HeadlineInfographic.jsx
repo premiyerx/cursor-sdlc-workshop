@@ -22,19 +22,43 @@ function wrapText(text, maxChars, maxLines = 2) {
   return lines.slice(0, maxLines)
 }
 
-function parseStatPercent(value) {
-  const m = String(value).match(/(\d+(?:\.\d+)?)/)
-  return m ? Math.min(100, parseFloat(m[1])) : 50
+/** Real magnitude of a stat value, unit-aware ($B/M/K, %, x, plain count). */
+function statMagnitude(value) {
+  const s = String(value || '')
+  const num = parseFloat((s.match(/-?\d+(?:\.\d+)?/) || ['0'])[0]) || 0
+  let scale = num
+  if (/billion|\bB\b/i.test(s)) scale = num * 1e9
+  else if (/million|\bM\b/i.test(s)) scale = num * 1e6
+  else if (/thousand|\bK\b/i.test(s)) scale = num * 1e3
+  return { num, scale, isPercent: /%/.test(s) }
+}
+
+/**
+ * Accurate, legible bar heights. If every stat is a percentage we use the true 0–100 scale;
+ * otherwise we scale each bar relative to the largest value in the set (with a visible floor),
+ * so mixed units ($, x, counts) still read honestly with the real value printed on top.
+ */
+function computeBarHeights(stats, maxH = 120) {
+  const mags = stats.map((s) => statMagnitude(s.value))
+  const allPercent = mags.length > 0 && mags.every((m) => m.isPercent)
+  if (allPercent) {
+    return mags.map((m) => Math.max(8, (Math.min(100, m.num) / 100) * maxH))
+  }
+  const maxScale = Math.max(...mags.map((m) => m.scale), 1)
+  return mags.map((m) => {
+    const ratio = maxScale > 0 ? m.scale / maxScale : 0
+    return Math.max(maxH * 0.18, ratio * maxH)
+  })
 }
 
 function BarChartStats({ stats, palette, yBase }) {
   const barW = 280
   const gap = 40
   const startX = 600 - ((stats.length * barW + (stats.length - 1) * gap) / 2)
+  const heights = computeBarHeights(stats, 120)
   return stats.map((stat, i) => {
     const x = startX + i * (barW + gap)
-    const pct = parseStatPercent(stat.value)
-    const barH = (pct / 100) * 120
+    const barH = heights[i]
     return (
       <g key={stat.registryId || i}>
         <rect x={x} y={yBase} width={barW} height={130} rx="4" fill="#111" stroke="#222" strokeWidth="1" />

@@ -2,22 +2,14 @@
  * Browser-safe bridge: Anthropic's API does not allow direct browser CORS calls.
  * Production uses repo-root /api/anthropic-messages.js; this copy mirrors behavior for local tooling.
  */
+import { applyCors } from './_cors.js'
+
 export const config = {
   maxDuration: 60,
 }
 
-function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, x-api-key, anthropic-version, anthropic-dangerous-direct-browser-access',
-  )
-  res.setHeader('Access-Control-Max-Age', '86400')
-}
-
 export default async function handler(req, res) {
-  setCors(res)
+  applyCors(req, res, 'POST, OPTIONS')
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end()

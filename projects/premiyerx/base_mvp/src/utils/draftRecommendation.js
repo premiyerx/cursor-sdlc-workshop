@@ -6,6 +6,9 @@ import { scorePersonalSpecificityPenalty } from './personalSpecificity.js'
 import { scoreSentenceRhythm } from './sentenceRhythm.js'
 import { scoreConclusionPenalty } from './postRoughEdit.js'
 import { scoreFactualPenalty } from './factualClaims.js'
+import { scoreReasoningLeakagePenalty } from './modelReasoningLeakage.js'
+import { scoreHookPenalty } from './hookLab.js'
+import { scoreTacticStackPenalty } from './viralTactics.js'
 
 /** Gold "Best for reach" bar — net reach strictly above 80 (minimum 81). */
 export const REACH_PUBLISH_MIN = 81
@@ -69,6 +72,27 @@ export const REACH_PENALTY_SPECS = [
     maxPoints: 36,
     description: 'Impossible Fortune 500 counts, bad headline grammar, or unverified invented stats.',
     score: scoreFactualPenalty,
+  },
+  {
+    id: 'reasoningLeak',
+    label: 'Draft purity',
+    maxPoints: 48,
+    description: 'Chain-of-thought, word counts, or rubric notes leaked into reader-facing copy.',
+    score: scoreReasoningLeakagePenalty,
+  },
+  {
+    id: 'hookStrength',
+    label: 'Hook strength',
+    maxPoints: 20,
+    description: 'Opening archetype + lift: rewards stat/story/contrarian hooks with tension; penalizes dead imperative openers.',
+    score: scoreHookPenalty,
+  },
+  {
+    id: 'tacticStack',
+    label: 'Tactic stack',
+    maxPoints: 18,
+    description: 'Viral posts stack 4–6 tactics (quantified proof, open loop, quote, pattern interrupt, social proof).',
+    score: scoreTacticStackPenalty,
   },
   {
     id: 'specificity',

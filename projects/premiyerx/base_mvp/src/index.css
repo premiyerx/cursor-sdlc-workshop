@@ -4436,6 +4436,60 @@ canvas {
   margin: 0 0 1rem;
 }
 
+.brand-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+
+.brand-theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.14));
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.brand-theme-card:hover {
+  border-color: rgba(62, 220, 129, 0.55);
+}
+
+.brand-theme-card.is-active {
+  border-color: #3edc81;
+  background: rgba(62, 220, 129, 0.08);
+}
+
+.brand-theme-swatches {
+  display: flex;
+  height: 26px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.brand-theme-swatch {
+  flex: 1;
+}
+
+.brand-theme-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text, #f2efe8);
+}
+
+.brand-theme-active-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3edc81;
+}
+
 .ai-keys-sub strong.ai-keys-legend-saved {
   color: #4ade80;
 }

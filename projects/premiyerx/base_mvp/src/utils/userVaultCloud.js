@@ -1,9 +1,14 @@
 /**
  * Cloud vault: voice corpus + API keys via /api/user-vault (Vercel Blob).
  */
-import { ensureCloudSyncIdFromPassphrase, hasCloudSyncPassphrase } from './cloudSync.js'
+import {
+  ensureCloudSyncIdFromPassphrase,
+  hasCloudSyncPassphrase,
+  getSavedSyncPassphrase,
+} from './cloudSync.js'
 import { vaultGetSync, vaultPutSync, TRACKED_VAULT_KEYS } from './apiKeyVault.js'
 import { vaultGetCorpusSync, vaultPutCorpusSync } from './voiceCorpusVault.js'
+import { encryptVaultPayload, decryptVaultPayload, isVaultEnvelope } from './vaultCrypto.js'
 
 let pushTimer = null
 
@@ -36,13 +41,29 @@ export async function fetchCloudVault() {
     if (res.status === 503) return { ok: false, reason: 'cloud_unconfigured' }
     if (!res.ok) return { ok: false, reason: 'not_found' }
     const j = await res.json()
+
+    // Preferred path: encrypted envelope decrypted client-side with the sync passphrase.
+    let keys = j.keys && typeof j.keys === 'object' ? j.keys : {}
+    let corpusText = String(j.corpus?.text || '').trim()
+    let corpusUpdated = String(j.corpus?.updated || '').trim()
+
+    if (isVaultEnvelope(j.enc)) {
+      const decrypted = await decryptVaultPayload(j.enc, getSavedSyncPassphrase())
+      if (decrypted && typeof decrypted === 'object') {
+        keys = decrypted.keys && typeof decrypted.keys === 'object' ? decrypted.keys : {}
+        corpusText = String(decrypted.corpus?.text || '').trim()
+        corpusUpdated = String(decrypted.corpus?.updated || corpusUpdated || '').trim()
+      } else {
+        // Envelope present but undecryptable (wrong passphrase) — don't fall back to plaintext.
+        keys = {}
+        corpusText = ''
+      }
+    }
+
     return {
       ok: true,
-      corpus: {
-        text: String(j.corpus?.text || '').trim(),
-        updated: String(j.corpus?.updated || '').trim(),
-      },
-      keys: j.keys && typeof j.keys === 'object' ? j.keys : {},
+      corpus: { text: corpusText, updated: corpusUpdated },
+      keys,
       updated: String(j.updated || '').trim(),
     }
   } catch {
@@ -54,11 +75,27 @@ export async function pushCloudVault(snapshot) {
   const syncId = await getVaultSyncId()
   if (!syncId) return { ok: false, reason: 'no_sync_id' }
   const body = snapshot || collectLocalVaultSnapshot()
+
+  // Encrypt all sensitive material (API keys + corpus) before it leaves the device.
+  // Timestamps stay in cleartext so the server can run last-write-wins merges.
+  const enc = await encryptVaultPayload({ keys: body.keys || {}, corpus: body.corpus || {} }, getSavedSyncPassphrase())
+  if (!enc) {
+    // Never upload plaintext secrets. If encryption is unavailable, skip the cloud push.
+    return { ok: false, reason: 'encryption_unavailable' }
+  }
+
+  const requestBody = {
+    syncId,
+    enc,
+    updated: body.updated || new Date().toISOString(),
+    corpus: { updated: body.corpus?.updated || '' },
+  }
+
   try {
     const res = await fetch('/api/user-vault', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ syncId, ...body }),
+      body: JSON.stringify(requestBody),
     })
     if (res.status === 503) return { ok: false, reason: 'cloud_unconfigured' }
     if (!res.ok) return { ok: false, reason: 'upload_failed' }

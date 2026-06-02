@@ -78,6 +78,8 @@ ${formatBreakdownBrief(breakdown)}
 
 RULES (non-negotiable):
 - Keep Prem Iyer's voice: operator + investor, peer to CIOs/VPs — not generic AI LinkedIn.
+- HOOK: open with a STAT (number/%, best lift), STORY (first-person scene), or sharp CONTRARIAN line. NEVER an imperative/command opener ("Stop…", "Read this", "Here's the truth nobody…") — the 2026 ranker treats those as templated and suppresses reach. First 1–2 lines (≤210 chars) must carry tension or an open loop.
+- STACK TACTICS: weave in at least 4 of {quantified proof, open loop, one memorable quote line, a 1–3 word pattern-interrupt line, social proof (named role/scale)} — viral posts stack 4–6, not one.
 - Add or sharpen ONE lived-in detail if specificity is weak: a number, named role, scene, time anchor, or mistake.
 - Vary sentence length; break three same-length sentences in a row; one short reaction line is fine.
 - Every line must be grammatically complete (ends with . ! or ?; all parentheses closed). Never stop mid-phrase or mid-parenthetical.
@@ -92,7 +94,7 @@ RULES (non-negotiable):
 CURRENT DRAFT:
 ${formatPostForPrompt(post)}
 
-Output ONLY the revised post using the same section labels (HOOK, BODY, CTA, HASHTAGS, FIRST_COMMENT). No commentary.`
+Output ONLY the revised post using the same section labels (HOOK, BODY, CTA, HASHTAGS, FIRST_COMMENT). No commentary, word counts, character counts, token lists, or chain-of-thought.`
 }
 
 function finishPipelineResult(current, editorPasses) {

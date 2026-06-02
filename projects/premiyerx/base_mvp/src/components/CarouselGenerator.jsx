@@ -230,6 +230,46 @@ function humanizeTrioLine(raw, slot) {
   return takeawayCopy(`${slot.lead}: ${firstSentence(t, 110)}`, 100, 145)
 }
 
+/**
+ * Cover-variant promises (Feature Deep-Dive arc): a save-worthy promise on the cover instead
+ * of a flat "A note on …". Deterministic per topic+day so the cover is stable within a day
+ * but rotates across the week.
+ */
+const COVER_PROMISE_VARIANTS = [
+  (s) => `Save this ${s} breakdown`,
+  (s) => `The 2-minute ${s} briefing`,
+  (s) => `What most teams get wrong about ${s}`,
+  (s) => `A field guide to ${s}`,
+  (s) => `Read before your next ${s} review`,
+]
+
+function deckSeedIndex(key, mod) {
+  let h = 2166136261
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return (h >>> 0) % mod
+}
+
+function pickCoverEyebrow(topicId, topicShort) {
+  const key = `${topicId}|${new Date().toUTCString().slice(0, 16)}`
+  const variant = COVER_PROMISE_VARIANTS[deckSeedIndex(key, COVER_PROMISE_VARIANTS.length)]
+  return variant(topicShort).slice(0, 56)
+}
+
+/**
+ * Resource-bribe / save driver on the closer — carousels live or die on save-to-impression
+ * (the strongest 360Brew signal). Prepend a short save nudge unless the sub already nudges saving.
+ */
+function addSaveDriver(sub, topicShort) {
+  const driver = `Save this for your next ${topicShort} call.`
+  const base = (sub || '').trim()
+  if (!base) return driver
+  if (/\bsave this\b/i.test(base)) return base
+  return `${driver} ${base}`.slice(0, 200)
+}
+
 function buildIntuitiveTrio(narrative, fallbackArgs) {
   const { bullets, hook, subdeck } = fallbackArgs
   const bt = allBulletStrings(bullets)
@@ -809,9 +849,7 @@ function parseIntoSlides(text, topicId = '') {
         118,
       )
     : hook
-  const coverEyebrow = subdeck
-    ? `A note on ${topicShortLabel(topicLabel)}`
-    : `A note on ${topicShortLabel(topicLabel)}`
+  const coverEyebrow = pickCoverEyebrow(topicId, topicShortLabel(topicLabel))
   slides.push({ type: 'cover', text: coverText, topicLabel, subdeck, coverEyebrow })
   headlineGuard.add(coverText)
 
@@ -965,7 +1003,7 @@ function parseIntoSlides(text, topicId = '') {
     text,
   )
   headlineGuard.add(closerHeadline)
-  const closerSub = pickCommentPrompt(closerHeadline, bullets, topicId, text)
+  const closerSub = addSaveDriver(pickCommentPrompt(closerHeadline, bullets, topicId, text), topicShort)
   slides.push({
     type: 'closer',
     headline: closerHeadline,

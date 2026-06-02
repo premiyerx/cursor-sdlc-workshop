@@ -3,6 +3,7 @@
  * Each browser gets a syncId (UUID in localStorage); corpus is private to that id unless shared.
  */
 import { head, put } from '@vercel/blob'
+import { applyCors } from './_cors.js'
 
 export const config = {
   maxDuration: 30,
@@ -10,19 +11,12 @@ export const config = {
 
 const SYNC_ID_RE = /^[a-zA-Z0-9_-]{20,64}$/
 
-function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept')
-  res.setHeader('Access-Control-Max-Age', '86400')
-}
-
 function blobPath(syncId) {
   return `voice-corpus/${syncId}.json`
 }
 
 export default async function handler(req, res) {
-  setCors(res)
+  applyCors(req, res, 'GET, PUT, OPTIONS')
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end()

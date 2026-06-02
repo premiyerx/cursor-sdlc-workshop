@@ -301,10 +301,31 @@ async function callAnthropic(profile, { systemPrompt, userPrompt, apiKey }) {
   return text
 }
 
+function geminiModelUsesThinking(modelId) {
+  return /gemini-3/i.test(String(modelId || ''))
+}
+
+function geminiGenerationConfig(modelId) {
+  const config = {
+    temperature: 0.9,
+    maxOutputTokens: 8192,
+  }
+  // Gemini 3+ defaults to deep thinking; that meta must not land in LinkedIn copy.
+  if (geminiModelUsesThinking(modelId)) {
+    config.thinkingConfig = { thinkingLevel: 'minimal' }
+  }
+  return config
+}
+
 function geminiExtractText(data) {
   const cand = data.candidates?.[0]
   const parts = cand?.content?.parts
-  const text = Array.isArray(parts) ? parts.map((p) => p.text || '').join('') : ''
+  const text = Array.isArray(parts)
+    ? parts
+        .filter((p) => p && !p.thought && p.type !== 'thought')
+        .map((p) => p.text || '')
+        .join('')
+    : ''
   if (text.trim()) return text
 
   const block = data.promptFeedback?.blockReason
@@ -333,10 +354,7 @@ async function callGemini(profile, { systemPrompt, userPrompt, apiKey }) {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      generationConfig: {
-        temperature: 0.9,
-        maxOutputTokens: 8192,
-      },
+      generationConfig: geminiGenerationConfig(profile.apiModel),
     }),
   })
   if (!response.ok) {

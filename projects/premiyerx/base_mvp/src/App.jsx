@@ -10,6 +10,7 @@ import { getOpenAiKey } from './utils/openaiKey'
 import VoiceProfile from './components/VoiceProfile'
 import ApiKeysPanel from './components/ApiKeysPanel'
 import CloudSyncPanel from './components/CloudSyncPanel'
+import BrandThemePanel from './components/BrandThemePanel'
 import SettingsAccordion from './components/SettingsAccordion'
 import OptionalAngleField from './components/OptionalAngleField'
 import ThreeModelWorkbench, { variantPostToLiveText } from './components/ThreeModelWorkbench'
@@ -417,7 +418,7 @@ export default function App() {
           {generateBusy && generatePhase === 'post' && (
             <CommandProgress
               progress={postProgress}
-              stage={postStage || 'Running GPT 5.5, Claude Opus 4.8, and Gemini…'}
+              stage={postStage || 'Running GPT 5.5, Claude Opus 4.8, and Gemini 3.5…'}
               complete={phaseComplete}
               sub="Usually 15–30 seconds"
             />
@@ -465,6 +466,7 @@ export default function App() {
               onLlmKeysSaved={handleLlmKeysSaved}
             />
             <VoiceProfile />
+            <BrandThemePanel />
           </SettingsAccordion>
         </section>
       </main>

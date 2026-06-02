@@ -10,6 +10,7 @@ import { generateCreativeHeadline, pickCreativeCatalogHeadline, BANNED_REPEAT } 
 import { formatStatForPrompt, sanitizeHeadlineGrammar } from './factualClaims.js'
 import { buildBreakingNewsVisualRules, registrySourceIsFreshEnough } from './dateFreshness.js'
 import { getOpenAiKey } from './openaiKey'
+import { getActiveBrandTheme, brandFooter, brandCarouselColors } from '../data/brandTokens.js'
 
 /** Rotating “families” = quality bar (polish, hierarchy) without locking every image to the same newspaper trope. */
 const EDITORIAL_FAMILIES = [
@@ -171,8 +172,6 @@ function formatBreakingWireBlock(infographicModel) {
   ].join('\n')
 }
 
-const INFOGRAPHIC_FOOTER = 'Prem Iyer · AI Software Transformation'
-
 /** Each run picks a few of these — not every image needs Sankey + sidebar + five KPIs. */
 const VIZ_ELEMENT_POOL = [
   'One hero data visualization (choose what fits: waterfall, grouped bars, slope chart, stream segment, donut cluster, funnel, or a restrained flow — avoid defaulting to Sankey unless the story is genuinely about flows).',
@@ -260,6 +259,8 @@ function buildPrompt({
 }) {
   const fullRecipe = recipe || pickInfographicRecipe(refreshSeed)
   const { family, layout, palette, kicker, vizFull, vizCompact } = fullRecipe
+  const brand = getActiveBrandTheme()
+  const footer = brand.footer
   const narrative = getTopicNarrative(topicId)
   const stats = (infographicModel?.verifiedStats || []).slice(0, 5)
   const theme = (postTheme || infographicModel?.hook || narrative.coreThesis || '').slice(0, 120)
@@ -276,7 +277,8 @@ function buildPrompt({
     'Prioritize clarity, typography, and believable visual hierarchy — *high-end fidelity*, not the same layout every time.',
     'Vary composition, chart species, and graphic language between generations; avoid cookie-cutter “ROI dashboard” sameness (identical Sankey + sidebar + metric strip).',
     ...family.styleLines,
-    `Palette and mood: ${palette}.`,
+    `BRAND PALETTE (keep consistent across all my posts): ${brand.palettePrompt}.`,
+    `Optional secondary mood cue (stay within the brand palette above): ${palette}.`,
   ].join('\n')
 
   if (tier === 'minimal') {
@@ -291,7 +293,7 @@ function buildPrompt({
       prios.length ? ['', 'VISUAL PRIORITIES (this run):', ...prios.map((v, i) => `${i + 1}. ${v}`)].join('\n') : '',
       `Verified numbers ONLY:\n${statsBlock}`,
       `One clear focal insight from the stats (callout, big figure, or simple chart — designer's choice).`,
-      `Small footer only: ${INFOGRAPHIC_FOOTER}. No version codes, build IDs, hashes, or deploy stamps.`,
+      `Small footer only: ${footer}. No version codes, build IDs, hashes, or deploy stamps.`,
       buildNewsroomAlgorithmLine(),
     ]
       .filter(Boolean)
@@ -321,7 +323,7 @@ function buildPrompt({
       statsBlock,
       '',
       'RULES: intentional hierarchy, legible labels, credible tone; no invented statistics.',
-      `Footer only: ${INFOGRAPHIC_FOOTER}. No version codes or build IDs.`,
+      `Footer only: ${footer}. No version codes or build IDs.`,
       'Dates on charts: use the current month/year only, or a timeline that includes the current year — never a lone 2024/2025 stat as “this week”.',
       buildNewsroomAlgorithmLine(),
     ].join('\n')
@@ -350,7 +352,7 @@ function buildPrompt({
     'FORBIDDEN: invented statistics, illegible micro-labels, stock photos of people, tacky neon gamer UI, clip-art icons, or samey template filler.',
     'FORBIDDEN: "500+" or any count above 500 paired with "Fortune 500" — the F500 list has exactly 500 companies; use "50%+" or "majority of Fortune 500" only when provided in VERIFIED DATA.',
     'GRAMMAR: headlines must use "back to the terminal" (with "the"), not "back terminal".',
-    `Credit line only: ${INFOGRAPHIC_FOOTER}. No version codes, build IDs, or hex stamps.`,
+    `Credit line only: ${footer}. No version codes, build IDs, or hex stamps.`,
     'Any year labels must be current or an explicit multi-year timeline — not a random 2024/2025 datapoint.',
     buildNewsroomAlgorithmLine(),
   ].join('\n')
@@ -547,9 +549,10 @@ export function buildCarouselPlatformSlidePrompt({
 }) {
   const body = String(bodyText || '').replace(/\s+/g, ' ').trim().slice(0, 520)
   const trio = (trioHints || []).filter(Boolean).slice(0, 3).join(' | ')
+  const c = brandCarouselColors()
   return [
     'Create ONE infographic image for a single slide in a LinkedIn PDF carousel (portrait 4:5 page; this art sits in a WIDE horizontal band ~980×700px).',
-    'Visual framing: dark background (#050505), cream/ivory typography (#f2efe8), accent green (#3EDC81) for highlights and connectors — high-contrast editorial or financial print style.',
+    `Visual framing (match my brand exactly): background ${c.bg}, typography ${c.ink}, accent ${c.accent} for highlights and connectors — high-contrast editorial or financial print style.`,
     '',
     `Topic label: ${topicLabel || 'AI × software delivery'}.`,
     `Slide headline (capture the idea, do not paste as a dense wall of text): ${String(titleMain || '').slice(0, 200)} — ${String(titleAccent || '').slice(0, 140)}.`,
@@ -562,7 +565,7 @@ export function buildCarouselPlatformSlidePrompt({
     'DO NOT: fake dashboards, meaningless sparklines, tiny unreadable text, stock photos of people, generic clipart, duplicate caption columns under the art, or any 8-tab “THEMES / SCOPE / …” navigation strip.',
     'DO NOT invent KPIs. Never label "500+ Fortune 500" — use "50%+" or "majority of Fortune 500" only if the supporting copy includes it.',
     '',
-    'Small footer: Prem Iyer · AI Software Transformation',
+    `Small footer: ${brandFooter()}`,
   ]
     .filter(Boolean)
     .join('\n')

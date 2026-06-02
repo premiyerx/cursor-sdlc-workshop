@@ -1,46 +1,48 @@
 /**
- * Private cloud vault (Vercel Blob): voice corpus + API keys per syncId.
+ * Private cloud vault (Vercel Blob): encrypted API keys + voice corpus per syncId.
  * Requires BLOB_READ_WRITE_TOKEN. syncId = SHA-256 of user sync passphrase (client-side).
+ *
+ * SECURITY: the blob is publicly reachable, so the client encrypts all secrets
+ * (AES-GCM) before upload. This endpoint stores/returns only the opaque `enc`
+ * envelope and cleartext timestamps — it never sees plaintext API keys.
  */
 import { head, put } from '@vercel/blob'
+import { applyCors } from './_cors.js'
 
 export const config = {
   maxDuration: 30,
 }
 
 const SYNC_ID_RE = /^[a-zA-Z0-9_-]{20,64}$/
-const MAX_BYTES = 120_000
+const MAX_BYTES = 200_000
 
-function setCors(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept')
-  res.setHeader('Access-Control-Max-Age', '86400')
+function setCors(req, res) {
+  applyCors(req, res, 'GET, PUT, OPTIONS')
 }
 
 function blobPath(syncId) {
   return `user-vault/${syncId}.json`
 }
 
-function sanitizeKeys(raw) {
-  const keys = {}
-  if (!raw || typeof raw !== 'object') return keys
-  const allowed = [
-    'openai_key',
-    'anthropic_api_key',
-    'gemini_api_key',
-    'unsplash_access_key',
-    'lidp_gnews_api_key',
-  ]
-  for (const k of allowed) {
-    const v = String(raw[k] ?? '').trim()
-    if (v) keys[k] = v
+/** Accept only a well-formed AES-GCM envelope (opaque ciphertext + base64 metadata). */
+function sanitizeEnvelope(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  if (raw.alg !== 'AES-GCM' || typeof raw.ct !== 'string') return null
+  const env = {
+    v: Number(raw.v) || 1,
+    alg: 'AES-GCM',
+    kdf: typeof raw.kdf === 'string' ? raw.kdf.slice(0, 32) : 'PBKDF2-SHA256',
+    iter: Number(raw.iter) || 150000,
+    salt: String(raw.salt || '').slice(0, 256),
+    iv: String(raw.iv || '').slice(0, 128),
+    ct: String(raw.ct).slice(0, 180_000),
   }
-  return keys
+  if (!env.salt || !env.iv || !env.ct) return null
+  return env
 }
 
 export default async function handler(req, res) {
-  setCors(res)
+  setCors(req, res)
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end()
@@ -70,12 +72,10 @@ export default async function handler(req, res) {
       const r = await fetch(meta.url, { cache: 'no-store' })
       if (!r.ok) return res.status(404).json({ error: 'not_found' })
       const j = await r.json()
+      const env = sanitizeEnvelope(j.enc)
       return res.status(200).json({
-        corpus: {
-          text: String(j.corpus?.text || j.text || ''),
-          updated: String(j.corpus?.updated || j.updated || ''),
-        },
-        keys: sanitizeKeys(j.keys),
+        enc: env,
+        corpus: { updated: String(j.corpus?.updated || j.updated || '') },
         updated: String(j.updated || ''),
       })
     } catch (e) {
@@ -95,13 +95,16 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'invalid_json' })
       }
     }
-    const text = String(body?.corpus?.text ?? body?.text ?? '').trim()
+    const env = sanitizeEnvelope(body?.enc)
+    if (!env) {
+      // Reject any attempt to store plaintext secrets — clients must encrypt first.
+      return res.status(400).json({ error: 'encrypted_payload_required' })
+    }
     const corpusUpdated = String(body?.corpus?.updated ?? body?.updated ?? new Date().toISOString())
-    const keys = sanitizeKeys(body?.keys)
     const updated = String(body?.updated ?? new Date().toISOString())
     const payload = JSON.stringify({
-      corpus: { text, updated: corpusUpdated },
-      keys,
+      enc: env,
+      corpus: { updated: corpusUpdated },
       updated,
     })
     if (payload.length > MAX_BYTES) {
