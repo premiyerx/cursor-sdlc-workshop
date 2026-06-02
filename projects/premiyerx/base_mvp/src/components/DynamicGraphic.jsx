@@ -7,6 +7,7 @@ import { createCompanionGraphic } from '../utils/companionGraphic'
 import { hasOpenAiKey, getOpenAiKey } from '../utils/aiPostGenerator'
 import { getOpenAiKeyStatus } from '../utils/openaiKey'
 import HeadlineInfographic from './HeadlineInfographic'
+import InfographicTextOverlay from './InfographicTextOverlay'
 import ProgressRing from './ProgressRing'
 import { useFlashFeedback } from '../hooks/useFlashFeedback'
 import { saveImageToDevice, saveSuccessMessage } from '../utils/saveImage'
@@ -707,7 +708,14 @@ export default function DynamicGraphic({
 
       {showGraphicPreview && imageMode === 'newsroom' && newsroomImage && (
         <div className="image-wrapper image-wrapper-graphic">
-          <img src={newsroomImage} alt="LinkedIn infographic for your post" className="companion-photo" />
+          <InfographicTextOverlay
+            imageSrc={newsroomImage}
+            accent={palette.accent}
+            onCommit={(dataUrl) => {
+              setNewsroomImage(dataUrl)
+              flashOk('Text edits applied. Save the graphic to download the updated version.')
+            }}
+          />
           <div className="unsplash-credit">
             {newsroomStyle} layout · ready for LinkedIn · Prem Iyer
           </div>
@@ -776,7 +784,14 @@ export default function DynamicGraphic({
 
       {showGraphicPreview && imageMode === 'ai' && aiImage && (
         <div className="image-wrapper image-wrapper-graphic">
-          <img src={aiImage} alt="AI-generated LinkedIn graphic" className="companion-photo" />
+          <InfographicTextOverlay
+            imageSrc={aiImage}
+            accent={palette.accent}
+            onCommit={(dataUrl) => {
+              setAiImage(dataUrl)
+              flashOk('Text edits applied. Save the graphic to download the updated version.')
+            }}
+          />
           <div className="unsplash-credit">AI picture · Prem Iyer</div>
         </div>
       )}

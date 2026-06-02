@@ -260,7 +260,7 @@ CONTEXT:
 ${realtimeContext}
 
 DATA ACCURACY: Every stat needs inline source tied to CONTEXT headlines when possible. Never invent funding, dates, or customer names. Never output internal drafting labels (e.g. RE-HOOK, ALT HOOK, INTERNAL).
-- FACTUAL ENGLISH: Never write "500+ Fortune 500" (only 500 companies exist). Say "majority of Fortune 500" or "50%+" with source. Use "back to the terminal" not "back terminal". Spell out "Q2 (second quarter)" if you use quarter shorthand. List beats must be full sentences — not naked "The demo passes." without where/why.
+- FACTUAL ENGLISH: Never write "500+ Fortune 500" (only 500 companies exist). Say "majority of Fortune 500" or use the verified-data percentage. Use "back to the terminal" not "back terminal". Spell out "Q2 (second quarter)" if you use quarter shorthand. List beats must be full sentences — not naked "The demo passes." without where/why.
 
 ALGORITHM (2026): Mobile feed first. Target ~${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax} characters total with ${POST_LENGTH.minDoubleLineBreaks}+ blank-line breaks — brief beats long. Optimize comment threads (comments >> likes). FIRST_COMMENT within 60 minutes: one new insight not in body + a short second question; founder will pin when possible.
 

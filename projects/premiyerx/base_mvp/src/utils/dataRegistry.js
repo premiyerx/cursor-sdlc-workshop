@@ -14,7 +14,7 @@ const BUILT_IN_DATA = {
     category: 'cursor',
   },
   cursor_fortune500: {
-    claim: 'Majority (50%+) of Fortune 500 companies use Cursor — not 500+ customers',
+    claim: 'Majority (67%+) of Fortune 500 companies use Cursor — not 500+ customers',
     source: 'Cursor, 2026',
     sourceUrl: 'https://www.cursor.com',
     category: 'cursor',
@@ -27,7 +27,7 @@ const BUILT_IN_DATA = {
     category: 'investment',
   },
   cursor_arr: {
-    claim: 'Cursor has $2B+ ARR',
+    claim: 'Cursor has $3B+ ARR',
     source: 'Multiple sources, 2026',
     sourceUrl: 'https://aifundingtracker.com/cursor-revenue-valuation/',
     category: 'cursor',

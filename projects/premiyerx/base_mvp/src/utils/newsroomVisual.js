@@ -350,7 +350,7 @@ function buildPrompt({
     statsBlock,
     '',
     'FORBIDDEN: invented statistics, illegible micro-labels, stock photos of people, tacky neon gamer UI, clip-art icons, or samey template filler.',
-    'FORBIDDEN: "500+" or any count above 500 paired with "Fortune 500" — the F500 list has exactly 500 companies; use "50%+" or "majority of Fortune 500" only when provided in VERIFIED DATA.',
+    'FORBIDDEN: "500+" or any count above 500 paired with "Fortune 500" — the F500 list has exactly 500 companies. Use the percentage from VERIFIED DATA, or "majority of Fortune 500".',
     'GRAMMAR: headlines must use "back to the terminal" (with "the"), not "back terminal".',
     `Credit line only: ${footer}. No version codes, build IDs, or hex stamps.`,
     'Any year labels must be current or an explicit multi-year timeline — not a random 2024/2025 datapoint.',
@@ -563,7 +563,7 @@ export function buildCarouselPlatformSlidePrompt({
     'Landscape composition (~3:2): icons + arrows in one row; no paragraphs; no text below the diagram band.',
     '',
     'DO NOT: fake dashboards, meaningless sparklines, tiny unreadable text, stock photos of people, generic clipart, duplicate caption columns under the art, or any 8-tab “THEMES / SCOPE / …” navigation strip.',
-    'DO NOT invent KPIs. Never label "500+ Fortune 500" — use "50%+" or "majority of Fortune 500" only if the supporting copy includes it.',
+    'DO NOT invent KPIs. Never label "500+ Fortune 500" — use the percentage from VERIFIED DATA, or "majority of Fortune 500", only if the supporting copy includes it.',
     '',
     `Small footer: ${brandFooter()}`,
   ]

@@ -8,7 +8,7 @@ import { extractClaimsFromText } from './dataRegistry.js'
 /** Canonical on-visual labels for registry rows (value + context must be logically consistent). */
 const REGISTRY_DISPLAY = {
   cursor_fortune500: {
-    value: '50%+',
+    value: '67%+',
     context: 'of Fortune 500 companies use Cursor',
     sourceNote: 'Majority of the F500 list — never "500+" customers',
   },
@@ -17,7 +17,7 @@ const REGISTRY_DISPLAY = {
     context: 'businesses on Cursor',
   },
   cursor_arr: {
-    value: '$2B+',
+    value: '$3B+',
     context: 'annualized revenue (reported 2026)',
   },
   cursor_users: {
@@ -137,7 +137,7 @@ export function formatStatForDisplay(stat) {
 
   if (IMPOSSIBLE_F500_RE.test(combined) || /\b500\+\s*Fortune\s*500/i.test(combined)) {
     return {
-      value: '50%+',
+      value: '67%+',
       context: 'of Fortune 500 companies',
       source: stat.source || 'Cursor, 2026',
       registryId: stat.registryId || 'cursor_fortune500',
