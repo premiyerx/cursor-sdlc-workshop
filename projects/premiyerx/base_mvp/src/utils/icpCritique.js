@@ -195,6 +195,84 @@ function applyIcpSwaps(text) {
   return t.replace(/[ \t]{2,}/g, ' ').replace(/\s+\n/g, '\n').trim()
 }
 
+/** Lookup table for short + long month names → 0-indexed month. */
+const MONTH_INDEX = {
+  jan: 0, january: 0,
+  feb: 1, february: 1,
+  mar: 2, march: 2,
+  apr: 3, april: 3,
+  may: 4,
+  jun: 5, june: 5,
+  jul: 6, july: 6,
+  aug: 7, august: 7,
+  sep: 8, sept: 8, september: 8,
+  oct: 9, october: 9,
+  nov: 10, november: 10,
+  dec: 11, december: 11,
+}
+
+/**
+ * Strip stale calendar-date references from generated copy.
+ *
+ * Even with tight upstream filters, models trained on older data sometimes
+ * improvise a specific historical date ("the Apr 9 Hacker News post",
+ * "back in March 22 article…"). To a reader who lives in AI, citing a
+ * 6-week-old date in a "what's happening now" post is the killshot for
+ * credibility.
+ *
+ * Strategy: find Month+Day phrases. If the date is older than `staleDays`
+ * (computed from "now"), rewrite the phrase to a hedged "recently" / "this
+ * week" replacement and drop any trailing "Hacker News post / HN thread /
+ * article / piece / story" qualifier that would re-anchor it.
+ *
+ * Year assumption: we treat the date as the current year. If that puts the
+ * date in the future, we assume the prior year (e.g. "Dec 28" generated on
+ * Jan 5 → Dec 28 of last year).
+ *
+ * @param {string} text
+ * @param {{ staleDays?: number, now?: Date }} [options]
+ */
+export function scrubStaleDateRefs(text, options = {}) {
+  if (!text) return ''
+  const staleDays = options.staleDays ?? 14
+  const now = options.now instanceof Date ? options.now : new Date()
+  const cutoff = now.getTime() - staleDays * 86_400_000
+
+  const monthAlt = Object.keys(MONTH_INDEX).join('|')
+  // Match "Apr 9", "Apr. 9", "April 9", "April 9th", optionally followed by
+  // a year ("Apr 9, 2026") and an optional qualifier we want to drop with it
+  // ("Hacker News post", "HN thread", "article", "piece", "story", "report").
+  const dateRe = new RegExp(
+    `\\b(?:on |back on |from |since |last |the )?(?:(${monthAlt})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s*(20\\d{2}))?)(\\s+(?:(?:Hacker\\s+News|HN)\\s+(?:post|thread|story|article|piece|item)|article|piece|story|post|report|memo|note|piece))?`,
+    'gi',
+  )
+
+  return text.replace(dateRe, (match, monthRaw, dayRaw, yearRaw, qualifier) => {
+    const monthIdx = MONTH_INDEX[String(monthRaw).toLowerCase()]
+    if (monthIdx == null) return match
+    const day = parseInt(dayRaw, 10)
+    if (!Number.isFinite(day) || day < 1 || day > 31) return match
+
+    let year = yearRaw ? parseInt(yearRaw, 10) : now.getFullYear()
+    let dateTs = new Date(Date.UTC(year, monthIdx, day, 12, 0, 0)).getTime()
+    // If we defaulted year and that puts the date in the future, roll back.
+    if (!yearRaw && dateTs > now.getTime()) {
+      year -= 1
+      dateTs = new Date(Date.UTC(year, monthIdx, day, 12, 0, 0)).getTime()
+    }
+    if (dateTs >= cutoff) return match // date is fresh enough — keep as-is
+
+    // Stale: replace the whole phrase (date + optional qualifier) with a
+    // hedge that doesn't anchor to a calendar day.
+    const leading = match.match(/^(on |back on |from |since |last |the )/i)
+    const prefix = leading ? '' : ''
+    const replacement = qualifier
+      ? 'recent reporting'
+      : 'recently'
+    return `${prefix}${replacement}`
+  })
+}
+
 /**
  * If a sentence reads like an open declaration ("…stack the right tools.") in the CTA,
  * convert it to a peer-to-peer ICP question. Conservative — only triggers when there is
@@ -216,7 +294,10 @@ function ensureIcpCtaQuestion(cta) {
  */
 export function applyIcpCritique(post) {
   if (!post) return post
-  const clean = (text) => stripDashesFromCopy(scrubMetaLabels(applyIcpSwaps(dropEmojis(text || ''))))
+  const clean = (text) =>
+    stripDashesFromCopy(
+      scrubStaleDateRefs(scrubMetaLabels(applyIcpSwaps(dropEmojis(text || '')))),
+    )
   const hook = clean(post.hook)
   const body = clean(post.body)
   const cta = ensureIcpCtaQuestion(clean(post.cta))

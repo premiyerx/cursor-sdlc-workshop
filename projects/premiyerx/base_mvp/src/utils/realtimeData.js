@@ -1,10 +1,15 @@
 import { fnv1a } from './generationVariety'
 import { vaultGetSync, vaultPutSync } from './apiKeyVault.js'
 import { researchForTopic } from '../data/topicIntel'
+import { FALLBACK_HEADLINE_MAX_DAYS } from './dateFreshness.js'
 
 const CACHE_KEY = 'lidp_realtime_cache'
-/** Soft TTL when not forcing refresh — still bypassed on every Generate via forceRefresh. */
-const CACHE_TTL = 60 * 60 * 1000
+/**
+ * Soft TTL when not forcing refresh. 20 minutes — short enough that a stale
+ * AI headline cached an hour ago doesn't surface in a fresh Generate.
+ * Generate paths use forceRefresh:true anyway; this guards everything else.
+ */
+const CACHE_TTL = 20 * 60 * 1000
 
 const GNEWS_KEY_STORAGE = 'lidp_gnews_api_key'
 const GNEWS_KEY_SAVED_AT = 'lidp_gnews_api_key_saved_at'
@@ -98,8 +103,21 @@ function headlineKey(h) {
   return (h.title || '').toLowerCase().trim().slice(0, 140)
 }
 
+/** Cutoff timestamp (seconds since epoch) for "fresh enough" upstream API filtering. */
+function freshUpstreamCutoffSeconds() {
+  return Math.floor((Date.now() - FALLBACK_HEADLINE_MAX_DAYS * 86_400_000) / 1000)
+}
+
+/** ISO timestamp for the GNews `from` parameter (UTC). */
+function freshUpstreamCutoffIso() {
+  return new Date(Date.now() - FALLBACK_HEADLINE_MAX_DAYS * 86_400_000).toISOString()
+}
+
 async function fetchHackerNewsStories(query, hitsPerPage = 10) {
-  const url = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=${hitsPerPage}`
+  // numericFilters bounds the result set at the API layer — for niche AI
+  // queries HN can otherwise hand back ancient threads with high points.
+  const cutoff = freshUpstreamCutoffSeconds()
+  const url = `https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(query)}&tags=story&hitsPerPage=${hitsPerPage}&numericFilters=${encodeURIComponent(`created_at_i>=${cutoff}`)}`
   const res = await fetch(url)
   if (!res.ok) return []
   const data = await res.json()
@@ -116,7 +134,9 @@ async function fetchHackerNewsStories(query, hitsPerPage = 10) {
 
 async function fetchGNewsHeadlines(query, max = 10) {
   const apiKey = getGnewsApiKey()
-  const gNewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=${max}&sortby=publishedAt&apikey=${encodeURIComponent(apiKey)}`
+  // `from` constrains the API itself so old articles don't even cross the wire.
+  const from = freshUpstreamCutoffIso()
+  const gNewsUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=${max}&sortby=publishedAt&from=${encodeURIComponent(from)}&apikey=${encodeURIComponent(apiKey)}`
   const res = await fetch(gNewsUrl)
   if (!res.ok) return []
   const data = await res.json()
@@ -141,16 +161,18 @@ function mergeHeadlines(groups) {
   const merged = [...map.values()]
   merged.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 
-  const maxAgeMs = 75 * 86_400_000
+  // Cap at the same 28-day fallback bound the prompt-formatter uses.
+  // Previously this was 75 days, which let weeks-old HN stories survive
+  // long enough to leak into the model's context.
+  const maxAgeMs = FALLBACK_HEADLINE_MAX_DAYS * 86_400_000
   const now = Date.now()
   const dated = merged.filter((h) => {
-    if (!h.date) return true
+    if (!h.date) return false // require a parseable date — undated items are not "current news"
     const t = new Date(h.date + 'T12:00:00Z').getTime()
-    if (Number.isNaN(t)) return true
+    if (Number.isNaN(t)) return false
     return now - t <= maxAgeMs
   })
-  // Prefer recent items for AI relevance; fall back if the feed is thin.
-  return (dated.length >= 5 ? dated : merged).slice(0, 22)
+  return dated.slice(0, 22)
 }
 
 /**

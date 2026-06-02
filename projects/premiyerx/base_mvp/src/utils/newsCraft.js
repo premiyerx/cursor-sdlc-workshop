@@ -1,5 +1,10 @@
 import { headlinePromptOffset, fnv1a } from './generationVariety'
-import { filterBreakingHeadlines, FRESH_HEADLINE_MAX_DAYS, headlineAgeDays } from './dateFreshness.js'
+import {
+  filterBreakingHeadlines,
+  FRESH_HEADLINE_MAX_DAYS,
+  FALLBACK_HEADLINE_MAX_DAYS,
+  headlineAgeDays,
+} from './dateFreshness.js'
 import { getTopicNarrative } from '../data/topicNarratives'
 import { buildViralCraftBlock, pickViralArchetype } from './viralCraft'
 import { rotateSlice, bumpRefreshSeed } from './freshnessRotation'
@@ -62,8 +67,20 @@ function scoreHeadline(headline, topicId) {
  */
 export function selectHeadlinesForTopic(headlines, topicId, count = 5) {
   if (!headlines?.length) return []
+
+  // 1. Strict freshness window (≤14d). This is the bar — AI moves fast and a
+  //    LinkedIn post anchored on a 6-week-old headline reads stale on arrival.
   const fresh = filterBreakingHeadlines(headlines, FRESH_HEADLINE_MAX_DAYS)
-  const pool = fresh.length ? fresh : headlines.filter((h) => headlineAgeDays(h.date) <= 45)
+
+  // 2. If we don't have enough, allow a soft fallback to 28 days. NEVER pull
+  //    older than this — the previous implementation had a variety-fallback
+  //    that smuggled headlines from the full unfiltered list past the date
+  //    filter, which is how 6+ week old HN stories were ending up in the
+  //    prompt and getting cited verbatim by the model.
+  const pool = fresh.length >= count
+    ? fresh
+    : filterBreakingHeadlines(headlines, FALLBACK_HEADLINE_MAX_DAYS)
+
   const ranked = [...pool]
     .map((h, i) => ({ h, score: scoreHeadline(h, topicId), i }))
     .sort((a, b) => b.score - a.score || (b.h.date || '').localeCompare(a.h.date || ''))
@@ -78,11 +95,12 @@ export function selectHeadlinesForTopic(headlines, topicId, count = 5) {
     if (out.length >= count) break
   }
 
-  // Ensure variety: if all low scores, still return rotated slice
-  if (out.length < count && headlines.length > out.length) {
-    const offset = headlinePromptOffset(headlines.length, topicId)
-    for (let i = 0; i < headlines.length && out.length < count; i++) {
-      const h = headlines[(offset + i) % headlines.length]
+  // Variety pad: if still short, rotate within the SAME date-bounded pool
+  // (NOT the full unfiltered list) so the freshness guarantee holds.
+  if (out.length < count && pool.length > out.length) {
+    const offset = headlinePromptOffset(pool.length, topicId)
+    for (let i = 0; i < pool.length && out.length < count; i++) {
+      const h = pool[(offset + i) % pool.length]
       const key = (h.title || '').toLowerCase().slice(0, 100)
       if (!seen.has(key)) {
         seen.add(key)
@@ -165,11 +183,21 @@ export function buildFullResearchBrief(realtimeData, topicId) {
     realtimeData.freshData.forEach((d) => lines.push(`- ${d}`))
   }
 
+  const today = new Date()
+  const todayLabel = today.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  })
+  const staleCutoff = new Date(today.getTime() - FRESH_HEADLINE_MAX_DAYS * 86_400_000)
+  const staleCutoffLabel = staleCutoff.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
   lines.push(
     '',
     'FRESHNESS CONTRACT (breaking-news desk):',
-    `- Only headlines from the last ${FRESH_HEADLINE_MAX_DAYS} days count as "the news" — behave like a wire service, not a textbook.`,
-    '- The hook must feel written TODAY — tie to the lead story date and source.',
+    `- TODAY IS ${todayLabel}. Write as if you are publishing this within the next few hours.`,
+    `- Only headlines from the last ${FRESH_HEADLINE_MAX_DAYS} days (i.e. since ${staleCutoffLabel}) count as "the news" — behave like a wire service, not a textbook.`,
+    `- NEVER cite, paraphrase, or name a headline dated before ${staleCutoffLabel}. In AI, anything older than ${FRESH_HEADLINE_MAX_DAYS} days is stale and you will get called out for it.`,
+    '- Do NOT mention specific dates from headlines (e.g. "Apr 9 Hacker News post", "Mar 22 article") — use phrasing like "this week", "this morning", "the last few days", or name the company/event, not the date.',
+    '- The hook must feel written TODAY — tie to the lead story signal, not its calendar date.',
     '- Paraphrase headlines; never paste article titles as your opening line.',
     '- FORBIDDEN: 2023/2024 (or older) stats, survey years, or timelines that stop before the current calendar year unless the post is explicitly a multi-year arc ending in the current month/year.',
     '- Never invent funding rounds, dates, customer logos, or survey percentages.',

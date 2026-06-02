@@ -13,7 +13,8 @@
     "test:llm-smoke": "node scripts/smoke-llm-compare.mjs",
     "test:reach": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/reach-harness.mjs",
     "test:novelty": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/novelty-harness.mjs",
-    "test:composite": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/composite-scrub-harness.mjs"
+    "test:composite": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/composite-scrub-harness.mjs",
+    "test:stale-date": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/stale-date-harness.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^0.27.3",

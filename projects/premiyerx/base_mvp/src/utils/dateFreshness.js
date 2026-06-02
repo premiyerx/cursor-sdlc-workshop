@@ -1,6 +1,14 @@
-/** Max age for cited stats, headlines, and chart labels (creation day = today). */
-export const FRESH_STAT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
-export const FRESH_HEADLINE_MAX_DAYS = 30
+/**
+ * Max age for cited stats, headlines, and chart labels (creation day = today).
+ *
+ * AI moves on a ~2-week cycle: by the time a story is a month old, the framing
+ * has often shifted (acquisitions close, valuations re-rate, new model lines
+ * launch). Anything older than 14 days reads stale in a LinkedIn AI post.
+ */
+export const FRESH_STAT_WINDOW_MS = 21 * 24 * 60 * 60 * 1000
+export const FRESH_HEADLINE_MAX_DAYS = 14
+/** Soft fallback when the strict window returns too few stories to anchor on. */
+export const FALLBACK_HEADLINE_MAX_DAYS = 28
 
 const OBSOLETE_CHART_YEARS = new Set([2020, 2021, 2022, 2023, 2024])
 
