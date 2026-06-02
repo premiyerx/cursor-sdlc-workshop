@@ -10,6 +10,7 @@ import { livePostCharCount } from '../utils/humanizeLinkedInCopy'
 import { POST_LENGTH } from '../data/contentStrategy'
 import { getMaxPromisedCount, countNumberedListItems } from '../utils/postListIntegrity'
 import { breakdownReachScore, REACH_PUBLISH_MIN } from '../utils/draftRecommendation'
+import { describeNovelty } from '../utils/draftHistory'
 
 export function variantPostToLiveText(post, appendCitations) {
   if (!post) return ''
@@ -167,6 +168,21 @@ export default function ThreeModelWorkbench({
                     </button>
                   </div>
                 )}
+                {!v.error && typeof v.noveltyScore === 'number' && (() => {
+                  const novelty = describeNovelty(v.noveltyScore, v.noveltyTopMatch)
+                  const matchHook = v.noveltyTopMatch?.hook
+                    ? `Closest prior draft: "${v.noveltyTopMatch.hook.slice(0, 110)}"`
+                    : 'No prior drafts on file yet.'
+                  return (
+                    <span
+                      className={`model-workbench-novelty-pill is-${novelty.tone}`}
+                      title={matchHook}
+                      aria-label={`Novelty: ${novelty.label}. ${matchHook}`}
+                    >
+                      {novelty.label}
+                    </span>
+                  )
+                })()}
                 {isFocused && assetBusy && (
                   <span className="model-workbench-focus-pill" aria-live="polite">
                     In progress

@@ -11,6 +11,7 @@ import VoiceProfile from './components/VoiceProfile'
 import ApiKeysPanel from './components/ApiKeysPanel'
 import CloudSyncPanel from './components/CloudSyncPanel'
 import BrandThemePanel from './components/BrandThemePanel'
+import DraftMemoryPanel from './components/DraftMemoryPanel'
 import SettingsAccordion from './components/SettingsAccordion'
 import OptionalAngleField from './components/OptionalAngleField'
 import ThreeModelWorkbench, { variantPostToLiveText } from './components/ThreeModelWorkbench'
@@ -467,6 +468,7 @@ export default function App() {
             />
             <VoiceProfile />
             <BrandThemePanel />
+            <DraftMemoryPanel />
           </SettingsAccordion>
         </section>
       </main>

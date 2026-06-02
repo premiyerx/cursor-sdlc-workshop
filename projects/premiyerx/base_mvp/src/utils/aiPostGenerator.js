@@ -21,6 +21,7 @@ import { pickStructureTemplate, buildStructureDirective } from './postStructureT
 import { buildHookLabDirective } from './hookLab.js'
 import { buildTacticStackDirective } from './viralTactics.js'
 import { applyIcpCritique } from './icpCritique.js'
+import { buildAvoidBlock, recordDraft, scoreNovelty } from './draftHistory.js'
 import { POST_LENGTH } from '../data/contentStrategy.js'
 import { annotateVariantsWithRecommendation } from './draftRecommendation'
 import { runReachEditorPipeline, REACH_PUBLISH_MIN } from './reachEditorPipeline.js'
@@ -197,7 +198,7 @@ async function polishPostForReach(post, ctx, profile, apiKey, report) {
   }
 }
 
-function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '', structure = null) {
+function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '', structure = null, avoidBlock = '') {
   const varietyBlock = buildVarietyEnvelope(topicId, topic.label)
   const structureBlock = buildStructureDirective(structure)
   const narrative = getTopicNarrative(topicId)
@@ -241,6 +242,7 @@ ${structureBlock}
 ${buildHookLabDirective()}
 ${buildTacticStackDirective()}
 ${capitalPillarGuard}
+${avoidBlock}
 
 CONTEXT:
 - Audience: ${narrative.audience}
@@ -309,14 +311,48 @@ async function loadSharedGenerationContext(topicId, options) {
 
   report(44, 'Applying your voice profile…')
   const structure = pickStructureTemplate(topicId)
-  const userPrompt = buildUserPrompt(topic, topicId, realtimeContext, options.customAngle || '', structure)
+  const avoidBlock = buildAvoidBlock({ topicId, limit: 5 })
+  const userPrompt = buildUserPrompt(
+    topic,
+    topicId,
+    realtimeContext,
+    options.customAngle || '',
+    structure,
+    avoidBlock,
+  )
   const finalizeOptions = {
     allowList: structure?.id === 'before-after',
     rhythmSeed: Date.now() & 0xffff,
   }
 
-  return { topic, systemPrompt, userPrompt, realtimeData, seed, structure, finalizeOptions }
+  return {
+    topic,
+    topicId,
+    systemPrompt,
+    userPrompt,
+    realtimeData,
+    seed,
+    structure,
+    finalizeOptions,
+    avoidBlock,
+  }
 }
+
+/**
+ * Build a stronger anti-collision instruction we append when an initial draft
+ * was too similar to history. This pushes the model into a structurally
+ * different angle on retry, without leaking instructions into the post body.
+ */
+const NOVELTY_RETRY_SUFFIX = `
+
+NOVELTY_RETRY (critical): Your previous attempt for this run was too close to a prior draft in my history. For this attempt:
+- Open with a DIFFERENT first beat (no repeat of the prior hook's verb, framing, or noun phrase).
+- Anchor on a different stat or a different named scene from the news context.
+- Use a different structure (if last was contrarian, try a counter-pattern; if last was a numbered list, try a single-thread anecdote).
+- Do not paraphrase any sentence from the prior draft.`
+
+const NOVELTY_RETRY_THRESHOLD = 65
+
 
 /**
  * Generate a fresh AI post grounded in live headlines. Used by main Generate + AI panel.
@@ -354,8 +390,56 @@ export async function generateAIPost(topicId, options = {}) {
     throw new Error('Model returned internal notes instead of a LinkedIn post. Try Generate again.')
   }
   report(78, 'Polishing your post…')
-  const polished = await polishPostForReach(draft, ctx, profile, apiKey, report)
+  let polished = await polishPostForReach(draft, ctx, profile, apiKey, report)
   if (polished.error) throw new Error(polished.error)
+
+  // Novelty pass: if too similar to history, retry once with stronger anti-collision.
+  let novelty = scoreNovelty({
+    hook: polished.post?.hook || '',
+    body: polished.post?.body || '',
+    topicId: ctx.topicId,
+  })
+  if (novelty.noveltyScore < NOVELTY_RETRY_THRESHOLD) {
+    report(85, 'Too close to a prior draft — rewriting for a fresher angle…')
+    try {
+      const retryRaw = await generateRawCompletion(profile, {
+        systemPrompt: ctx.systemPrompt,
+        userPrompt: `${ctx.userPrompt}${NOVELTY_RETRY_SUFFIX}`,
+        apiKey,
+      })
+      let retryDraft = parseAIOutput(retryRaw, ctx.finalizeOptions)
+      if (postSectionsHaveReasoningLeakage(retryDraft)) {
+        retryDraft = parseAIOutput(
+          prepareModelTextForParsing(retryRaw, { aggressive: true }),
+          ctx.finalizeOptions,
+        )
+      }
+      if (retryDraft?.hook?.trim() || retryDraft?.body?.trim()) {
+        const retryPolished = await polishPostForReach(retryDraft, ctx, profile, apiKey, report)
+        if (!retryPolished.error && retryPolished.post) {
+          const retryNovelty = scoreNovelty({
+            hook: retryPolished.post.hook || '',
+            body: retryPolished.post.body || '',
+            topicId: ctx.topicId,
+          })
+          if (retryNovelty.noveltyScore > novelty.noveltyScore) {
+            polished = retryPolished
+            novelty = retryNovelty
+          }
+        }
+      }
+    } catch {
+      /* keep original if retry fails */
+    }
+  }
+
+  recordDraft({
+    topicId: ctx.topicId,
+    modelId: profile.id,
+    hook: polished.post?.hook || '',
+    body: polished.post?.body || '',
+  })
+
   report(100, 'Post ready')
   return {
     post: polished.post,
@@ -368,6 +452,17 @@ export async function generateAIPost(topicId, options = {}) {
     reachScore: polished.reachScore,
     reachBreakdown: polished.reachBreakdown,
     editorPasses: polished.editorPasses,
+    noveltyScore: novelty.noveltyScore,
+    noveltyTopMatch: novelty.topMatch
+      ? {
+          ts: novelty.topMatch.entry.ts,
+          modelId: novelty.topMatch.entry.modelId,
+          topicId: novelty.topMatch.entry.topicId,
+          hook: novelty.topMatch.entry.hook,
+          hookSim: novelty.topMatch.hookSim,
+          bodySim: novelty.topMatch.bodySim,
+        }
+      : null,
   }
 }
 
@@ -415,10 +510,56 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
           throw new Error('Model returned empty HOOK and BODY.')
         }
         const noopReport = () => {}
-        const polished = await polishPostForReach(draft, ctx, profile, apiKey, noopReport)
+        let polished = await polishPostForReach(draft, ctx, profile, apiKey, noopReport)
         if (polished.error) {
           throw new Error(polished.error)
         }
+
+        // Novelty guard: one retry with strong anti-collision if too similar.
+        let novelty = scoreNovelty({
+          hook: polished.post?.hook || '',
+          body: polished.post?.body || '',
+          topicId: ctx.topicId,
+        })
+        if (novelty.noveltyScore < NOVELTY_RETRY_THRESHOLD) {
+          try {
+            const retryRaw = await generateRawCompletion(profile, {
+              ...baseArgs,
+              userPrompt: `${ctx.userPrompt}${NOVELTY_RETRY_SUFFIX}`,
+            })
+            let retryDraft = parseAIOutput(retryRaw, ctx.finalizeOptions)
+            if (postSectionsHaveReasoningLeakage(retryDraft)) {
+              retryDraft = parseAIOutput(
+                prepareModelTextForParsing(retryRaw, { aggressive: true }),
+                ctx.finalizeOptions,
+              )
+            }
+            if (retryDraft?.hook?.trim() || retryDraft?.body?.trim()) {
+              const retryPolished = await polishPostForReach(retryDraft, ctx, profile, apiKey, noopReport)
+              if (!retryPolished.error && retryPolished.post) {
+                const retryNovelty = scoreNovelty({
+                  hook: retryPolished.post.hook || '',
+                  body: retryPolished.post.body || '',
+                  topicId: ctx.topicId,
+                })
+                if (retryNovelty.noveltyScore > novelty.noveltyScore) {
+                  polished = retryPolished
+                  novelty = retryNovelty
+                }
+              }
+            }
+          } catch {
+            /* keep original */
+          }
+        }
+
+        recordDraft({
+          topicId: ctx.topicId,
+          modelId: profile.id,
+          hook: polished.post?.hook || '',
+          body: polished.post?.body || '',
+        })
+
         return {
           post: polished.post,
           error: null,
@@ -427,6 +568,17 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
           editorPasses: polished.editorPasses,
           reachClearedBar: polished.reachClearedBar,
           reachWarning: polished.reachWarning,
+          noveltyScore: novelty.noveltyScore,
+          noveltyTopMatch: novelty.topMatch
+            ? {
+                ts: novelty.topMatch.entry.ts,
+                modelId: novelty.topMatch.entry.modelId,
+                topicId: novelty.topMatch.entry.topicId,
+                hook: novelty.topMatch.entry.hook,
+                hookSim: novelty.topMatch.hookSim,
+                bodySim: novelty.topMatch.bodySim,
+              }
+            : null,
         }
       } catch (e) {
         lastErr = e?.message || 'Request failed'
@@ -458,6 +610,8 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
         editorPasses: s.value.editorPasses ?? null,
         reachClearedBar: s.value.reachClearedBar ?? null,
         reachWarning: s.value.reachWarning ?? null,
+        noveltyScore: s.value.noveltyScore ?? null,
+        noveltyTopMatch: s.value.noveltyTopMatch ?? null,
       }
     }
     return {

@@ -306,8 +306,12 @@ function geminiModelUsesThinking(modelId) {
 }
 
 function geminiGenerationConfig(modelId) {
+  // Wider sampling (temp 1.05 + topP 0.95) — Gemini at 0.9 was producing
+  // near-duplicate week-over-week drafts because the input context (system
+  // prompt + topic + same week's news + same registry stats) was so stable.
   const config = {
-    temperature: 0.9,
+    temperature: 1.05,
+    topP: 0.95,
     maxOutputTokens: 8192,
   }
   // Gemini 3+ defaults to deep thinking; that meta must not land in LinkedIn copy.
