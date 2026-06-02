@@ -9,6 +9,7 @@ import { scoreFactualPenalty } from './factualClaims.js'
 import { scoreReasoningLeakagePenalty } from './modelReasoningLeakage.js'
 import { scoreHookPenalty } from './hookLab.js'
 import { scoreTacticStackPenalty } from './viralTactics.js'
+import { scoreIcpPenalty } from './icpCritique.js'
 
 /** Gold "Best for reach" bar — net reach strictly above 80 (minimum 81). */
 export const REACH_PUBLISH_MIN = 81
@@ -95,6 +96,13 @@ export const REACH_PENALTY_SPECS = [
     score: scoreTacticStackPenalty,
   },
   {
+    id: 'icpVoice',
+    label: 'ICP voice',
+    maxPoints: 24,
+    description: 'Em-dashes, emojis, and AI phrasings the target ICP (CIO/VP Eng/CFO/CISO/VP DevOps) instantly reads as AI.',
+    score: scoreIcpPenalty,
+  },
+  {
     id: 'specificity',
     label: 'Personal specificity',
     maxPoints: 24,
@@ -104,7 +112,7 @@ export const REACH_PENALTY_SPECS = [
   {
     id: 'rhythm',
     label: 'Sentence rhythm',
-    maxPoints: 24,
+    maxPoints: 12,
     description: 'Penalizes three same-length sentences in a row or flat, uniform pacing.',
     score: scoreSentenceRhythm,
   },

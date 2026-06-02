@@ -31,6 +31,22 @@ export function countNumberedListItems(text) {
     .filter((l) => NUMBERED_LINE_RE.test(l)).length
 }
 
+/**
+ * A phrase like "Three patterns" or "Two reasons" is only a *list promise* when:
+ *  - the count is >= 2 (we never treat "one X" as a list tease — "one rule" is plain English), AND
+ *  - the matched span is followed by `:` within 80 chars OR a numbered "1. " line appears
+ *    anywhere after the match.
+ * This avoids false positives like "one rule", "two retries", "two things can be true".
+ */
+function isActualPromise(text, matchIndex, count) {
+  if (count < 2) return false
+  const tail = text.slice(matchIndex, matchIndex + 80)
+  if (/:\s/.test(tail)) return true
+  const rest = text.slice(matchIndex)
+  if (/(?:^|\n)\s*1\.\s/.test(rest)) return true
+  return false
+}
+
 /** @returns {number} highest promised count in text, or 0 */
 export function getMaxPromisedCount(text) {
   if (!text) return 0
@@ -38,7 +54,9 @@ export function getMaxPromisedCount(text) {
   for (const m of text.matchAll(PROMISE_RE)) {
     const raw = String(m[1] || '').toLowerCase()
     const n = COUNT_WORDS[raw] ?? parseInt(raw, 10)
-    if (Number.isFinite(n) && n > max) max = n
+    if (!Number.isFinite(n)) continue
+    if (!isActualPromise(text, m.index ?? 0, n)) continue
+    if (n > max) max = n
   }
   return max
 }

@@ -8,6 +8,8 @@ import { applyRoughEdit } from './postRoughEdit.js'
 import { injectRhythmBreak } from './sentenceRhythm.js'
 import { detectPersonalSpecificity } from './personalSpecificity.js'
 import { POST_LENGTH } from '../data/contentStrategy.js'
+import { applyReachLift } from './reachLift.js'
+import { applyIcpCritique } from './icpCritique.js'
 
 function ensureMobileLineBreaks(text) {
   if (!text) return text
@@ -72,6 +74,8 @@ export function applyDeterministicReachFixes(post, options = {}) {
   p = repairPromisedLists(p)
   p = repairGrammarInPost(p)
   p = applyRoughEdit(p, { allowList: Boolean(options.allowList) })
+  p = applyReachLift(p, { seedKey: `${options.rhythmSeed ?? 0}|${(p.hook || '').slice(0, 32)}` })
+  p = applyIcpCritique(p)
   p = boostAlgorithmSignals(p)
 
   if (topIds.has('rhythm') || topIds.has('aiTell') || options.aggressive) {

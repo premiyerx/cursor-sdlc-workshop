@@ -82,7 +82,8 @@ export function scoreHookPenalty(text) {
   if (a.archetype === 'imperative') pts += 14
   if (a.archetype === 'question' && !a.hasNumber) pts += 4
   if (!a.hasNumber && !a.hasTension && a.archetype !== 'story' && a.archetype !== 'contrarian') pts += 6
-  if (!a.hasOpenLoop && !a.hasTension) pts += 4
+  // Open-loop / tension is a soft signal; only penalize when BOTH are missing AND there's no number.
+  if (!a.hasOpenLoop && !a.hasTension && !a.hasNumber) pts += 4
   if (a.chars > 220) pts += 6
   return Math.min(20, pts)
 }

@@ -72,19 +72,21 @@ SCORING CHEAT SHEET (what moves the needle):
 function buildEditorUserPrompt(post, breakdown, editorIndex) {
   const passLabel =
     editorIndex === 1 ? 'Editor 2' : editorIndex === 2 ? 'Editor 3' : 'Reach boost editor'
-  return `${passLabel} — revise this LinkedIn draft so NET reach score is above ${REACH_PUBLISH_MIN - 1} (target ${REACH_TARGET_HINT}+).
+  return `${passLabel}. Revise this LinkedIn draft so NET reach score is above ${REACH_PUBLISH_MIN - 1} (target ${REACH_TARGET_HINT}+).
 
 ${formatBreakdownBrief(breakdown)}
 
 RULES (non-negotiable):
-- Keep Prem Iyer's voice: operator + investor, peer to CIOs/VPs — not generic AI LinkedIn.
-- HOOK: open with a STAT (number/%, best lift), STORY (first-person scene), or sharp CONTRARIAN line. NEVER an imperative/command opener ("Stop…", "Read this", "Here's the truth nobody…") — the 2026 ranker treats those as templated and suppresses reach. First 1–2 lines (≤210 chars) must carry tension or an open loop.
-- STACK TACTICS: weave in at least 4 of {quantified proof, open loop, one memorable quote line, a 1–3 word pattern-interrupt line, social proof (named role/scale)} — viral posts stack 4–6, not one.
+- Keep Prem Iyer's voice: operator + investor, peer to CIOs/VPs, not generic AI LinkedIn.
+- HOOK: open with a STAT (number/percentage, best lift), STORY (first-person scene), or sharp CONTRARIAN line. NEVER an imperative/command opener ("Stop...", "Read this", "Here's the truth nobody..."). The 2026 ranker treats those as templated and suppresses reach. First 1-2 lines (under 210 characters) must carry tension or an open loop.
+- STACK TACTICS: weave in at least 4 of {quantified proof, open loop, one memorable quote line, a 1-3 word pattern-interrupt line, social proof (named role/scale)}. Viral posts stack 4-6, not one.
 - Add or sharpen ONE lived-in detail if specificity is weak: a number, named role, scene, time anchor, or mistake.
-- Vary sentence length; break three same-length sentences in a row; one short reaction line is fine.
+- Vary sentence length. Break three same-length sentences in a row. One short reaction line is fine.
 - Every line must be grammatically complete (ends with . ! or ?; all parentheses closed). Never stop mid-phrase or mid-parenthetical.
-- Facts: never "500+ Fortune 500" (only 500 companies). Use "back to the terminal" not "back terminal". No naked "The demo passes." — say where it passes or stalls.
-- Ban: game-changer, leverage, unlock, dive into, in today's fast-paced, the bottom line, here's the thing, crucial, vital, landscape, ever-evolving, arc, → arrows, bold headers, lesson/moral closers.
+- Facts: never "500+ Fortune 500" (only 500 companies). Use "back to the terminal" not "back terminal". No naked "The demo passes." Say where it passes or stalls.
+- Ban: game-changer, leverage, unlock, dive into, in today's fast-paced, the bottom line, here's the thing, crucial, vital, landscape, ever-evolving, arc, arrow bullets, bold headers, lesson/moral closers.
+- ICP voice (CIO / VP Engineering / CFO / CISO / VP DevOps / VP DevSecOps reader): NEVER use em-dashes or en-dashes. Use commas or periods. NEVER use emojis in hook/body/CTA. Ban: "double-click on", "table stakes", "north star", "mission-critical", "moving the needle", "spoiler", "plot twist", "make no mistake", "the truth is", "navigate the...", "in essence", "ultimately,", "best-in-class", "world-class", "cutting-edge", "next-gen", "paradigm shift", "innovative", "groundbreaking", "seamless", "frictionless", "unprecedented".
+- Read your output back as a CFO of a Fortune 500. If any line sounds like a vendor blog post, rewrite it as a peer would actually say it on a call.
 - HOOK+BODY+CTA+HASHTAGS ≤ ${POST_LENGTH.charSoftMax} chars (ideal ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax}).
 - Mobile: short hook line, blank line, scannable body with ${POST_LENGTH.minDoubleLineBreaks}+ paragraph breaks.
 - CTA must be a real question using "you/your" — not "thoughts?" or "agree?".

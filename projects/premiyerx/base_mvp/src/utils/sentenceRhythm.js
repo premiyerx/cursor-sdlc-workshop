@@ -59,34 +59,34 @@ export function scoreSentenceRhythm(text) {
   let penalty = 0
   for (let i = 2; i < buckets.length; i++) {
     if (buckets[i] === buckets[i - 1] && buckets[i] === buckets[i - 2]) {
-      penalty += 8
+      penalty += 2
       break
     }
   }
 
   const set = new Set(buckets)
-  if (buckets.length >= 4 && !set.has('vs') && !set.has('l')) {
-    penalty += 6
+  if (buckets.length >= 6 && !set.has('vs') && !set.has('l')) {
+    penalty += 3
   }
 
-  if (sentences.length >= 4) {
+  if (sentences.length >= 6) {
     const counts = sentences.map(wordCount)
     const mean = counts.reduce((a, b) => a + b, 0) / counts.length
     const variance = counts.reduce((a, b) => a + (b - mean) ** 2, 0) / counts.length
     const sd = Math.sqrt(variance)
-    if (sd < 3) penalty += 6
+    if (sd < 2.2) penalty += 3
   }
 
-  return Math.min(24, penalty)
+  return Math.min(12, penalty)
 }
 
 const ONE_WORD_REACTIONS = [
   'Honestly?',
-  'Look —',
-  'Quietly:',
+  'Look.',
+  'Quietly.',
   'Wild.',
   'So.',
-  'Two things.',
+  'Read that twice.',
 ]
 
 /**

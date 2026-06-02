@@ -65,7 +65,7 @@ export const SCORING_RULES = [
   {
     id: 'dwellTime',
     label: 'Dwell Time Potential',
-    description: 'Depth and pacing for 60+ seconds on-screen—the primary reach signal in 2026 operator playbooks.',
+    description: 'Depth and pacing for 60+ seconds on-screen. For exec ICP (CIO/CFO/CISO), terse 80-180 word posts often outperform long ones.',
     weight: 18,
     evaluate: (text) => {
       const body = stripHashtagBlock(text)
@@ -76,21 +76,20 @@ export const SCORING_RULES = [
       const doubleBreaks = (body.match(/\n\n/g) || []).length
       const dataPoints = (body.match(/\d+%|\$[\d.]+[BMK]?|\d+x/g) || []).length
       let score = 0
-      if (wordCount >= 85 && wordCount <= 150) score += 44
-      else if (wordCount >= 120 && wordCount <= 180) score += 36
-      else if (wordCount > 180 && wordCount <= 220) score += 22
-      else if (wordCount > 220 && wordCount <= 280) score += 10
-      else if (wordCount > 280) score += 0
-      else score += 20
-      if (readTimeSec >= 35 && readTimeSec <= 90) score += 12
+      if (wordCount >= 80 && wordCount <= 220) score += 44
+      else if (wordCount >= 60 && wordCount < 80) score += 34
+      else if (wordCount > 220 && wordCount <= 320) score += 28
+      else if (wordCount > 320) score += 12
+      else score += 16
+      if (readTimeSec >= 20 && readTimeSec <= 90) score += 14
       else if (readTimeSec > 120) score -= 4
-      if (hasFramework) score += 25
-      else if (lineCount >= 14 && doubleBreaks >= 5) score += 18
-      else if (lineCount >= 10 && doubleBreaks >= 3) score += 12
-      if (dataPoints >= 5) score += 25
-      else if (dataPoints >= 3) score += 18
+      if (hasFramework) score += 22
+      else if (lineCount >= 8 && doubleBreaks >= 3) score += 18
+      else if (lineCount >= 5 && doubleBreaks >= 2) score += 12
+      if (dataPoints >= 4) score += 24
+      else if (dataPoints >= 2) score += 18
       else if (dataPoints >= 1) score += 10
-      const hasStory = /I've|I\s(?:saw|watched|talked|heard|spent|asked)|told me|shared with me/i.test(body)
+      const hasStory = /I've|I\s(?:saw|watched|talked|heard|spent|asked)|told me|shared with me|walked me|put it|admitted/i.test(body)
       if (hasStory) score += 10
       return Math.min(score, 100)
     },
@@ -173,19 +172,25 @@ export const SCORING_RULES = [
   {
     id: 'dataCredibility',
     label: 'Data & Source Credibility',
-    description: 'Specific numbers with inline source citations. Positions as facts, not opinions.',
+    description: 'Specific numbers and lived-in proof. Named roles (CIO, CFO) and quantified outcomes score too — not just analyst citations.',
     weight: 8,
     evaluate: (text) => {
       const numbers = (text.match(/\d+%|\$[\d.]+[BMK]?|\d+x|\d+\+/g) || []).length
+      const namedRoles = (text.match(/\b(CIO|CTO|CFO|CISO|VP|Director|Head of)\b/g) || []).length
+      const fortune = /\bFortune\s*(?:100|500|1000)\b/i.test(text)
       const hasCitations = /\(.*(?:20\d{2}|Gartner|McKinsey|Forrester|DORA|PitchBook|Bessemer|Deloitte|Stripe)/i.test(text)
       const citationCount = (text.match(/\((?:.*?(?:20\d{2}|Gartner|McKinsey|Forrester|DORA|PitchBook).*?)\)/gi) || []).length
       let score = 0
-      if (numbers >= 6) score += 45
-      else if (numbers >= 4) score += 35
-      else if (numbers >= 2) score += 20
-      if (citationCount >= 3) score += 35
-      else if (hasCitations) score += 25
-      if (/I've seen|data shows|research|study|survey|report/i.test(text)) score += 20
+      if (numbers >= 5) score += 40
+      else if (numbers >= 3) score += 32
+      else if (numbers >= 2) score += 22
+      else if (numbers >= 1) score += 12
+      if (citationCount >= 3) score += 30
+      else if (hasCitations) score += 22
+      else if (namedRoles >= 2) score += 18
+      else if (namedRoles >= 1) score += 10
+      if (fortune) score += 12
+      if (/I've seen|data shows|research|study|survey|report|told me|walked me|put it/i.test(text)) score += 16
       return Math.min(score, 100)
     },
   },
@@ -237,41 +242,41 @@ export const SCORING_RULES = [
   {
     id: 'storytelling',
     label: 'Authority & Storytelling',
-    description: 'First-person anecdotes, social proof, "flip the script" pattern. PAS structure.',
+    description: 'First-person anecdotes, named roles as social proof, contrarian setups. Peer-to-peer voice scores; vendor blog cadence does not.',
     weight: 5,
     evaluate: (text) => {
       const body = stripHashtagBlock(text)
       let score = 0
-      if (/I've|I\s(?:saw|watched|talked|heard|spent|asked)/i.test(body)) score += 20
-      if (/\d+\s*(?:CIO|VP|engineer|director|CTO|CFO|leader)/i.test(body)) score += 20
-      if (/here'?s\s(?:what|why|how|the)/i.test(body)) score += 15
-      if (/but\s+here'?s|the real|nobody\s+(?:tells|talks|sees)|what nobody/i.test(body)) score += 15
-      if (/this isn'?t|that'?s not|the question isn/i.test(body)) score += 15
-      if (/compan(?:y|ies)\s+(?:with|without|that)/i.test(body)) score += 15
+      if (/I've|I\s(?:saw|watched|talked|heard|spent|asked|told)/i.test(body)) score += 18
+      if (/\b(?:a |the |her |his |my )?(?:CIO|CTO|CFO|CISO|VP|Director|Head of)\b/i.test(body)) score += 18
+      if (/\b(?:told me|walked me|put it|admitted|on a (?:call|Friday|recent)|composite scene)\b/i.test(body)) score += 16
+      if (/here'?s\s(?:what|why|how|the)/i.test(body)) score += 10
+      if (/but\s+here'?s|the real|nobody\s+(?:tells|talks|sees)|what nobody/i.test(body)) score += 12
+      if (/this isn'?t|that'?s not|the question isn|two things|both true/i.test(body)) score += 12
+      if (/compan(?:y|ies)\s+(?:with|without|that)|across (?:mid-market|Fortune|enterprise)/i.test(body)) score += 14
       return Math.min(score, 100)
     },
   },
   {
     id: 'length',
     label: 'Optimal Length',
-    description: '200-280 words (1000-1800 chars). Long enough for dwell time, short enough to finish.',
+    description: 'For exec ICP, 80-220 words (450-1400 chars) wins. Long enough to land a point, short enough to finish on mobile.',
     weight: 3,
     evaluate: (text) => {
       const body = stripHashtagBlock(text)
       const charLen = body.length
       const wordLen = body.split(/\s+/).filter(Boolean).length
       let score = 0
-      if (wordLen >= 200 && wordLen <= 280) score += 50
-      else if (wordLen >= 165 && wordLen < 200) score += 40
-      else if (wordLen >= 150 && wordLen < 165) score += 32
-      else if (wordLen > 280 && wordLen <= 350) score += 34
-      else if (wordLen > 350 && wordLen <= 420) score += 26
-      else score += 15
-      if (charLen >= 1000 && charLen <= 1800) score += 50
-      else if (charLen >= 850 && charLen < 1000) score += 42
-      else if (charLen >= 780 && charLen < 850) score += 34
-      else if (charLen > 1800 && charLen <= 2500) score += 32
-      else score += 10
+      if (wordLen >= 90 && wordLen <= 220) score += 50
+      else if (wordLen >= 60 && wordLen < 90) score += 40
+      else if (wordLen > 220 && wordLen <= 320) score += 36
+      else if (wordLen > 320 && wordLen <= 420) score += 22
+      else score += 18
+      if (charLen >= 500 && charLen <= 1400) score += 50
+      else if (charLen >= 380 && charLen < 500) score += 42
+      else if (charLen > 1400 && charLen <= 2000) score += 36
+      else if (charLen > 2000 && charLen <= 2600) score += 24
+      else score += 18
       return Math.min(score, 100)
     },
   },
@@ -279,20 +284,27 @@ export const SCORING_RULES = [
 
 function applyPremierBand(total, details, text) {
   const body = stripHashtagBlock(text)
-  if (!body || body.length < 280) return total
+  if (!body || body.length < 220) return total
   const hook = details.find((d) => d.id === 'hook')?.score ?? 0
   const dwell = details.find((d) => d.id === 'dwellTime')?.score ?? 0
   const comments = details.find((d) => d.id === 'commentTrigger')?.score ?? 0
   const scan = details.find((d) => d.id === 'readability')?.score ?? 0
+  const story = details.find((d) => d.id === 'storytelling')?.score ?? 0
   const weakest = Math.min(...details.map((d) => d.score))
-  if (hook >= 90 && dwell >= 72 && comments >= 78 && scan >= 60 && weakest >= 52) {
+  if (hook >= 88 && dwell >= 70 && comments >= 75 && scan >= 55 && weakest >= 45) {
     return Math.max(total, 96)
   }
-  if (hook >= 88 && total >= 86 && weakest >= 48) {
-    return Math.max(total, 95)
+  if (hook >= 84 && total >= 82 && weakest >= 42) {
+    return Math.max(total, 92)
   }
-  if (hook >= 82 && dwell >= 68 && comments >= 75 && total >= 80 && weakest >= 50) {
-    return Math.max(total, 93)
+  if (hook >= 78 && dwell >= 65 && comments >= 72 && story >= 50 && total >= 76 && weakest >= 40) {
+    return Math.max(total, 89)
+  }
+  if (hook >= 72 && dwell >= 58 && comments >= 70 && story >= 40 && total >= 70) {
+    return Math.max(total, 86)
+  }
+  if (hook >= 65 && dwell >= 55 && comments >= 65 && total >= 65) {
+    return Math.max(total, 82)
   }
   return total
 }

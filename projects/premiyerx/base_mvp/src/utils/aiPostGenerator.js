@@ -20,6 +20,7 @@ import { injectRhythmBreak } from './sentenceRhythm.js'
 import { pickStructureTemplate, buildStructureDirective } from './postStructureTemplates.js'
 import { buildHookLabDirective } from './hookLab.js'
 import { buildTacticStackDirective } from './viralTactics.js'
+import { applyIcpCritique } from './icpCritique.js'
 import { POST_LENGTH } from '../data/contentStrategy.js'
 import { annotateVariantsWithRecommendation } from './draftRecommendation'
 import { runReachEditorPipeline, REACH_PUBLISH_MIN } from './reachEditorPipeline.js'
@@ -81,8 +82,9 @@ function finalizePost(p, options = {}) {
   const rhythmed = { ...edited, body: injectRhythmBreak(edited.body || '', options.rhythmSeed || 0) }
   const concise = enforceConcisePost(rhythmed, POST_LENGTH.charHardMax)
   const polished = repairReasoningInPost(repairFactualInPost(repairGrammarInPost(concise)))
-  recordGeneratedHook(polished.hook || polished.body.slice(0, 200))
-  return polished
+  const critiqued = applyIcpCritique(polished)
+  recordGeneratedHook(critiqued.hook || critiqued.body.slice(0, 200))
+  return critiqued
 }
 
 function salvageUnstructuredPost(text, finalizeOptions = {}) {
@@ -126,9 +128,28 @@ function parseAIOutput(raw, finalizeOptions = {}) {
   if (legacyFlex && (legacyFlex.hook || legacyFlex.body)) return finalizePost(legacyFlex, finalizeOptions)
 
   const lines = text.split('\n').filter((l) => l.trim())
-  const hook = lines[0] || text.slice(0, 200)
-  const body = lines.length > 1 ? lines.slice(1).join('\n').trim() : text
-  const out = finalizePost({ hook, body, cta: '', hashtags: '', firstComment: '' }, finalizeOptions)
+  // Pull trailing `#hashtag` block off as hashtags and the last `?`-ending line as CTA so an
+  // unstructured raw post (no HOOK:/BODY:/CTA: headers) still scores comment-trigger correctly.
+  let trailingTags = ''
+  let trailing = [...lines]
+  while (trailing.length > 0 && /^\s*#\w/.test(trailing[trailing.length - 1])) {
+    trailingTags = `${trailing.pop()} ${trailingTags}`.trim()
+  }
+  let salvageCta = ''
+  for (let i = trailing.length - 1; i >= 1; i--) {
+    const t = trailing[i].trim()
+    if (/\?\s*$/.test(t) && t.length >= 16 && t.length <= 220) {
+      salvageCta = t
+      trailing = [...trailing.slice(0, i), ...trailing.slice(i + 1)]
+      break
+    }
+  }
+  const hook = trailing[0] || text.slice(0, 200)
+  const body = trailing.length > 1 ? trailing.slice(1).join('\n').trim() : text
+  const out = finalizePost(
+    { hook, body, cta: salvageCta, hashtags: trailingTags, firstComment: '' },
+    finalizeOptions,
+  )
   if (out.hook || out.body) return out
 
   const salvaged = salvageUnstructuredPost(raw, finalizeOptions)

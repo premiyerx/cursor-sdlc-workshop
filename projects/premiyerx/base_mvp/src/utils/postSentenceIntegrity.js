@@ -24,6 +24,9 @@ export function isLineIncomplete(line, options = {}) {
   const t = String(line || '').trim()
   if (!t) return false
 
+  // Hashtag-only lines (e.g. "#CISO #AIGovernance") are valid structural blocks, not prose.
+  if (/^#\w/.test(t) && t.split(/\s+/).every((tok) => /^#\w/.test(tok))) return false
+
   const words = t.split(/\s+/).filter(Boolean)
   const wordCount = words.length
 
