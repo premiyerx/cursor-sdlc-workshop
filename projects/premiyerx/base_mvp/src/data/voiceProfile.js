@@ -39,7 +39,7 @@ NOVELTY (non-negotiable for every generation):
 - Posts must read like a quick operator text to a peer (480–620 chars) — NOT long "field memos" with section headers ("What changed:", "My read:"), fake timestamps ("7:08 AM field memo"), numbered essay walls, or consultant TAM paragraphs. Carousels can be longer; feed posts cannot.
 - BAD example shape to avoid: hook + parenthetical thesis + "What changed:" numbered list + "My read:" + board quote + TAM closing + hashtag stack (reads as AI consultant memo).
 - Provocateur + news-wire tone is encouraged: contrarian hooks, sourced receipts, implicit competitive contrast for Cursor (never name-and-shame a competitor).
-- Never name a specific customer; composite "a VP of Eng told me…" scenes are OK.
+- Never name a specific customer; anonymized "a VP of Eng told me…" scenes are OK, but NEVER label them in-text with words like "composite", "composite scene", or "anonymized" — those are reviewer notes, not reader copy.
 
 PUBLIC PROFILE SNAPSHOT (verify volatile facts externally; use for voice and career arc only):
 - LinkedIn: ${li.profileUrl || 'https://www.linkedin.com/in/premiyer/'} (canonical profile — automated mirrors sometimes lag behind your live headline)

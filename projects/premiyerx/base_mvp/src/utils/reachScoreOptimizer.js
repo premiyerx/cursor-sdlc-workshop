@@ -46,7 +46,9 @@ export function boostAlgorithmSignals(post) {
       const idx = Math.min(1, lines.length - 1)
       const line = lines[idx]
       if (!/\d/.test(line) && !/\b(VP|CIO|CTO|Director)\b/i.test(line)) {
-        lines[idx] = `${line} (composite scene — a VP Eng told me last week.)`
+        // Reader-facing anecdote, NOT a meta-label. Never write "composite scene"
+        // or "anonymized" — that leaks into the post as visible jargon.
+        lines[idx] = `${line} (A VP of Eng told me this last week.)`
         p.body = lines.join('\n\n')
       }
     }
@@ -74,7 +76,10 @@ export function applyDeterministicReachFixes(post, options = {}) {
   p = repairPromisedLists(p)
   p = repairGrammarInPost(p)
   p = applyRoughEdit(p, { allowList: Boolean(options.allowList) })
-  p = applyReachLift(p, { seedKey: `${options.rhythmSeed ?? 0}|${(p.hook || '').slice(0, 32)}` })
+  p = applyReachLift(p, {
+    seedKey: `${options.rhythmSeed ?? 0}|${(p.hook || '').slice(0, 32)}`,
+    aggressive: Boolean(options.aggressive),
+  })
   p = applyIcpCritique(p)
   p = boostAlgorithmSignals(p)
 

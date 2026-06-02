@@ -149,7 +149,7 @@ export function buildPremStrategyBlock() {
     buildPipelineBlock(),
     '• Tone: more provocative than typical B2B — earn the swipe with tension, not cruelty.',
     '• Length: BRIEF and casual — target ~480–620 characters total (hook+body+CTA+hashtags). Hard ceiling 680. One thesis, max three proof beats, then a question — never essay walls.',
-    '• Stories: composite VP/CIO scenes OK; never name a specific customer.',
+    '• Stories: anonymized VP/CIO scenes OK; never name a specific customer; NEVER write the meta-words "composite", "composite scene", or "anonymized" inside the post itself.',
     '• No Prem headshot/photo in generated visuals. No competitor logos; no faces in graphics.',
     '• Cursor: promote with implicit contrast (repo context, agents, rollout) — subtle shade, no direct attacks.',
     '• Hashtags: 3–5 topical only. Sources in caption OK for defensibility.',

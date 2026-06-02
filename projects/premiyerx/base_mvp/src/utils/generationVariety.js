@@ -97,7 +97,7 @@ const DEFAULT_LENSES = [
   'Contrast two opposing instincts in the market (speed vs. safety, build vs. buy) and resolve with evidence.',
   'Anchor on a specific workflow pain (PR review, security review, hiring loop, vendor bake-off) and go deep.',
   'Use a "before AI / after AI" arc for one concrete team outcome—numbers only where sourced.',
-  'Frame as one or two anonymous patterns you keep seeing (composite, not invented stats) — if you say "three", ship 1. 2. 3.',
+  'Frame as one or two anonymous patterns you keep seeing — anonymize roles, never invent stats. If you say "three", ship 1. 2. 3.',
   'Lead with a decision tree: the one fork most teams get wrong, and what the data says instead.',
 ]
 
@@ -135,7 +135,7 @@ const LENSES_BY_TOPIC = {
 const HOOK_MODES = [
   'Hook opens with a sharp time or market anchor (this week / Q2 / "since last month")—not a platitude.',
   'Hook uses a tension pair in one line (e.g. speed vs. safety) with a number in 8–12 words.',
-  'Hook opens with a specific scenario ("A team of 40 just…")—composite/anonymized is fine if honest.',
+  'Hook opens with a specific scenario ("A team of 40 just…") — anonymized is fine if honest, but never use the words "composite" or "anonymized" in the post itself.',
   'Hook leads with one counterintuitive claim, then the body earns it with sourced proof.',
   'Hook is a crisp question-shaped headline that still includes a number (yes, questions can carry numerals).',
 ]

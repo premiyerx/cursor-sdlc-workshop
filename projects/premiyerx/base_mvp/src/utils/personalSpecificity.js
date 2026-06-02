@@ -13,7 +13,7 @@ const NAMED_ROLE_RE =
   /\b(VP\s+(?:of\s+)?(?:Engineering|Eng|Product|Sales)|VPE|CIO|CISO|CTO|CDO|CEO|CFO|VPM|VP|Director|Head\s+of|Founder|Engineering\s+Director|VP\s+Eng)\b/
 
 const SCENE_VERBS_RE =
-  /\b(?:told me|texted me|DM(?:'?d| me)|emailed me|asked me|pinged me|cornered me|stopped me|walked into|sat across|called me|messaged me)\b/i
+  /\b(?:told me|texted me|DM(?:'?d)?\s*me|emailed me|asked me|pinged me|cornered me|stopped me|walked (?:into|me through)|sat across|called me|messaged me|put it (?:bluntly|to me)|said (?:it|that to me)|shared (?:the|a) (?:post-?mortem|note|memo|finding)|on a (?:call|Friday|recent (?:call|conversation)))\b/i
 
 const TIME_ANCHOR_RE =
   /\b(?:last (?:Tuesday|Wednesday|Thursday|Friday|Monday|week|month|quarter|night|sprint|standup|board|QBR|review)|this (?:morning|afternoon|week|sprint|quarter)|on (?:Monday|Tuesday|Wednesday|Thursday|Friday)|yesterday|two weeks ago|a week ago)\b/i

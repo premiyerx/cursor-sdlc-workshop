@@ -7,13 +7,18 @@
  *   - rhythm       (three same-length sentences in a row)
  *
  * Every transform is hedged ("a CIO told me last week", "across mid-market teams") so we
- * never invent factual numbers. The composite tag is appended once at most.
+ * never invent factual numbers. The scene hedge is appended once at most.
+ *
+ * IMPORTANT: do NOT label hedged anecdotes with literal meta-words like "composite scene"
+ * or "anonymized". The hedge is editorial ("a CIO told me…"), not a label the reader sees.
  */
 
 import { analyzeHook } from './hookLab.js'
 import { detectTactics } from './viralTactics.js'
 
-const COMPOSITE_HEDGE_RE = /\(composite scene[^)]*\)/i
+// Detector for any previously-injected scene hedge so we only add one.
+const SCENE_HEDGE_RE =
+  /\((?:a\s+(?:CIO|CTO|CFO|CISO|VP(?:\s+of\s+(?:Engineering|DevOps|DevSecOps))?|Director|Head of)\s+[^)]*(?:told|walked|put it|shared|said)[^)]*)\)/i
 
 const ROLE_HEDGES = [
   'a CIO told me last week',
@@ -27,6 +32,16 @@ const SOCIAL_PROOF_PATCHES = [
   'Across mid-market enterprise teams, the pattern is consistent.',
   'Talking to CIOs at Fortune 1000 shops, the same answer keeps surfacing.',
   'On three CISO calls this month, the same blocker came up first.',
+]
+
+// Proof beats used when an aggressive pass needs to add length AND specificity
+// without repeating the same hedge phrase. Each is a fully-formed standalone
+// block, hedged so it never invents a number about a vendor.
+const PROOF_BEATS = [
+  'The cost of getting this wrong shows up in your renewal numbers six months later, not in the pilot deck.',
+  'The teams that win this are the ones that pick a single metric before the demo and refuse to negotiate it after.',
+  'The pattern is consistent: the leaders who set one hard rule before the rollout sleep better at audit time.',
+  'The honest math: every shortcut you take here gets paid back in a security review you did not budget for.',
 ]
 
 const TENSION_OPENERS = [
@@ -93,13 +108,14 @@ function strengthenHookIfWeak(hook, body, seedKey) {
 function injectSpecificity(body, seedKey) {
   const text = String(body || '').trim()
   if (!text) return text
-  if (COMPOSITE_HEDGE_RE.test(text)) return text
+  if (SCENE_HEDGE_RE.test(text)) return text
   const hasNumber = /\d/.test(text)
   const hasRole = /\b(VP|CIO|CFO|CTO|CISO|Director|Head of|VP DevOps|VP DevSecOps)\b/i.test(text)
   if (hasNumber && hasRole) return text
 
-  // Hedge: parenthetical aside, no em-dash (the ICP pass strips them anyway).
-  const sceneTag = `(${pickFrom(ROLE_HEDGES, `${seedKey}|scene`)}, composite scene.)`
+  // Hedge: parenthetical aside that reads as a real anecdote, NOT a label.
+  // (Never write "composite scene" or "anonymized" — those leak as meta-copy.)
+  const sceneTag = `(${pickFrom(ROLE_HEDGES, `${seedKey}|scene`)}.)`
   const blocks = text.split('\n\n').map((b) => b.trim()).filter(Boolean)
   if (!blocks.length) return text
   const idx = Math.min(1, blocks.length - 1)
@@ -122,11 +138,11 @@ function ensureBlockTerminated(block) {
  * one pattern-interrupt line to lift the stack without bloating the post. Each insertion
  * is a fresh standalone block so we never tangle into an existing sentence/parenthetical.
  */
-function liftTacticStack(body, seedKey) {
+function liftTacticStack(body, seedKey, { aggressive = false } = {}) {
   const text = String(body || '').trim()
   if (!text) return text
   const { count, tactics } = detectTactics(text)
-  if (count >= 4) return text
+  if (count >= 4 && !aggressive) return text
 
   let blocks = text.split('\n\n').map((b) => b.trim()).filter(Boolean)
   if (!blocks.length) return text
@@ -141,6 +157,16 @@ function liftTacticStack(body, seedKey) {
   if (!tactics.socialProof) {
     blocks.push(pickFrom(SOCIAL_PROOF_PATCHES, `${seedKey}|sp`))
   }
+
+  // Aggressive: if the body is still too short to dwell on, append one proof
+  // beat. Different content from the scene hedge — no repeating the same
+  // "a CIO told me…" parenthetical three times like the old code did.
+  if (aggressive) {
+    const totalLen = blocks.join('\n\n').length
+    if (totalLen < 320) {
+      blocks.push(pickFrom(PROOF_BEATS, `${seedKey}|pb`))
+    }
+  }
   return blocks.join('\n\n')
 }
 
@@ -152,8 +178,9 @@ function liftTacticStack(body, seedKey) {
 export function applyReachLift(post, options = {}) {
   if (!post) return post
   const seed = String(options.seedKey || (post.hook || post.body || 'lift').slice(0, 48))
+  const aggressive = Boolean(options.aggressive)
   const hook = strengthenHookIfWeak(post.hook || '', post.body || '', seed)
   let body = injectSpecificity(post.body || '', seed)
-  body = liftTacticStack(body, seed)
+  body = liftTacticStack(body, seed, { aggressive })
   return { ...post, hook, body }
 }

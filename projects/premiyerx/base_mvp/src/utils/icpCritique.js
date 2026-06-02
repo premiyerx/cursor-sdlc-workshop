@@ -134,6 +134,59 @@ function dropEmojis(text) {
   return String(text).replace(EMOJI_RE, '').replace(/[ \t]{2,}/g, ' ').replace(/\s+\n/g, '\n')
 }
 
+/**
+ * Strip reviewer/meta labels that have a habit of leaking into the post body:
+ *   "(composite scene — a VP Eng told me last week)"   → "(a VP Eng told me last week)"
+ *   "(a CIO told me, composite scene.)"                → "(a CIO told me.)"
+ *   "(composite scene.)"                               → ""
+ *   "anonymized:"  / "(anonymized)"                    → ""
+ *   "hypothetical example,"                            → ""
+ *
+ * The IDEA — anonymizing roles instead of naming real customers — is correct.
+ * The LABELS for that idea are private editorial notes, not reader copy.
+ */
+function scrubMetaLabels(text) {
+  if (!text) return ''
+  let t = String(text)
+
+  // 1) Whole parenthetical asides whose ONLY content is a meta-label.
+  t = t.replace(
+    /\s*\((?:\s*(?:composite\s+(?:scene|vp|story|example)|anonymized(?:\s+(?:scene|story))?|hypothetical(?:\s+example)?))\s*[.!?]?\s*\)/gi,
+    '',
+  )
+
+  // 2) Meta-label fragments that appear INSIDE an otherwise-real anecdote
+  //    parenthetical. We drop just the fragment + any leading "," or "—".
+  t = t.replace(
+    /,?\s*(?:composite\s+(?:scene|vp|story|example)|anonymized(?:\s+(?:scene|story))?|hypothetical(?:\s+example)?)(?=\s*[.,;)])/gi,
+    '',
+  )
+
+  // 3) Naked sentence-leading labels: "Composite scene: a VP …", "Anonymized:".
+  t = t.replace(
+    /(^|\n)\s*(?:composite\s+(?:scene|vp|story|example)|anonymized(?:\s+(?:scene|story))?|hypothetical(?:\s+example)?)\s*[:.]\s*/gi,
+    '$1',
+  )
+
+  // 4) Bare inline tokens left over ("…here's the pattern. composite scene.")
+  t = t.replace(
+    /\b(?:composite\s+(?:scene|vp|story|example)|anonymized(?:\s+(?:scene|story))?|hypothetical(?:\s+example)?)\b/gi,
+    '',
+  )
+
+  // 5) Collapse the punctuation/whitespace fallout from the removals.
+  t = t
+    .replace(/\(\s*[,.;]\s*/g, '(')
+    .replace(/\s*,\s*\)/g, ')')
+    .replace(/\(\s*\)/g, '')
+    .replace(/\s*,\s*,/g, ',')
+    .replace(/\s+([.,;!?])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+  return t.trim()
+}
+
 function applyIcpSwaps(text) {
   if (!text) return ''
   let t = String(text)
@@ -163,10 +216,11 @@ function ensureIcpCtaQuestion(cta) {
  */
 export function applyIcpCritique(post) {
   if (!post) return post
-  const hook = stripDashesFromCopy(applyIcpSwaps(dropEmojis(post.hook || '')))
-  const body = stripDashesFromCopy(applyIcpSwaps(dropEmojis(post.body || '')))
-  const cta = ensureIcpCtaQuestion(stripDashesFromCopy(applyIcpSwaps(dropEmojis(post.cta || ''))))
-  const firstComment = stripDashesFromCopy(applyIcpSwaps(dropEmojis(post.firstComment || '')))
+  const clean = (text) => stripDashesFromCopy(scrubMetaLabels(applyIcpSwaps(dropEmojis(text || ''))))
+  const hook = clean(post.hook)
+  const body = clean(post.body)
+  const cta = ensureIcpCtaQuestion(clean(post.cta))
+  const firstComment = clean(post.firstComment)
   return { ...post, hook, body, cta, firstComment }
 }
 

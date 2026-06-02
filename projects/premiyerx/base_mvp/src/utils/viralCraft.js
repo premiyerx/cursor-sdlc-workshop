@@ -1,6 +1,6 @@
 /**
  * Structural patterns from high-performing *operator* LinkedIn writers (not celebrity influencers).
- * Archetypes: field memo, spreadsheet truth, myth-bust, composite VP story, decision fork.
+ * Archetypes: field memo, spreadsheet truth, myth-bust, anonymized VP story, decision fork.
  */
 import { fnv1a, mulberry32 } from './generationVariety'
 import { buildNorthStarBlock, CURSOR_COMPETITIVE_SHADE, CURSOR_SIGNATURE_PHRASES } from '../data/contentStrategy'
@@ -32,9 +32,9 @@ const VIRAL_OPERATOR_ARCHETYPES = [
   },
   {
     id: 'composite_vp',
-    label: 'Composite VP story',
+    label: 'Anonymized VP story',
     pattern:
-      'One anonymized scene ("A VP of Eng told me last Tuesday…") — composite OK if honest. Story earns the framework.',
+      'One anonymized scene ("A VP of Eng told me last Tuesday…"). Story earns the framework. NEVER write the meta-words "composite" or "anonymized" inside the post itself — they are reviewer notes, not reader copy.',
     structure: 'Scene hook → tension → what they did wrong → what worked instead → question',
     voice: 'Storytelling without name-dropping clients. "I\'ve seen" / "last quarter" anchors.',
   },
