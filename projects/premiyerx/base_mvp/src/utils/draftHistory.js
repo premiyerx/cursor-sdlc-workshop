@@ -9,27 +9,39 @@
  *
  * What this does:
  *   1. Persists a rolling window of the last N drafts in localStorage.
- *   2. Computes a Jaccard-shingle similarity between a candidate draft and
- *      every prior draft (hook + body, separately weighted).
- *   3. Formats an `AVOID_BLOCK` string that we inject into the LLM prompt so
- *      the model is told — explicitly — not to paraphrase prior hooks/openers.
+ *   2. Computes a multi-signal similarity (hook tokens, opener tokens,
+ *      body bigrams, body trigrams) between a candidate draft and every
+ *      prior draft, then aggregates the top-3 matches into a cluster-aware
+ *      novelty score so candidates that are "65% similar to three different
+ *      prior drafts" are caught, not just exact twins.
+ *   3. Formats an `AVOID_BLOCK` string injected into the LLM prompt so the
+ *      model is told — explicitly — which recent hooks, openers, and
+ *      opening trigrams to avoid.
  *   4. Surfaces a novelty score (0-100, higher = fresher) so the UI can warn
  *      the user before they accidentally re-publish near-duplicate content.
  *
- * Storage shape (localStorage["lidp_draft_history_v1"]):
+ * Storage shape (localStorage["lidp_draft_history_v2"]):
  *   {
- *     version: 1,
+ *     version: 2,
  *     entries: [
- *       { id, ts, topicId, modelId, hook, opener, body200, hookTokens, bodyShingles }
+ *       { id, ts, topicId, modelId, hook, opener, body200,
+ *         hookTokens, openerTokens, bodyBigrams, bodyTrigrams }
  *     ]
  *   }
  *
  * Capped at MAX_HISTORY entries. Older entries are dropped FIFO.
  */
 
-const STORAGE_KEY = 'lidp_draft_history_v1'
-const MAX_HISTORY = 30
-const SHINGLE_SIZE = 3
+const STORAGE_KEY = 'lidp_draft_history_v2'
+const LEGACY_STORAGE_KEY = 'lidp_draft_history_v1'
+/**
+ * Roll history at 150 drafts ≈ 5 months of daily posting. Sized so a "press
+ * Generate 100 times in a session" user never falls off the window: every
+ * candidate is scored against every prior attempt in the run.
+ */
+const MAX_HISTORY = 150
+const TRIGRAM_SIZE = 3
+const BIGRAM_SIZE = 2
 
 const STOPWORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'so', 'if', 'as', 'is', 'was', 'are',
@@ -52,15 +64,36 @@ function safeStorage() {
 
 function readStore() {
   const store = safeStorage()
-  if (!store) return { version: 1, entries: [] }
+  if (!store) return { version: 2, entries: [] }
   try {
     const raw = store.getItem(STORAGE_KEY)
-    if (!raw) return { version: 1, entries: [] }
-    const parsed = JSON.parse(raw)
-    if (!parsed || !Array.isArray(parsed.entries)) return { version: 1, entries: [] }
-    return parsed
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && Array.isArray(parsed.entries)) return parsed
+    }
+    // One-time migration from v1 if present. v1 entries had `bodyShingles`
+    // (trigrams). We treat them as trigrams and skip bigram/opener tokens
+    // so they still score meaningfully on legacy data.
+    const legacy = store.getItem(LEGACY_STORAGE_KEY)
+    if (legacy) {
+      try {
+        const parsedLegacy = JSON.parse(legacy)
+        if (parsedLegacy && Array.isArray(parsedLegacy.entries)) {
+          const migrated = parsedLegacy.entries.map((e) => ({
+            ...e,
+            bodyTrigrams: e.bodyShingles || [],
+            bodyBigrams: e.bodyBigrams || [],
+            openerTokens: e.openerTokens || [],
+          }))
+          const next = { version: 2, entries: migrated.slice(0, MAX_HISTORY) }
+          writeStore(next)
+          return next
+        }
+      } catch { /* drop legacy */ }
+    }
+    return { version: 2, entries: [] }
   } catch {
-    return { version: 1, entries: [] }
+    return { version: 2, entries: [] }
   }
 }
 
@@ -87,7 +120,7 @@ const NUMBER_WORDS = {
 
 /**
  * Light stem so "rip" / "ripped", "moved" / "moves", "running" / "run" collapse.
- * Intentionally simple — full Porter stemming is overkill for ~30 short drafts.
+ * Intentionally simple — full Porter stemming is overkill for short drafts.
  */
 function lightStem(word) {
   if (word.length <= 4) return word
@@ -109,7 +142,7 @@ function tokenize(text) {
     .map(lightStem)
 }
 
-function shinglesOf(tokens, size = SHINGLE_SIZE) {
+function shinglesOf(tokens, size) {
   if (tokens.length < size) return new Set(tokens)
   const set = new Set()
   for (let i = 0; i <= tokens.length - size; i++) {
@@ -143,12 +176,15 @@ function extractOpener(body) {
 function signaturize({ hook, body, opener }) {
   const hookTokens = tokenize(hook)
   const bodyTokens = tokenize(body)
+  const openerTokens = tokenize(opener)
   return {
     hook: String(hook || '').slice(0, 220),
     opener: String(opener || '').slice(0, 200),
     body200: String(body || '').slice(0, 200),
     hookTokens,
-    bodyShingles: [...shinglesOf(bodyTokens)],
+    openerTokens,
+    bodyBigrams: [...shinglesOf(bodyTokens, BIGRAM_SIZE)],
+    bodyTrigrams: [...shinglesOf(bodyTokens, TRIGRAM_SIZE)],
   }
 }
 
@@ -180,83 +216,224 @@ export function getDraftHistory() {
 }
 
 export function clearDraftHistory() {
-  writeStore({ version: 1, entries: [] })
+  writeStore({ version: 2, entries: [] })
+  // Also nuke the legacy key so a refreshed user starts clean.
+  const ls = safeStorage()
+  if (ls) {
+    try { ls.removeItem(LEGACY_STORAGE_KEY) } catch { /* ignore */ }
+  }
 }
 
 /**
- * Score a candidate draft against history. Returns:
- *   {
- *     noveltyScore: 0-100  (higher = fresher),
- *     topMatch: { entry, hookSim, bodySim, combinedSim } | null,
- *     allSimilarities: [...]  // sorted desc
- *   }
+ * Pairwise similarity between a candidate signature and a stored entry.
+ * Returns the raw component scores AND a combined score.
  *
- * `combinedSim` weights hook similarity higher (it's the most visible part
- * of a LinkedIn post) and clamps to [0,1].
+ * Weighting rationale:
+ *  - HOOK is the most-visible chunk a reader sees, so it dominates (0.40).
+ *  - OPENER (first sentence under the hook) is the second-visible (0.20).
+ *  - Body TRIGRAMS catch full-phrase reuse (0.25).
+ *  - Body BIGRAMS catch short-phrase reuse the model uses to dodge a trigram
+ *    block (e.g. "shipped this week" → "rolled out this week"); weight 0.15.
+ *  - We add a small "hook-cliff" booster if the hook is ≥0.5 similar — that's
+ *    a near-identical opening line and should drag the score down hard.
  */
-export function scoreNovelty({ hook, body, topicId = null, withinDays = 60 }) {
+function pairSimilarity(candidateSig, entry, sameTopic) {
+  const candHook = new Set(candidateSig.hookTokens || [])
+  const candOpener = new Set(candidateSig.openerTokens || [])
+  const candBigrams = new Set(candidateSig.bodyBigrams || [])
+  const candTrigrams = new Set(candidateSig.bodyTrigrams || [])
+
+  const entryHook = new Set(entry.hookTokens || [])
+  const entryOpener = new Set(entry.openerTokens || [])
+  const entryBigrams = new Set(entry.bodyBigrams || [])
+  const entryTrigrams = new Set(entry.bodyTrigrams || entry.bodyShingles || [])
+
+  const hookSim = jaccard(candHook, entryHook)
+  const openerSim = jaccard(candOpener, entryOpener)
+  const bigramSim = jaccard(candBigrams, entryBigrams)
+  const trigramSim = jaccard(candTrigrams, entryTrigrams)
+
+  let combined =
+    hookSim * 0.40 +
+    openerSim * 0.20 +
+    trigramSim * 0.25 +
+    bigramSim * 0.15
+
+  if (hookSim >= 0.5) combined += (hookSim - 0.5) * 0.4 // hook cliff
+  combined = Math.min(1, combined)
+
+  // Same-topic drafts naturally share vocabulary; very small discount so we
+  // don't false-flag topical overlap on otherwise-different posts.
+  if (sameTopic) combined = Math.max(0, combined - 0.03)
+  return { hookSim, openerSim, bigramSim, trigramSim, combinedSim: combined }
+}
+
+/**
+ * Score a candidate draft against history.
+ *
+ * Cluster-aware: we don't just look at the single closest prior draft. If the
+ * candidate is 0.6 similar to ONE prior draft, that's a duplicate risk. But if
+ * it's 0.55 similar to THREE different prior drafts, that's also a duplicate
+ * risk (the candidate is drifting toward a recurring cluster). The cluster
+ * penalty adds a diminishing-return amount of the top-2 and top-3 similarities
+ * to the top-1.
+ *
+ * @returns {{
+ *   noveltyScore: number,       // 0-100 higher = fresher
+ *   topMatch: object | null,
+ *   topMatches: object[],       // top 3 similarities
+ *   allSimilarities: object[],  // every comparison, sorted desc
+ * }}
+ */
+export function scoreNovelty({ hook, body, topicId = null, withinDays = 120 }) {
   const store = readStore()
   if (!store.entries.length) {
-    return { noveltyScore: 100, topMatch: null, allSimilarities: [] }
+    return { noveltyScore: 100, topMatch: null, topMatches: [], allSimilarities: [] }
   }
   const candidate = signaturize({ hook, body, opener: extractOpener(body) })
-  const candidateHookSet = new Set(candidate.hookTokens)
-  const candidateBodySet = new Set(candidate.bodyShingles)
 
   const cutoffTs = Date.now() - withinDays * 24 * 60 * 60 * 1000
   const sims = []
   for (const entry of store.entries) {
     if (entry.ts < cutoffTs) continue
-    // Note: we intentionally do NOT skip "self" matches. If a regenerate
-    // produces the exact same draft, the user MUST see novelty=0 so they
-    // don't accidentally re-publish duplicate content.
-    const entryHookSet = new Set(entry.hookTokens || [])
-    const entryBodySet = new Set(entry.bodyShingles || [])
-    const hookSim = jaccard(candidateHookSet, entryHookSet)
-    const bodySim = jaccard(candidateBodySet, entryBodySet)
-    // Combined: hook is 1.4x weighted, then averaged. Capped at 1.
-    const combinedSim = Math.min(1, hookSim * 0.55 + bodySim * 0.45 + Math.max(0, hookSim - 0.5) * 0.3)
-    // Same-topic posts naturally share vocabulary; slightly discount their
-    // body similarity so we don't false-flag topical overlap.
-    const adjusted = topicId && entry.topicId === topicId ? Math.max(0, combinedSim - 0.05) : combinedSim
-    sims.push({ entry, hookSim, bodySim, combinedSim: adjusted })
+    // We intentionally do NOT skip "self" matches. If a regenerate produces
+    // the exact same draft, the user MUST see novelty near 0.
+    const sim = pairSimilarity(candidate, entry, topicId && entry.topicId === topicId)
+    sims.push({ entry, ...sim })
   }
   sims.sort((a, b) => b.combinedSim - a.combinedSim)
   const top = sims[0] || null
-  const noveltyScore = top ? Math.round((1 - top.combinedSim) * 100) : 100
-  return { noveltyScore, topMatch: top, allSimilarities: sims }
+  const topMatches = sims.slice(0, 3)
+
+  // Cluster penalty: top-2 and top-3 add diminishing weight.
+  // If only top-1 matters, score = (1 - top1) * 100.
+  // If top-2 / top-3 are also high, the score drops further.
+  const t1 = topMatches[0]?.combinedSim || 0
+  const t2 = topMatches[1]?.combinedSim || 0
+  const t3 = topMatches[2]?.combinedSim || 0
+  const aggregate = Math.min(1, t1 + Math.max(0, t2 - 0.3) * 0.35 + Math.max(0, t3 - 0.4) * 0.2)
+  const noveltyScore = Math.round((1 - aggregate) * 100)
+
+  return { noveltyScore, topMatch: top, topMatches, allSimilarities: sims }
+}
+
+/**
+ * Pull the most-recent N entries the prompt should warn the model about,
+ * preferring same-topic.
+ */
+export function getRecentSignatures({ topicId = null, limit = 15 } = {}) {
+  const store = readStore()
+  if (!store.entries.length) return []
+  const sameTopic = topicId ? store.entries.filter((e) => e.topicId === topicId) : []
+  const others = store.entries.filter((e) => !sameTopic.includes(e))
+  return [...sameTopic, ...others].slice(0, limit)
+}
+
+/**
+ * Extract the top-K opener phrases (first 2 tokens of the body, as a bigram)
+ * that have appeared across recent drafts. We want to forbid these on the next
+ * generation so the model never starts a body the same way twice in a row.
+ */
+export function extractForbiddenOpeners({ topicId = null, lookback = 25, limit = 5 } = {}) {
+  const store = readStore()
+  if (!store.entries.length) return []
+  const recent = store.entries.slice(0, lookback)
+  const counts = new Map()
+  for (const e of recent) {
+    const opener = String(e.opener || '').trim()
+    if (!opener) continue
+    const first6 = opener.split(/\s+/).slice(0, 6).join(' ')
+    if (!first6) continue
+    counts.set(first6, (counts.get(first6) || 0) + 1)
+    // Also seed the opener-token bigram if available
+    const ot = e.openerTokens || []
+    if (ot.length >= 2) {
+      const opBigram = `${ot[0]} ${ot[1]}`
+      counts.set(opBigram, (counts.get(opBigram) || 0) + 1)
+    }
+  }
+  // De-dupe by content, prefer same-topic appearances first
+  const sameTopicSet = new Set(
+    topicId
+      ? store.entries.filter((e) => e.topicId === topicId).map((e) => firstSentence(e.body200 || e.opener || ''))
+      : [],
+  )
+  void sameTopicSet // currently unused — placeholder for future topic-weighting
+  const ranked = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([phrase, count]) => ({ phrase, count }))
+  return ranked.slice(0, limit)
+}
+
+/**
+ * Extract the top-K body trigrams that show up across multiple recent drafts.
+ * These are the literal phrase tics the model is leaning on. We forbid them
+ * on the next generation so it has to find different connective tissue.
+ */
+export function extractForbiddenTrigrams({ lookback = 20, limit = 8, minCount = 2 } = {}) {
+  const store = readStore()
+  if (!store.entries.length) return []
+  const recent = store.entries.slice(0, lookback)
+  const counts = new Map()
+  for (const e of recent) {
+    const set = new Set(e.bodyTrigrams || e.bodyShingles || [])
+    for (const tri of set) counts.set(tri, (counts.get(tri) || 0) + 1)
+  }
+  return [...counts.entries()]
+    .filter(([, c]) => c >= minCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([phrase, count]) => ({ phrase, count }))
 }
 
 /**
  * Build the AVOID_BLOCK prompt fragment from the most recent drafts.
  * Used by aiPostGenerator.buildUserPrompt.
  */
-export function buildAvoidBlock({ topicId = null, limit = 5 } = {}) {
-  const store = readStore()
-  if (!store.entries.length) return ''
-  // Prefer same-topic drafts (likeliest collision source) and pad with cross-topic.
-  const sameTopic = topicId ? store.entries.filter((e) => e.topicId === topicId) : []
-  const others = store.entries.filter((e) => !sameTopic.includes(e))
-  const selected = [...sameTopic, ...others].slice(0, limit)
-  if (!selected.length) return ''
-  const lines = selected.map((entry, i) => {
+export function buildAvoidBlock({ topicId = null, limit = 15 } = {}) {
+  const recent = getRecentSignatures({ topicId, limit })
+  if (!recent.length) return ''
+
+  const lines = recent.map((entry, i) => {
     const day = new Date(entry.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     const hook = (entry.hook || '').replace(/\s+/g, ' ').trim().slice(0, 140)
     const opener = (entry.opener || '').replace(/\s+/g, ' ').trim().slice(0, 140)
     return `${i + 1}. (${day}) HOOK: "${hook}" | OPENER: "${opener}"`
   })
-  return `
 
-RECENT_DRAFTS_TO_AVOID — these are posts I have already published or generated. Do NOT repeat, paraphrase, or remix their hooks, openers, central metaphor, or anchoring stat. Use a structurally different angle, a different cadence, and a different first beat.
-${lines.join('\n')}
+  const forbiddenOpeners = extractForbiddenOpeners({ topicId, lookback: 25, limit: 6 })
+  const forbiddenTrigrams = extractForbiddenTrigrams({ lookback: 25, limit: 10, minCount: 2 })
 
-If the only good story this week IS one of the above, find a fresh second-order take — a counterpoint, a missed detail, an industry implication, or a personal anecdote that wasn't in the prior draft. The reader has seen the headline; show them something new.`
+  const sections = [
+    `
+
+RECENT_DRAFTS_TO_AVOID — I have already generated or published these. Do NOT repeat, paraphrase, or remix their hooks, openers, central metaphor, or anchoring stat. Use a structurally different angle, different cadence, and a different first beat.
+${lines.join('\n')}`,
+  ]
+
+  if (forbiddenOpeners.length) {
+    sections.push(
+      `\nFORBIDDEN OPENING PHRASES (these have appeared too often — never start the body with any of them):\n${forbiddenOpeners.map((f) => `- "${f.phrase}"`).join('\n')}`,
+    )
+  }
+
+  if (forbiddenTrigrams.length) {
+    sections.push(
+      `\nOVER-USED PHRASE FRAGMENTS (avoid these literal sequences anywhere in the post — find different connective tissue):\n${forbiddenTrigrams.map((f) => `- "${f.phrase}"`).join('\n')}`,
+    )
+  }
+
+  sections.push(
+    `\nIf the only good story this week IS one of the above, find a fresh second-order take — a counterpoint, a missed detail, an industry implication, or a personal anecdote that was NOT in the prior drafts. The reader has seen the headline; show them something new.`,
+  )
+
+  return sections.join('\n')
 }
 
 /** Pretty label for the novelty score (used by the UI badge). */
 export function describeNovelty(noveltyScore, topMatch) {
   if (noveltyScore >= 80) return { tone: 'fresh', label: `${noveltyScore}% fresh` }
-  if (noveltyScore >= 60) return { tone: 'ok', label: `${noveltyScore}% fresh` }
+  if (noveltyScore >= 65) return { tone: 'ok', label: `${noveltyScore}% fresh` }
   const day = topMatch?.entry?.ts
     ? new Date(topMatch.entry.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : null
@@ -267,4 +444,4 @@ export function describeNovelty(noveltyScore, topMatch) {
 }
 
 /** Test seam — used by unit tests / harnesses. */
-export const __internals = { tokenize, shinglesOf, jaccard, signaturize }
+export const __internals = { tokenize, shinglesOf, jaccard, signaturize, pairSimilarity }

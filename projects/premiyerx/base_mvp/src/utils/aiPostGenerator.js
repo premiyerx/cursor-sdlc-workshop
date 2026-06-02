@@ -311,7 +311,10 @@ async function loadSharedGenerationContext(topicId, options) {
 
   report(44, 'Applying your voice profile…')
   const structure = pickStructureTemplate(topicId)
-  const avoidBlock = buildAvoidBlock({ topicId, limit: 5 })
+  // Use a generous limit so the model sees the full anti-collision context.
+  // 15 prior drafts ≈ ~2KB of prompt — small price for fresh output across
+  // a heavy generation session.
+  const avoidBlock = buildAvoidBlock({ topicId, limit: 15 })
   const userPrompt = buildUserPrompt(
     topic,
     topicId,
@@ -339,19 +342,108 @@ async function loadSharedGenerationContext(topicId, options) {
 }
 
 /**
- * Build a stronger anti-collision instruction we append when an initial draft
- * was too similar to history. This pushes the model into a structurally
- * different angle on retry, without leaking instructions into the post body.
+ * Anti-collision retry suffixes that escalate by attempt index.
+ *
+ * Each round adds heavier guardrails so the model is pushed away from the
+ * cluster it keeps drifting toward. Round 3 effectively bans the post's
+ * current structural skeleton.
  */
-const NOVELTY_RETRY_SUFFIX = `
+const NOVELTY_RETRY_SUFFIXES = [
+  // Round 1 — different first beat / structure / no paraphrase
+  `
 
 NOVELTY_RETRY (critical): Your previous attempt for this run was too close to a prior draft in my history. For this attempt:
 - Open with a DIFFERENT first beat (no repeat of the prior hook's verb, framing, or noun phrase).
 - Anchor on a different stat or a different named scene from the news context.
 - Use a different structure (if last was contrarian, try a counter-pattern; if last was a numbered list, try a single-thread anecdote).
-- Do not paraphrase any sentence from the prior draft.`
+- Do not paraphrase any sentence from the prior draft.`,
+  // Round 2 — change archetype + ICP role + concrete grounding
+  `
 
-const NOVELTY_RETRY_THRESHOLD = 65
+NOVELTY_RETRY ROUND 2 (heavy): Round 1 was still too close. This attempt must change MORE than wording:
+- Pick a completely DIFFERENT hook archetype than the prior attempts (number → counter-intuition, or scene → ranked list, etc.).
+- Use a different ICP role as the anchor (if the prior leaned on "VP of Engineering", switch to CFO, CIO, CISO, or VP DevSecOps).
+- Replace the anchoring company/product/stat with a different concrete example from CONTEXT.
+- Reverse the emotional posture (if prior was cautionary, this one is opportunistic — or vice-versa).
+- Do not reuse any sentence-opening word from the prior attempts.`,
+  // Round 3 — change frame and start from a different sentence shape
+  `
+
+NOVELTY_RETRY ROUND 3 (last-chance): Two prior attempts were too close to history. Treat this as a NEW assignment:
+- Start the body with a fragment, a question, OR a single short declarative — never a "I + verb" or "The + noun" opening, since those have been overused.
+- Lead with a SECOND-ORDER consequence the headline implies but does not state.
+- Bring a contrarian peer-quote or a one-line numbers-vs-narrative contrast that has not appeared in any prior draft.
+- Hook MUST be < 14 words and contain a specific noun (a role, a tool, a metric, a date) that is NOT in any prior hook in my history.`,
+]
+
+/**
+ * Novelty floor below which we trigger a retry. 75 = "drafts must look at
+ * least 25% different from every prior draft in a 120-day rolling window."
+ * Tightened from 65 after observing 100x-session collisions.
+ */
+const NOVELTY_RETRY_THRESHOLD = 75
+const MAX_NOVELTY_RETRIES = NOVELTY_RETRY_SUFFIXES.length
+
+/**
+ * Run up to N retry attempts with escalating anti-collision suffixes.
+ * Keep the highest-novelty polished draft we manage to produce, even if it
+ * still falls below the threshold (giving the user the freshest available
+ * option instead of forcing a hard failure).
+ *
+ * @param {{
+ *   ctx: object,
+ *   profile: object,
+ *   apiKey: string,
+ *   initialPolished: object,
+ *   initialNovelty: { noveltyScore: number, topMatch: object | null, topMatches?: object[] },
+ *   report: (pct: number, stage: string) => void,
+ * }} args
+ */
+async function escalateForNovelty({ ctx, profile, apiKey, initialPolished, initialNovelty, report }) {
+  let bestPolished = initialPolished
+  let bestNovelty = initialNovelty
+
+  for (let round = 0; round < MAX_NOVELTY_RETRIES; round++) {
+    if (bestNovelty.noveltyScore >= NOVELTY_RETRY_THRESHOLD) break
+    const suffix = NOVELTY_RETRY_SUFFIXES[round]
+    const label = round === 0
+      ? 'Too close to a prior draft — rewriting for a fresher angle…'
+      : `Still too similar — escalating anti-collision (round ${round + 1})…`
+    report?.(85 + round * 3, label)
+    try {
+      const retryRaw = await generateRawCompletion(profile, {
+        systemPrompt: ctx.systemPrompt,
+        userPrompt: `${ctx.userPrompt}${suffix}`,
+        apiKey,
+      })
+      let retryDraft = parseAIOutput(retryRaw, ctx.finalizeOptions)
+      if (postSectionsHaveReasoningLeakage(retryDraft)) {
+        retryDraft = parseAIOutput(
+          prepareModelTextForParsing(retryRaw, { aggressive: true }),
+          ctx.finalizeOptions,
+        )
+      }
+      if (!retryDraft?.hook?.trim() && !retryDraft?.body?.trim()) continue
+
+      const retryPolished = await polishPostForReach(retryDraft, ctx, profile, apiKey, () => {})
+      if (retryPolished.error || !retryPolished.post) continue
+
+      const retryNovelty = scoreNovelty({
+        hook: retryPolished.post.hook || '',
+        body: retryPolished.post.body || '',
+        topicId: ctx.topicId,
+      })
+      if (retryNovelty.noveltyScore > bestNovelty.noveltyScore) {
+        bestPolished = retryPolished
+        bestNovelty = retryNovelty
+      }
+    } catch {
+      /* keep best so far and try next round if any */
+    }
+  }
+
+  return { polished: bestPolished, novelty: bestNovelty }
+}
 
 
 /**
@@ -393,45 +485,25 @@ export async function generateAIPost(topicId, options = {}) {
   let polished = await polishPostForReach(draft, ctx, profile, apiKey, report)
   if (polished.error) throw new Error(polished.error)
 
-  // Novelty pass: if too similar to history, retry once with stronger anti-collision.
-  let novelty = scoreNovelty({
+  // Novelty pass: escalate through up to MAX_NOVELTY_RETRIES anti-collision
+  // rounds. Each round is a stronger nudge; we keep whichever draft scored
+  // freshest, so even if no round clears the threshold the user still gets
+  // the most novel candidate the model produced.
+  const initialNovelty = scoreNovelty({
     hook: polished.post?.hook || '',
     body: polished.post?.body || '',
     topicId: ctx.topicId,
   })
-  if (novelty.noveltyScore < NOVELTY_RETRY_THRESHOLD) {
-    report(85, 'Too close to a prior draft — rewriting for a fresher angle…')
-    try {
-      const retryRaw = await generateRawCompletion(profile, {
-        systemPrompt: ctx.systemPrompt,
-        userPrompt: `${ctx.userPrompt}${NOVELTY_RETRY_SUFFIX}`,
-        apiKey,
-      })
-      let retryDraft = parseAIOutput(retryRaw, ctx.finalizeOptions)
-      if (postSectionsHaveReasoningLeakage(retryDraft)) {
-        retryDraft = parseAIOutput(
-          prepareModelTextForParsing(retryRaw, { aggressive: true }),
-          ctx.finalizeOptions,
-        )
-      }
-      if (retryDraft?.hook?.trim() || retryDraft?.body?.trim()) {
-        const retryPolished = await polishPostForReach(retryDraft, ctx, profile, apiKey, report)
-        if (!retryPolished.error && retryPolished.post) {
-          const retryNovelty = scoreNovelty({
-            hook: retryPolished.post.hook || '',
-            body: retryPolished.post.body || '',
-            topicId: ctx.topicId,
-          })
-          if (retryNovelty.noveltyScore > novelty.noveltyScore) {
-            polished = retryPolished
-            novelty = retryNovelty
-          }
-        }
-      }
-    } catch {
-      /* keep original if retry fails */
-    }
-  }
+  const escalated = await escalateForNovelty({
+    ctx,
+    profile,
+    apiKey,
+    initialPolished: polished,
+    initialNovelty,
+    report,
+  })
+  polished = escalated.polished
+  const novelty = escalated.novelty
 
   recordDraft({
     topicId: ctx.topicId,
@@ -467,7 +539,44 @@ export async function generateAIPost(topicId, options = {}) {
 }
 
 /**
- * Same headlines + prompt for all three providers; runs requests in parallel.
+ * Per-model structural angle hints. When we run three providers in parallel
+ * they share the SAME news context and the SAME system prompt, so without an
+ * explicit divergence nudge they can converge on the same archetype (e.g.
+ * all three open with "I watched a team…"). These deterministic, per-model
+ * hints are appended to each provider's prompt so the three outputs hit
+ * different structural shapes by design.
+ *
+ * Rotated by index so a model isn't permanently stuck on one archetype.
+ */
+const COMPARE_ANGLE_VARIANTS = [
+  `
+
+STRUCTURAL VARIANT FOR THIS MODEL (use this archetype, distinct from the other two parallel drafts):
+- Open with a CONCRETE SCENE — a named role (CIO/VP Eng/CFO/CISO/VP DevSecOps) in a real moment.
+- Body alternates 1-line punches with a single longer beat. No numbered list.
+- CTA is a peer-to-peer question that surfaces a hidden trade-off.`,
+  `
+
+STRUCTURAL VARIANT FOR THIS MODEL (use this archetype, distinct from the other two parallel drafts):
+- Open with a COUNTER-INTUITIVE STAT or pattern (the data says X, the room thinks Y).
+- Body is a tight 3- or 4-beat ranked list. Each beat names a specific lever or risk.
+- CTA reframes the priority order for the reader.`,
+  `
+
+STRUCTURAL VARIANT FOR THIS MODEL (use this archetype, distinct from the other two parallel drafts):
+- Open with a SECOND-ORDER CONSEQUENCE the headline implies but does not state.
+- Body is a single-thread argument that follows one chain of reasoning, no list.
+- CTA invites the reader to name what would have to be true for the headline to flip.`,
+]
+
+function buildCompareAngleHint(index) {
+  return COMPARE_ANGLE_VARIANTS[index % COMPARE_ANGLE_VARIANTS.length] || ''
+}
+
+/**
+ * Same headlines + prompt for all three providers; runs requests in parallel
+ * with per-model structural divergence so the three outputs are visibly
+ * different even on identical news.
  */
 export async function generateAIPostCompareAll(topicId, options = {}) {
   const report = (pct, stage) => options.onProgress?.(pct, stage)
@@ -480,11 +589,22 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
   const profiles = COMPARE_TEXT_MODEL_IDS.map((id) => getTextModelProfile(id))
   report(48, 'Running GPT 5.5, Claude Opus 4.8, and Gemini 3 Pro (then Editors 2 & 3)…')
 
-  async function runOneModel(profile) {
+  // Rotate the per-run starting offset so we don't always hand "scene" to
+  // GPT and "stat" to Claude.
+  const angleOffset = (ctx.seed >>> 0) % COMPARE_ANGLE_VARIANTS.length
+
+  async function runOneModel(profile, profileIndex) {
     const apiKey = getApiKeyForProfile(profile)
+    const angleHint = buildCompareAngleHint(angleOffset + profileIndex)
+    // Build a model-specific ctx that carries the angle hint INSIDE the
+    // userPrompt so retries, novelty escalations, and polish all inherit it.
+    const variantCtx = {
+      ...ctx,
+      userPrompt: `${ctx.userPrompt}${angleHint}`,
+    }
     const baseArgs = {
-      systemPrompt: ctx.systemPrompt,
-      userPrompt: ctx.userPrompt,
+      systemPrompt: variantCtx.systemPrompt,
+      userPrompt: variantCtx.userPrompt,
       apiKey,
     }
     const attempts = 3
@@ -493,14 +613,14 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
       try {
         const userPrompt =
           i > 0 && profile.provider === 'gemini'
-            ? `${ctx.userPrompt}${ANTI_LEAK_OUTPUT_SUFFIX}`
-            : ctx.userPrompt
+            ? `${variantCtx.userPrompt}${ANTI_LEAK_OUTPUT_SUFFIX}`
+            : variantCtx.userPrompt
         const raw = await generateRawCompletion(profile, { ...baseArgs, userPrompt })
-        let draft = parseAIOutput(raw, ctx.finalizeOptions)
+        let draft = parseAIOutput(raw, variantCtx.finalizeOptions)
         if (postSectionsHaveReasoningLeakage(draft)) {
           draft = parseAIOutput(
             prepareModelTextForParsing(raw, { aggressive: true }),
-            ctx.finalizeOptions,
+            variantCtx.finalizeOptions,
           )
         }
         if (postSectionsHaveReasoningLeakage(draft)) {
@@ -510,51 +630,30 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
           throw new Error('Model returned empty HOOK and BODY.')
         }
         const noopReport = () => {}
-        let polished = await polishPostForReach(draft, ctx, profile, apiKey, noopReport)
+        let polished = await polishPostForReach(draft, variantCtx, profile, apiKey, noopReport)
         if (polished.error) {
           throw new Error(polished.error)
         }
 
-        // Novelty guard: one retry with strong anti-collision if too similar.
-        let novelty = scoreNovelty({
+        // Novelty guard with escalation: keep the freshest draft we produce.
+        const initialNovelty = scoreNovelty({
           hook: polished.post?.hook || '',
           body: polished.post?.body || '',
-          topicId: ctx.topicId,
+          topicId: variantCtx.topicId,
         })
-        if (novelty.noveltyScore < NOVELTY_RETRY_THRESHOLD) {
-          try {
-            const retryRaw = await generateRawCompletion(profile, {
-              ...baseArgs,
-              userPrompt: `${ctx.userPrompt}${NOVELTY_RETRY_SUFFIX}`,
-            })
-            let retryDraft = parseAIOutput(retryRaw, ctx.finalizeOptions)
-            if (postSectionsHaveReasoningLeakage(retryDraft)) {
-              retryDraft = parseAIOutput(
-                prepareModelTextForParsing(retryRaw, { aggressive: true }),
-                ctx.finalizeOptions,
-              )
-            }
-            if (retryDraft?.hook?.trim() || retryDraft?.body?.trim()) {
-              const retryPolished = await polishPostForReach(retryDraft, ctx, profile, apiKey, noopReport)
-              if (!retryPolished.error && retryPolished.post) {
-                const retryNovelty = scoreNovelty({
-                  hook: retryPolished.post.hook || '',
-                  body: retryPolished.post.body || '',
-                  topicId: ctx.topicId,
-                })
-                if (retryNovelty.noveltyScore > novelty.noveltyScore) {
-                  polished = retryPolished
-                  novelty = retryNovelty
-                }
-              }
-            }
-          } catch {
-            /* keep original */
-          }
-        }
+        const escalated = await escalateForNovelty({
+          ctx: variantCtx,
+          profile,
+          apiKey,
+          initialPolished: polished,
+          initialNovelty,
+          report: noopReport,
+        })
+        polished = escalated.polished
+        const novelty = escalated.novelty
 
         recordDraft({
-          topicId: ctx.topicId,
+          topicId: variantCtx.topicId,
           modelId: profile.id,
           hook: polished.post?.hook || '',
           body: polished.post?.body || '',
@@ -590,7 +689,9 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
     return { post: null, error: lastErr }
   }
 
-  const settled = await Promise.allSettled(profiles.map((profile) => runOneModel(profile)))
+  const settled = await Promise.allSettled(
+    profiles.map((profile, idx) => runOneModel(profile, idx)),
+  )
 
   const variants = settled.map((s, i) => {
     const profile = profiles[i]
