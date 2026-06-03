@@ -63,7 +63,9 @@ ${weakRules || '  • (n/a)'}
 SCORING CHEAT SHEET (what moves the needle):
 - Hook: 8–12 words, include a number, parenthetical re-hook on line 2.
 - Body: ${POST_LENGTH.minDoubleLineBreaks}+ blank-line breaks; mix SHORT COMPLETE CLAUSES ("She paused." / "The CFO marked it.") with longer lines. NEVER standalone one-word exclamations ("Wild." / "Two things." / "Brutal." / "Same.") and NEVER orphan anaphora ("Same complaint both times" with no antecedent).
-- CTA: one "you/your" question (not "thoughts?").
+- Structure: prefer PLAIN short data lines (source in light parens) over a numbered "1. 2. 3." framework. Never add emojis or bold. Clean prose with good line breaks scores the same as a numbered deck.
+- Natural flow: concede before you contrast; react to ONE number like a person; make ONE reframe ("the harder question isn't X, it's Y") instead of a rhetorical question after every point. Ban filler: "the numbers speak volumes", "at what cost", "the question is".
+- CTA: one genuinely curious "you/your" question (not "thoughts?").
 - Specificity: one number + one named role or scene.
 - Length: stay ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax} chars total.
 `.trim()
@@ -84,7 +86,8 @@ RULES (non-negotiable):
 - Vary sentence length. Break three same-length sentences in a row. One short reaction line is fine.
 - Every line must be grammatically complete (ends with . ! or ?; all parentheses closed). Never stop mid-phrase or mid-parenthetical.
 - Facts: never "500+ Fortune 500" (only 500 companies). Use "back to the terminal" not "back terminal". No naked "The demo passes." Say where it passes or stalls.
-- Ban: game-changer, leverage, unlock, dive into, in today's fast-paced, the bottom line, here's the thing, crucial, vital, landscape, ever-evolving, arc, arrow bullets, bold headers, lesson/moral closers.
+- Ban: game-changer, leverage, unlock, dive into, in today's fast-paced, the bottom line, here's the thing, crucial, vital, landscape, ever-evolving, arc, arrow bullets, bold headers, lesson/moral closers, emojis, "the numbers speak volumes", "at what cost", "but at what cost", "the question is".
+- Do NOT convert plain prose into a numbered "1. 2. 3." framework to chase structure points — clean short data lines (source in light parens) read more human and score the same. Do NOT append a rhetorical question after each data point; react to one number like a person, then make a single reframe.
 - ICP voice (CIO / VP Engineering / CFO / CISO / VP DevOps / VP DevSecOps reader): NEVER use em-dashes or en-dashes. Use commas or periods. NEVER use emojis in hook/body/CTA. Ban: "double-click on", "table stakes", "north star", "mission-critical", "moving the needle", "spoiler", "plot twist", "make no mistake", "the truth is", "navigate the...", "in essence", "ultimately,", "best-in-class", "world-class", "cutting-edge", "next-gen", "paradigm shift", "innovative", "groundbreaking", "seamless", "frictionless", "unprecedented".
 - Read your output back as a CFO of a Fortune 500. If any line sounds like a vendor blog post, rewrite it as a peer would actually say it on a call.
 - HOOK+BODY+CTA+HASHTAGS ≤ ${POST_LENGTH.charSoftMax} chars (ideal ${POST_LENGTH.charIdealMax}–${POST_LENGTH.charSoftMax}).

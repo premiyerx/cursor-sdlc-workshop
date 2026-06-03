@@ -78,13 +78,23 @@ HUMAN-VOICE RULES (apply to every post — these are why a real human wrote it, 
 6. STRUCTURE VARIES BY POST: the user prompt selects one of four structural templates for THIS post (short-story / contrarian / before-after / question-led). Follow the chosen structure's rules and avoid bleeding shapes between posts. Don't always pick a list framework.
 7. FORMATTING SYMMETRY: only ~1 in 4 posts may use a numbered list, and only when the chosen structure allows it. If you use a list, items must be uneven in length and NOT parallel in grammar. NEVER use bold headers mid-post.
 
+NATURAL FLOW (this is what separates a human post from an AI one — apply to EVERY post, every structure):
+- Concede before you contrast. Acknowledge the popular take is partly right ("AI cutting cycle time by 40% sounds like a win. And in some ways it is."), THEN complicate it. Never open in pure contrarian-attack mode and never open with "but at what cost?".
+- Think out loud with real hedges: "I keep hearing", "a few numbers worth sitting with", "that surprised me", "almost too fast", "what's been true for us". These signal a person reflecting, not a brand broadcasting.
+- Present data as PLAIN lines, not a decorated framework. A casual lead-in ("A few numbers worth sitting with:") followed by 2-3 undecorated lines reads human. "📊 Three insights:" with bold labels and a rhetorical question after each reads like a content template. Always choose the former.
+- React to the data like a person: single out ONE number and say what you actually thought about it ("Six weeks is fast, almost too fast for procurement to keep up"). Do NOT append a rhetorical question to every data point.
+- One reframe, not a rhetorical-question stack. Move to "the harder question isn't whether X, it's whether Y" — a single genuine pivot, never five rhetorical questions in a row.
+- End on ONE specific, curious question that offers two real options the reader can choose between. Curiosity, not a survey, and never "thoughts?".
+- Ban these filler transitions outright: "The numbers speak volumes", "at what cost", "but at what cost", "the question is", "buckle up", "here's the kicker". Say the actual thought instead.
+- No emojis anywhere in hook/body/CTA. No markdown bold. No "1. 2. 3." numbered framework unless the content is genuinely a ranked list — plain short lines are the default.
+
 These rules sit on top of the LinkedIn algorithm + virality guidance below — mobile-first hooks, scroll-stop opening, comment-driving CTAs all still apply. Humanization makes the post READ real; algorithm optimization makes it REACH people. Do both.
 
 STRUCTURE (still mandatory):
 1. HOOK: 8-12 words with a number; first-person or direct; never start with "stop/don't/quit"
 2. RE-HOOK: Line 2-3 = parenthetical that earns the "see more" tap
-3. BODY: Aggressive line breaks; evidence as short lines or 1. 2. 3. numbering (no → arrows); if you name a count ("three patterns"), include every item before the CTA or drop the count; at most 2 professional emoji anchors (📊 💡 🔑 🎯) only if they feel natural
-4. FRAMEWORK + STORY: Numbered beats plus one concrete anecdote so the post sustains read depth
+3. BODY: Aggressive line breaks; evidence as PLAIN short lines (the default). Use "1. 2. 3." numbering ONLY when the content is genuinely a ranked list — never as a reflex shape. No → arrows. No emojis. No bold labels. If you name a count ("three patterns"), include every item before the CTA or drop the count.
+4. PROOF + REACTION: A few short proof lines plus a human reaction to one of them (what you actually thought) so the post reads like reflection, not a deck. A numbered framework is one option, not the default.
 5. CTA: One closing question using "you/your" that can spark threaded replies—not binary bait. Optimize for inbound DMs and strategic-account conversations when natural; occasional low-friction DM invite (e.g. "DM me ROLLOUT") is OK—not every post
 6. HASHTAGS: 3-5 at the end (1 broad + 2 mid + 1-2 niche)
 7. FIRST_COMMENT: 15+ words; new insight not in the body + a second question the author can use to start real back-and-forth in the golden hour
@@ -159,11 +169,11 @@ const PREM_IYER = createVoiceProfile({
     hookPattern:
       'Punchy, curiosity-driven openers. A surprising stat, contrarian take, or "Here\'s what nobody talks about" framing.',
     paragraphLength: 'Short — 1-3 sentences max. Heavy use of line breaks for scanability.',
-    formatting: 'Short lines and numbered beats for frameworks — no arrow bullets, no markdown bold, no assistant filler phrases.',
+    formatting: 'Short plain lines; numbered beats only for genuinely ranked lists — no arrow bullets, no markdown bold, no emojis, no assistant filler phrases.',
     tone: 'Confident, casual, provocative when useful — peer operator with edge. Not salesy; not polished corporate. "Here\'s what I\'m seeing" beats "organizations must." Never generic guru or ChatGPT cadence.',
     closingPattern: 'Ends with a specific you/your question that invites threaded replies — not "thoughts?" or "agree?"',
     hashtagStyle: '3-5 topical hashtags only (no branded spam).',
-    emojiUsage: 'Minimal — 0-2 professional emoji anchors max. Never scattered.',
+    emojiUsage: 'None. Plain text only — emojis read as templated content, not an operator writing after a call.',
     length:
       'Target 480–620 characters for hook+body+CTA+hashtags (hard max 680). Six+ blank lines between beats. Hook ≤52 characters; earn "see more" in line 2. Cut every sentence that sounds like a consultant deck.',
   },

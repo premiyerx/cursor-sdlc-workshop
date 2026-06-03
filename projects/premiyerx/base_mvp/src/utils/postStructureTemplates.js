@@ -58,12 +58,35 @@ export const STRUCTURE_TEMPLATES = [
     ],
     avoid: ['rhetorical-then-pivot openers ("Ever wondered...")', '"the answer is simple" framing'],
   },
+  {
+    id: 'honest-take',
+    label: 'Honest take',
+    summary: 'Concede the popular framing, then complicate it with what you actually hear from teams — thinking out loud, not lecturing.',
+    rules: [
+      'Open by stating the popular claim in plain words, then immediately concede part of it on the same beat. Pattern: "X cutting Y by 40% sounds like a win. And in some ways it is." One short line, then a blank line.',
+      'Pivot to lived reality with a hedge a real person actually uses: "But I keep hearing the same thing from teams actually using these tools:" then name the real tension in plain words (the gains are real, the headaches are also real). No framework label.',
+      'Drop 2–3 proof points as PLAIN lines under a casual lead-in ("A few numbers worth sitting with:"). No "1. 2. 3." numbering, no bold labels, no emojis. Put the source in light parens at the end of the line, e.g. "Payback period on AI tooling is roughly 6 weeks (Forrester, 2025)".',
+      'React to ONE of the numbers like a human — say what you actually thought: "That last one surprised me. Six weeks is fast, almost too fast for most procurement cycles to keep up." Do NOT append a rhetorical question after each data point.',
+      'Reframe to the harder question in prose, as ONE move (not a stack of rhetoricals): "The harder question isn\'t whether AI speeds things up. It\'s whether your team is set up to handle shipping faster without quality quietly slipping."',
+      'Close with ONE genuine, curious question that offers two real options the reader can pick between: "did this come from the top down, or did engineers just start using it and force the conversation?"',
+    ],
+    avoid: [
+      'numbered lists',
+      'bold labels',
+      'emoji bullets',
+      'a rhetorical question after every data point',
+      '"the numbers speak volumes" / "but at what cost" filler',
+      'consultant summaries',
+    ],
+  },
 ]
 
 const STRUCTURE_BY_ID = Object.fromEntries(STRUCTURE_TEMPLATES.map((t) => [t.id, t]))
 
 const RECENT_STRUCTURE_KEY = 'lidp_recent_structure_v1'
-const MAX_RECENT_STRUCTURE = 6
+// Keep at least one template always available so the avoid-recent loop never
+// exhausts the pool (must be < STRUCTURE_TEMPLATES.length).
+const MAX_RECENT_STRUCTURE = STRUCTURE_TEMPLATES.length - 1
 
 function sessionGet(key, fallback) {
   try {

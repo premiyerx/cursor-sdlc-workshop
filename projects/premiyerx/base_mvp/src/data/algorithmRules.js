@@ -71,7 +71,15 @@ export const SCORING_RULES = [
       const body = stripHashtagBlock(text)
       const wordCount = body.split(/\s+/).filter(Boolean).length
       const readTimeSec = (wordCount / 200) * 60
-      const hasFramework = /\d+\.\s/.test(body) && (body.match(/\d+\.\s/g) || []).length >= 3
+      // A "framework" is depth signal: 3+ numbered beats OR 3+ clean data
+      // lines. Counting plain data lines means a human-style post (no "1. 2.
+      // 3." scaffolding) earns the same dwell credit as a numbered deck.
+      const numberedBeats = (body.match(/\d+\.\s/g) || []).length
+      const dataBeats = body
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && /\d+%|\$[\d.]+[BMK]?|\d+x|\d{2,}/.test(l)).length
+      const hasFramework = numberedBeats >= 3 || dataBeats >= 3
       const lineCount = body.split('\n').filter((l) => l.trim()).length
       const doubleBreaks = (body.match(/\n\n/g) || []).length
       const dataPoints = (body.match(/\d+%|\$[\d.]+[BMK]?|\d+x/g) || []).length
@@ -83,9 +91,12 @@ export const SCORING_RULES = [
       else score += 16
       if (readTimeSec >= 20 && readTimeSec <= 90) score += 14
       else if (readTimeSec > 120) score -= 4
+      // A clean, well-broken prose post sustains dwell just as well as a
+      // numbered framework — reward it at parity so the model isn't nudged
+      // toward decks to win this pillar.
       if (hasFramework) score += 22
-      else if (lineCount >= 8 && doubleBreaks >= 3) score += 18
-      else if (lineCount >= 5 && doubleBreaks >= 2) score += 12
+      else if (lineCount >= 7 && doubleBreaks >= 3) score += 22
+      else if (lineCount >= 5 && doubleBreaks >= 2) score += 14
       if (dataPoints >= 4) score += 24
       else if (dataPoints >= 2) score += 18
       else if (dataPoints >= 1) score += 10
@@ -148,24 +159,31 @@ export const SCORING_RULES = [
   {
     id: 'visualStructure',
     label: 'Visual Structure',
-    description: 'Numbered beats, short lines, light emoji — no arrow-bullet AI tells.',
+    description: 'Scannable structure: numbered beats OR clean plain data lines, short lines, zero emojis, no arrow-bullet AI tells.',
     weight: 10,
     evaluate: (text) => {
       const body = stripHashtagBlock(text)
       const arrows = (body.match(/→|►|▸/g) || []).length
       const numberedItems = (body.match(/\n\d+\.\s/g) || []).length
-      const proEmojis = (body.match(/📊|💡|🔑|🎯|📈|🔮|⚡|🔴|📰/g) || []).length
       const allEmojis = (body.match(/[\u{1F300}-\u{1F9FF}]/gu) || []).length
-      const shortLines = body.split('\n').filter((l) => l.trim() && l.trim().length <= 100).length
+      const lines = body.split('\n').map((l) => l.trim()).filter(Boolean)
+      const shortLines = lines.filter((l) => l.length <= 100).length
+      // "clean data lines" = short lines carrying a stat — the human alternative
+      // to a decorated numbered framework. We reward them equally so the model
+      // isn't pushed into "1. 2. 3." decks just to win this pillar.
+      const dataLines = lines.filter(
+        (l) => l.length <= 130 && /\d+%|\$[\d.]+[BMK]?|\d+x|\d{2,}/.test(l),
+      ).length
       let score = 0
-      if (numberedItems >= 3) score += 32
-      else if (numberedItems >= 1) score += 18
+      if (numberedItems >= 3 || dataLines >= 3) score += 32
+      else if (numberedItems >= 1 || dataLines >= 2) score += 20
       if (shortLines >= 10) score += 28
-      else if (shortLines >= 6) score += 18
-      if (proEmojis >= 1 && proEmojis <= 3) score += 22
-      else if (proEmojis === 0) score += 12
+      else if (shortLines >= 6) score += 20
+      else if (shortLines >= 4) score += 12
+      // Plain text reads human; emojis read as templated content. Zero is best.
+      if (allEmojis === 0) score += 22
+      else score -= Math.min(30, allEmojis * 6)
       if (arrows > 0) score -= Math.min(35, arrows * 12)
-      if (allEmojis > 6) score -= 15
       return Math.min(Math.max(score, 0), 100)
     },
   },
@@ -327,8 +345,19 @@ function meetsReachComposite(text, details) {
 
   const numbered = (body.match(/\n\d+\.\s/g) || []).length
   const lineCount = body.split('\n').filter((l) => l.trim()).length
+  // Clean prose posts carry proof as plain data lines instead of a numbered
+  // list — accept those as valid structure for the virality floor too.
+  const dataLines = body
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && /\d+%|\$[\d.]+[BMK]?|\d+x|\d{2,}/.test(l)).length
   const last = body.slice(-680)
-  if ((numbered < 2 && lineCount < 12) || !/\?/.test(last) || !/you|your/i.test(last)) return false
+  if (
+    (numbered < 2 && dataLines < 2 && lineCount < 11) ||
+    !/\?/.test(last) ||
+    !/you|your/i.test(last)
+  )
+    return false
 
   const tags = (text.match(/#\w+/g) || []).length
   if (tags < 2 || tags > 8) return false
