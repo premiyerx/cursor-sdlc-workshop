@@ -142,6 +142,14 @@ export default function ThreeModelWorkbench({
               <header className="model-workbench-card-h">
                 <span className="model-workbench-badge">{v.shortLabel || v.label}</span>
                 <span className="model-workbench-name">{v.label}</span>
+                {!v.error && v.editorModel?.shortLabel && (
+                  <span
+                    className="model-workbench-editor"
+                    title={`First draft by ${v.label}, revised by ${v.editorModel.label}`}
+                  >
+                    edited by {v.editorModel.shortLabel}
+                  </span>
+                )}
                 {!v.error && typeof v.reachScore === 'number' && (
                   <div className={['model-workbench-reach-wrap', reachOpen ? 'is-open' : ''].filter(Boolean).join(' ')}>
                     <button

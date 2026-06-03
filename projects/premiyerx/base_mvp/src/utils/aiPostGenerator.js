@@ -164,17 +164,60 @@ export function parseGeneratedPost(raw, finalizeOptions = {}) {
   return parseAIOutput(raw, finalizeOptions)
 }
 
+/**
+ * Pick a DIFFERENT model to run the editor/revision passes (Editors 2 & 3 +
+ * reach boost) than the one that wrote the first draft. A second model catches
+ * the first model's blind spots and tics the way a human editor would — the
+ * writer's draft is revised by a fresh set of "eyes."
+ *
+ * Rotation is deterministic: writer → next profile in the list (wrapping),
+ * skipping any model without a usable API key. If no other model has a valid
+ * key, returns null and the caller falls back to same-model editing so
+ * single-key users still get a polished post.
+ *
+ * @param {object} writerProfile
+ * @returns {{ profile: object, apiKey: string } | null}
+ */
+function resolveEditorProfile(writerProfile) {
+  if (!writerProfile) return null
+  const idx = TEXT_MODEL_PROFILES.findIndex((p) => p.id === writerProfile.id)
+  const ordered =
+    idx >= 0
+      ? [...TEXT_MODEL_PROFILES.slice(idx + 1), ...TEXT_MODEL_PROFILES.slice(0, idx)]
+      : TEXT_MODEL_PROFILES
+  for (const cand of ordered) {
+    if (cand.id === writerProfile.id) continue
+    const key = getApiKeyForProfile(cand)
+    if (keyLooksValid(cand, key)) return { profile: cand, apiKey: key }
+  }
+  return null
+}
+
 async function polishPostForReach(post, ctx, profile, apiKey, report) {
-  const short = profile.shortLabel || profile.label
-  report(88, `${short}: Editors 2 & 3 (target 81+ reach)…`)
+  const writerShort = profile.shortLabel || profile.label
+  // Editing/revision (Editors 2 & 3 + reach boost) is done by a DIFFERENT
+  // model than the writer when a second key is available — a fresh set of eyes.
+  const editor = resolveEditorProfile(profile)
+  const editorProfile = editor?.profile || profile
+  const editorApiKey = editor?.apiKey || apiKey
+  const editorShort = editorProfile.shortLabel || editorProfile.label
+  const editorModel = editor
+    ? { id: editorProfile.id, label: editorProfile.label, shortLabel: editorShort }
+    : null
+  report(
+    88,
+    editor
+      ? `${editorShort} editing ${writerShort}'s draft (target 81+ reach)…`
+      : `${writerShort}: Editors 2 & 3 (target 81+ reach)…`,
+  )
   const result = await runReachEditorPipeline({
     post,
-    profile,
+    profile: editorProfile,
     systemPrompt: ctx.systemPrompt,
-    apiKey,
+    apiKey: editorApiKey,
     parseRevision: (raw) => parseGeneratedPost(raw, ctx.finalizeOptions),
     finalizeOptions: ctx.finalizeOptions,
-    onProgress: (stage) => report(90, `${short}: ${stage}`),
+    onProgress: (stage) => report(90, `${editorShort}: ${stage}`),
   })
   if (!result.post) {
     return {
@@ -185,6 +228,7 @@ async function polishPostForReach(post, ctx, profile, apiKey, report) {
       editorPasses: result.editorPasses,
       reachClearedBar: false,
       reachWarning: null,
+      editorModel,
     }
   }
   return {
@@ -195,6 +239,7 @@ async function polishPostForReach(post, ctx, profile, apiKey, report) {
     editorPasses: result.editorPasses,
     reachClearedBar: result.reachClearedBar,
     reachWarning: result.reachWarning,
+    editorModel,
   }
 }
 
@@ -523,6 +568,7 @@ export async function generateAIPost(topicId, options = {}) {
     realtimeData: ctx.realtimeData,
     seed: ctx.seed,
     textModel: profile,
+    editorModel: polished.editorModel,
     structure: ctx.structure,
     reachScore: polished.reachScore,
     reachBreakdown: polished.reachBreakdown,
@@ -668,6 +714,7 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
           reachScore: polished.reachScore,
           reachBreakdown: polished.reachBreakdown,
           editorPasses: polished.editorPasses,
+          editorModel: polished.editorModel,
           reachClearedBar: polished.reachClearedBar,
           reachWarning: polished.reachWarning,
           noveltyScore: novelty.noveltyScore,
@@ -712,6 +759,7 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
         reachScore: s.value.reachScore ?? null,
         reachBreakdown: s.value.reachBreakdown ?? null,
         editorPasses: s.value.editorPasses ?? null,
+        editorModel: s.value.editorModel ?? null,
         reachClearedBar: s.value.reachClearedBar ?? null,
         reachWarning: s.value.reachWarning ?? null,
         noveltyScore: s.value.noveltyScore ?? null,

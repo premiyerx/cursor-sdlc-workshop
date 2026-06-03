@@ -4232,6 +4232,16 @@ canvas {
   color: var(--text-primary);
 }
 
+.model-workbench-editor {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-secondary, #8a8f98);
+  background: var(--surface-muted, rgba(127, 127, 127, 0.12));
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+
 .model-workbench-focus-pill {
   font-size: 0.65rem;
   font-weight: 600;
