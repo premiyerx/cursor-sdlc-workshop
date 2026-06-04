@@ -21,6 +21,8 @@ import { pickStructureTemplate, buildStructureDirective } from './postStructureT
 import { buildHookLabDirective } from './hookLab.js'
 import { buildTacticStackDirective } from './viralTactics.js'
 import { applyIcpCritique } from './icpCritique.js'
+import { buildGoldenHourKit } from './goldenHourKit.js'
+import { scoreTopicAuthority } from './topicAuthority.js'
 import { buildAvoidBlock, recordDraft, scoreNovelty } from './draftHistory.js'
 import { POST_LENGTH } from '../data/contentStrategy.js'
 import { annotateVariantsWithRecommendation } from './draftRecommendation'
@@ -243,8 +245,26 @@ async function polishPostForReach(post, ctx, profile, apiKey, report) {
   }
 }
 
-function buildUserPrompt(topic, topicId, realtimeContext, customAngle = '', structure = null, avoidBlock = '') {
+function buildUserPrompt(
+  topic,
+  topicId,
+  realtimeContext,
+  customAngle = '',
+  structure = null,
+  avoidBlock = '',
+  personalAnchor = '',
+) {
   const varietyBlock = buildVarietyEnvelope(topicId, topic.label)
+  const anchorLines = String(personalAnchor || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+  const personalAnchorBlock = anchorLines.length
+    ? `
+PERSONAL ANCHORS (REAL lived specifics the author gave you — these are the single most important input):
+${anchorLines.map((l) => `- ${l}`).join('\n')}
+- Weave at least one of these into the HOOK or the first body beat, in the author's own voice, as if recalling it naturally. NEVER label it ("anchor", "for example", "composite") and never generalize it away. This concrete, only-someone-who-was-there detail is what makes the post read as human and pass AI-detection — build the post around it, do not bolt it on.`
+    : ''
   const structureBlock = buildStructureDirective(structure)
   const narrative = getTopicNarrative(topicId)
   const runStamp = new Date().toISOString()
@@ -281,6 +301,7 @@ PRIORITY THESIS: ${narrative.coreThesis}
 MARKET FRAME: ${narrative.competitiveFrame}
 
 ${customAngle ? `Specific angle: ${customAngle}` : ''}
+${personalAnchorBlock}
 
 ${varietyBlock}
 ${structureBlock}
@@ -370,6 +391,7 @@ async function loadSharedGenerationContext(topicId, options) {
     options.customAngle || '',
     structure,
     avoidBlock,
+    options.personalAnchor || '',
   )
   const finalizeOptions = {
     allowList: structure?.id === 'before-after',
@@ -573,6 +595,8 @@ export async function generateAIPost(topicId, options = {}) {
     reachScore: polished.reachScore,
     reachBreakdown: polished.reachBreakdown,
     editorPasses: polished.editorPasses,
+    goldenHourKit: buildGoldenHourKit(polished.post, { topicLabel: ctx.topic?.label }),
+    topicAuthority: scoreTopicAuthority(polished.post, { topicLabel: ctx.topic?.label }),
     noveltyScore: novelty.noveltyScore,
     noveltyTopMatch: novelty.topMatch
       ? {
@@ -717,6 +741,8 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
           editorModel: polished.editorModel,
           reachClearedBar: polished.reachClearedBar,
           reachWarning: polished.reachWarning,
+          goldenHourKit: buildGoldenHourKit(polished.post, { topicLabel: variantCtx.topic?.label }),
+          topicAuthority: scoreTopicAuthority(polished.post, { topicLabel: variantCtx.topic?.label }),
           noveltyScore: novelty.noveltyScore,
           noveltyTopMatch: novelty.topMatch
             ? {
@@ -762,6 +788,8 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
         editorModel: s.value.editorModel ?? null,
         reachClearedBar: s.value.reachClearedBar ?? null,
         reachWarning: s.value.reachWarning ?? null,
+        goldenHourKit: s.value.goldenHourKit ?? null,
+        topicAuthority: s.value.topicAuthority ?? null,
         noveltyScore: s.value.noveltyScore ?? null,
         noveltyTopMatch: s.value.noveltyTopMatch ?? null,
       }

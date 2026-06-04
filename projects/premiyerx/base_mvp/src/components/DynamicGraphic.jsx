@@ -404,23 +404,20 @@ export default function DynamicGraphic({
         realtimeData,
         seed: refreshSeed,
         apiKey: getOpenAiKey(),
-        preferNewsroom: true,
-        forceNewsroom: hasOpenAiKey(),
+        preferNewsroom: false,
+        forceNewsroom: false,
         bumpSeed: true,
         onProgress: reportGraphicProgress,
       })
       applyBundle(graphic)
       onGraphicUpdate?.(graphic)
 
-      if (graphic.ok && graphic.mode === 'newsroom') {
+      if (graphic.ok) {
         finishGraphicProgress('Infographic ready')
-        flashOk(`${graphic.newsroomStyle} infographic ready — save or post on LinkedIn.`)
-      } else if (!graphic.ok) {
+        flashOk('Fresh news infographic ready — crisp text, save or post on LinkedIn.')
+      } else {
         finishGraphicProgress('Picture could not be created')
         flashErr(graphic.error || 'Could not create your picture.')
-      } else {
-        finishGraphicProgress('Basic chart ready')
-        flashOk('Basic chart only — save your OpenAI key under API Keys (welcome area), then tap New graphic angle again.')
       }
     } catch {
       flashErr('Could not refresh — try again.')
@@ -662,8 +659,9 @@ export default function DynamicGraphic({
               className={`smart-visual-secondary ${imageMode === 'newsroom' ? 'active' : ''}`}
               onClick={() => void handleNewsroomClick()}
               disabled={smartBusy}
+              title="AI-generated image. Looks photoreal but can render headline text imperfectly — use the News infographic for guaranteed-crisp text."
             >
-              {smartBusy && !newsroomImage ? 'Creating…' : 'Newsroom'}
+              {smartBusy && !newsroomImage ? 'Creating…' : 'AI image (photoreal)'}
             </button>
           )}
           {hasUnsplashKey && (

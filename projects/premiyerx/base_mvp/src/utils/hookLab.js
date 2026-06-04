@@ -97,5 +97,7 @@ export function buildHookLabDirective() {
     '- Contrarian works only with a specific counter-fact. Questions are fine ONLY if they carry a number or sharp tension.',
     '- DEAD on arrival (never use): imperative/command openers like "Stop doing…", "Read this", "Here\'s the truth nobody tells you" — 360Brew flags these as templated and suppresses reach.',
     '- The first 1–2 lines (≤210 characters, before "see more") must create tension or an open loop AND promise specific value — not context or a warm-up.',
+    '- COMMENT-PROVOKING (this is what drives golden-hour reach): the hook should make a reader with an opinion feel they HAVE to weigh in. Use ONE of: a specific number that surprises, a real before/after, a stance a smart peer could disagree with, or a tension between what the data says and what the room believes. Avoid safe/neutral openers nobody argues with.',
+    '- Land the hook on a concrete noun (a named role, a tool, a metric, a date) so it reads like a person who was in the room — not a brand observation. No hedging in the first line.',
   ].join('\n')
 }

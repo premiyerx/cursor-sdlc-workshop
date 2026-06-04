@@ -14,6 +14,8 @@ import BrandThemePanel from './components/BrandThemePanel'
 import DraftMemoryPanel from './components/DraftMemoryPanel'
 import SettingsAccordion from './components/SettingsAccordion'
 import OptionalAngleField from './components/OptionalAngleField'
+import PersonalAnchorField from './components/PersonalAnchorField'
+import CadenceCard from './components/CadenceCard'
 import ThreeModelWorkbench, { variantPostToLiveText } from './components/ThreeModelWorkbench'
 import { useFlashFeedback } from './hooks/useFlashFeedback'
 import { useFooterBuildStamp } from './hooks/useFooterBuildStamp'
@@ -52,6 +54,7 @@ export default function App() {
   const [graphicStage, setGraphicStage] = useState('')
   const [phaseComplete, setPhaseComplete] = useState(false)
   const [customAngle, setCustomAngle] = useState('')
+  const [personalAnchor, setPersonalAnchor] = useState('')
   const [apiKeysMetaTick, setApiKeysMetaTick] = useState(0)
   const [apiKeysPanelOpen, setApiKeysPanelOpen] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -180,6 +183,7 @@ export default function App() {
       setGeneratePhase('post')
       const result = await generateAIPostCompareAll(selectedTopic, {
         customAngle,
+        personalAnchor,
         onProgress: reportPostProgress,
       })
       compareContextRef.current = { realtimeData: result.realtimeData, seed: result.seed }
@@ -248,7 +252,7 @@ export default function App() {
           realtimeData,
           seed,
           apiKey: getOpenAiKey(),
-          preferNewsroom: true,
+          preferNewsroom: false,
           bumpSeed: true,
           onProgress: reportGraphicProgress,
         })
@@ -402,6 +406,15 @@ export default function App() {
         </section>
 
         <OptionalAngleField value={customAngle} onChange={setCustomAngle} disabled={generateBusy || assetBusy} />
+
+        <PersonalAnchorField
+          value={personalAnchor}
+          onChange={setPersonalAnchor}
+          disabled={generateBusy || assetBusy}
+          topicId={selectedTopic}
+        />
+
+        <CadenceCard />
 
         <section className="command-bar command-bar--generate">
           <button

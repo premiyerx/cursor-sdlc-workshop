@@ -2,11 +2,15 @@ import { fetchRealtimeContext, invalidateRealtimeCache } from './realtimeData'
 import { bumpRefreshSeed } from './freshnessRotation'
 import { buildHeadlineInfographicModel } from './verifiedInfographic'
 import { generateNewsroomImage } from './newsroomVisual'
-import { getOpenAiKey, hasOpenAiKey } from './openaiKey'
+import { getOpenAiKey } from './openaiKey'
 
 /**
  * Build the companion graphic.
- * If an OpenAI key is saved, ONLY returns an AI image or a clear failure — never a basic bar chart.
+ *
+ * Default = the legible, client-rendered SVG "news infographic" (always crisp
+ * text). The AI image (GPT-Image newsroom) is only produced when a caller
+ * explicitly opts in via `preferNewsroom`/`forceNewsroom`, because GPT-Image
+ * frequently garbles long headlines — which tanks dwell/engagement on LinkedIn.
  */
 export async function createCompanionGraphic({
   postText,
@@ -15,7 +19,7 @@ export async function createCompanionGraphic({
   realtimeData: existingRt = null,
   seed: existingSeed = null,
   apiKey: providedKey = '',
-  preferNewsroom = true,
+  preferNewsroom = false,
   forceNewsroom = false,
   bumpSeed = false,
   onProgress,
@@ -56,7 +60,9 @@ export async function createCompanionGraphic({
     refreshSeed: seed,
   })
 
-  const tryAiImage = !!apiKey && (preferNewsroom || forceNewsroom || hasOpenAiKey())
+  // Only generate an AI image when explicitly requested. Having an OpenAI key
+  // no longer auto-forces it — the crisp SVG infographic is the default.
+  const tryAiImage = !!apiKey && (forceNewsroom || preferNewsroom)
 
   if (tryAiImage) {
     report(45, 'Planning infographic layout…')
@@ -102,9 +108,8 @@ export async function createCompanionGraphic({
     }
   }
 
-  report(85, 'Building simple chart…')
-  report(100, 'Basic chart ready')
-  const lead = model.leadHeadline?.title?.slice(0, 48) || 'updated'
+  report(85, 'Composing news infographic…')
+  report(100, 'News infographic ready')
   return {
     ok: true,
     mode: 'headline',
@@ -113,7 +118,9 @@ export async function createCompanionGraphic({
     realtimeData: rt,
     seed,
     model,
-    hint: `Basic chart only — open API Keys (welcome area), paste your OpenAI key, tap Save, then tap New graphic angle.`,
+    hint: model.hasNews
+      ? `${model.verifiedCount} verified stat${model.verifiedCount === 1 ? '' : 's'} · crisp text, ready for LinkedIn`
+      : `Clean infographic ready — crisp text, ready for LinkedIn`,
     error: null,
   }
 }

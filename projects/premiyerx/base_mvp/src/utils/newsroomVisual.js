@@ -273,6 +273,7 @@ function buildPrompt({
 
   const qualityPreamble = [
     'QUALITY BAR: Publication-grade LinkedIn infographic (landscape ~16:9, 1536×1024).',
+    'TEXT DISCIPLINE (CRITICAL — image models garble long text into gibberish): Render ONLY very short, large, correctly-spelled text. Headline = 3–6 words MAX. Each number gets a label of 4 words MAX. Absolutely NO sentences, NO paragraphs, NO body copy, NO captions, NO fine print, NO multi-line descriptions. If the Title provided below is longer than 6 words, shorten it yourself to the 3–6 most important words. When in doubt, show fewer words and let one big number carry the story. Every rendered character must be large enough to read on a phone and spelled perfectly — a long garbled headline kills engagement.',
     'MOBILE-FIRST: Phone feed (~390px wide). Default visual story = ONE dominant number or ONE simple chart — not a dashboard collage. Headline type must dominate; axis labels large enough to read without zoom.',
     'Prioritize clarity, typography, and believable visual hierarchy — *high-end fidelity*, not the same layout every time.',
     'Vary composition, chart species, and graphic language between generations; avoid cookie-cutter “ROI dashboard” sameness (identical Sankey + sidebar + metric strip).',

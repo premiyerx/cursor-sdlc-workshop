@@ -246,6 +246,32 @@ export default function ThreeModelWorkbench({
                         <p className="model-workbench-first-body">{v.post.firstComment}</p>
                       </div>
                     ) : null}
+                    {!v.error && v.topicAuthority?.warning ? (
+                      <p
+                        className="model-workbench-authority-warn"
+                        title={`Topic authority ${v.topicAuthority.score}/100`}
+                      >
+                        Off-niche ({v.topicAuthority.score}/100): {v.topicAuthority.warning}
+                      </p>
+                    ) : null}
+                    {!v.error && v.goldenHourKit ? (
+                      <details className="model-workbench-goldenhour">
+                        <summary>Golden-hour kit — the first 60 min drives reach</summary>
+                        <p className="model-workbench-gh-note">{v.goldenHourKit.note}</p>
+                        <p className="model-workbench-gh-subhead">Seed replies (personalize the brackets)</p>
+                        <ul className="model-workbench-gh-list">
+                          {v.goldenHourKit.seedReplies.map((r, i) => (
+                            <li key={`r${i}`}>{r}</li>
+                          ))}
+                        </ul>
+                        <p className="model-workbench-gh-subhead">Launch checklist</p>
+                        <ul className="model-workbench-gh-list">
+                          {v.goldenHourKit.checklist.map((c, i) => (
+                            <li key={`c${i}`}>{c}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
                     </div>
 
                   <div className="model-workbench-actions">

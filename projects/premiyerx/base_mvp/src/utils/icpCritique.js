@@ -481,6 +481,91 @@ function ensureIcpCtaQuestion(cta) {
 }
 
 /**
+ * Strip external links from the post body — Move 2. A link in the post body
+ * costs an estimated 18-60% reach (LinkedIn keeps users off-platform). We pull
+ * the URL and tidy any dangling "(source: …)" wrapper or trailing punctuation,
+ * so the claim survives but the off-platform link does not. (First-comment copy
+ * is left untouched — that's where a link belongs if you must include one.)
+ */
+const EXTERNAL_URL_RE = /\s*\(?(?:https?:\/\/|www\.)[^\s)]+\)?/gi
+export function stripExternalLinks(text) {
+  if (!text) return ''
+  let t = String(text)
+  EXTERNAL_URL_RE.lastIndex = 0
+  if (!EXTERNAL_URL_RE.test(t)) return t
+  EXTERNAL_URL_RE.lastIndex = 0
+  t = t.replace(EXTERNAL_URL_RE, '')
+  t = t.replace(/\(\s*(?:source|link|read more|see)\s*:?\s*\)/gi, '')
+  t = t.replace(/\(\s*\)/g, '')
+  t = t.replace(/[ \t]{2,}/g, ' ')
+  t = t.replace(/[ \t]+([.,;:!?])/g, '$1')
+  return t.trim()
+}
+
+/** Recapitalize the first letter of each sentence (used after a removal that
+ * may have promoted a lowercase word to a sentence start). */
+function recapitalizeSentences(text) {
+  return String(text).replace(
+    /(^|[.!?]\s+|\n[ \t]*)([a-z])/g,
+    (_m, pre, ch) => pre + ch.toUpperCase(),
+  )
+}
+
+/**
+ * Cap hedge-stacking — Move 1 (anti-AI-detection). LinkedIn's 360Brew flags
+ * heavy hedging as an AI tell. We strip pure-filler hedge openers ("Honestly,",
+ * "To be fair,", "For what it's worth,") that add nothing, while leaving the
+ * one or two genuine reflective hedges that make copy sound human. Conservative
+ * by design: only removes throat-clearing, never load-bearing clauses.
+ */
+const FILLER_HEDGE_OPENERS = [
+  /(^|\n)([ \t]*)Honestly,?\s+/gi,
+  /(^|\n)([ \t]*)To be fair,?\s+/gi,
+  /(^|\n)([ \t]*)If I'?m being honest,?\s+/gi,
+  /(^|\n)([ \t]*)For what it'?s worth,?\s+/gi,
+  /(^|\n)([ \t]*)Look,\s+/g,
+  /(^|\n)([ \t]*)Listen,\s+/g,
+  /\bI guess,?\s+/gi,
+  /\bI suppose,?\s+/gi,
+]
+export function capHedgeStacking(text) {
+  if (!text) return ''
+  let t = String(text)
+  let changed = false
+  for (const re of FILLER_HEDGE_OPENERS) {
+    re.lastIndex = 0
+    if (re.test(t)) {
+      changed = true
+      re.lastIndex = 0
+      t = t.replace(re, (_m, pre = '', ws = '') => `${pre}${ws}`)
+    }
+  }
+  return changed ? recapitalizeSentences(t) : t
+}
+
+/**
+ * Scrub the named AI cliché frame "It's not X, it's Y" (and "this isn't X,
+ * it's Y" / "it's not about X, it's about Y"). LinkedIn explicitly called this
+ * out as a ChatGPT tell. We collapse it to the assertive second clause.
+ *
+ * Guarded so it does NOT touch the encouraged reframe "the harder question
+ * isn't X, it's Y" — that opens with a noun subject, not "it's/this is".
+ */
+const AI_CLICHE_FRAME_RE =
+  /\b(it'?s|it is|this is|this isn'?t|that'?s)\s+(?:not|isn'?t)\s+(just\s+|only\s+|about\s+)?[^.?!,;]{2,48}[,;]\s*(it'?s about|it'?s|it is|they'?re|that'?s)\s+/gi
+export function scrubAiClicheFrames(text) {
+  if (!text) return ''
+  let t = String(text)
+  AI_CLICHE_FRAME_RE.lastIndex = 0
+  if (!AI_CLICHE_FRAME_RE.test(t)) return t
+  AI_CLICHE_FRAME_RE.lastIndex = 0
+  t = t.replace(AI_CLICHE_FRAME_RE, (_m, _subj, about = '', second) =>
+    about && about.trim() === 'about' ? `${second} ` : `${second} `,
+  )
+  return recapitalizeSentences(t)
+}
+
+/**
  * Critique the post the way a CIO/VP Eng/CFO/CISO would read it: terse, peer-to-peer,
  * no AI tells, no em-dashes, no emojis in body/hook/CTA.
  *
@@ -488,10 +573,11 @@ function ensureIcpCtaQuestion(cta) {
  */
 export function applyIcpCritique(post) {
   if (!post) return post
-  const clean = (text) =>
-    stripDashesFromCopy(
-      scrubStaleDateRefs(scrubMetaLabels(applyIcpSwaps(dropEmojis(text || '')))),
-    )
+  const clean = (text, { stripLinks = true } = {}) => {
+    const base = scrubStaleDateRefs(scrubMetaLabels(applyIcpSwaps(dropEmojis(text || ''))))
+    const linked = stripLinks ? stripExternalLinks(base) : base
+    return stripDashesFromCopy(scrubAiClicheFrames(capHedgeStacking(linked)))
+  }
   const hook = clean(post.hook)
   // Body gets an extra coherence pass: drop AI-filler one-liners ("Wild.",
   // "Two things can be true at once.") and orphan anaphora ("Same complaint
@@ -499,7 +585,8 @@ export function applyIcpCritique(post) {
   // are exempt from this pass.
   const body = dropFillerAndOrphanLines(clean(post.body))
   const cta = ensureIcpCtaQuestion(clean(post.cta))
-  const firstComment = clean(post.firstComment)
+  // First comment is where a link belongs if you must include one — keep it.
+  const firstComment = clean(post.firstComment, { stripLinks: false })
   return { ...post, hook, body, cta, firstComment }
 }
 
