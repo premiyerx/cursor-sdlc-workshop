@@ -432,7 +432,7 @@ export default function App() {
           {generateBusy && generatePhase === 'post' && (
             <CommandProgress
               progress={postProgress}
-              stage={postStage || 'Running GPT 5.5, Claude Opus 4.8, and Gemini 3 Pro…'}
+              stage={postStage || 'Running GPT 5.5, Claude Opus 4.8, and Gemini 3.5 Flash…'}
               complete={phaseComplete}
               sub="Usually 15–30 seconds"
             />

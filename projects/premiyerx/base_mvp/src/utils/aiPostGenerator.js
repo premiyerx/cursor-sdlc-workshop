@@ -23,6 +23,7 @@ import { buildTacticStackDirective } from './viralTactics.js'
 import { applyIcpCritique } from './icpCritique.js'
 import { buildGoldenHourKit } from './goldenHourKit.js'
 import { scoreTopicAuthority } from './topicAuthority.js'
+import { anchorIsReflected } from './personalAnchorMatch.js'
 import { buildAvoidBlock, recordDraft, scoreNovelty } from './draftHistory.js'
 import { POST_LENGTH } from '../data/contentStrategy.js'
 import { annotateVariantsWithRecommendation } from './draftRecommendation'
@@ -259,11 +260,21 @@ function buildUserPrompt(
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean)
-  const personalAnchorBlock = anchorLines.length
+  const hasAnchor = anchorLines.length > 0
+  const personalAnchorBlock = hasAnchor
     ? `
-PERSONAL ANCHORS (REAL lived specifics the author gave you — these are the single most important input):
-${anchorLines.map((l) => `- ${l}`).join('\n')}
-- Weave at least one of these into the HOOK or the first body beat, in the author's own voice, as if recalling it naturally. NEVER label it ("anchor", "for example", "composite") and never generalize it away. This concrete, only-someone-who-was-there detail is what makes the post read as human and pass AI-detection — build the post around it, do not bolt it on.`
+========================================================
+ANCHOR MANDATE (HIGHEST PRIORITY — overrides any conflicting instruction below):
+The author gave you a REAL moment from their week. This is the SPINE of the post, not a garnish.
+${anchorLines.map((l) => `>>> ${l}`).join('\n')}
+
+NON-NEGOTIABLE:
+- The HOOK or the very first body beat MUST be built directly from this moment — the specific situation, the role, the problem, and what was said or decided.
+- This moment IS your "personal specificity" requirement. Do NOT invent a different scene, number, role, or outcome (e.g. do NOT make up "47 reopened tickets" or "350 seats renewed") to satisfy specificity — use THIS real one.
+- Keep the concrete nouns from the moment (the role, the situation, the stakes). You may add ONE supporting data point from the news CONTEXT, but the news is the second beat, never the opener.
+- Never label it ("anchor", "for example", "composite", "hypothetical"). Write it as the author naturally recalling what happened.
+- If the moment names a generic role (e.g. "a Global Head of AI"), keep that role; never invent a company name.
+========================================================`
     : ''
   const structureBlock = buildStructureDirective(structure)
   const narrative = getTopicNarrative(topicId)
@@ -312,9 +323,17 @@ ${avoidBlock}
 
 CONTEXT:
 - Audience: ${narrative.audience}
-- Anchor hook in LEAD STORY from research below (paraphrase — never paste headline verbatim).
+${
+  hasAnchor
+    ? '- LEAD WITH THE ANCHOR MANDATE above — it is the opener and the spine. Use the LEAD STORY / research headlines below only as a supporting second beat, never as the opening that replaces the anchor.'
+    : '- Anchor hook in LEAD STORY from research below (paraphrase — never paste headline verbatim).'
+}
 - Sound like Prem Iyer: SVP, Global Strategic Accounts at Cursor — operator + investor, peer to CIOs and engineering leaders — NOT generic ChatGPT LinkedIn voice.
-- PERSONAL SPECIFICITY (non-negotiable): every post MUST include at least one detail only someone with direct experience would know — a real number (with a unit), a named role in a scene (a VP Eng / CIO who told you something), a specific outcome (closed, shipped, paused, expanded to N seats), or a named mistake you made. No generic observations. If you cannot point to a specific moment, anonymize the role (e.g. "a VP of Eng told me last Friday") — never invent customer names or funding figures, and NEVER write the meta-words "composite scene", "composite VP", "anonymized", or "hypothetical" inside the post. The reader should never see those labels.
+${
+  hasAnchor
+    ? '- PERSONAL SPECIFICITY (non-negotiable): the required only-an-insider-would-know detail IS the ANCHOR MANDATE above — build the scene from it. Do NOT invent a different number, role, or outcome to satisfy this rule; use the author\'s real moment. Never invent customer names or funding figures, and NEVER write the meta-words "composite scene", "composite VP", "anonymized", or "hypothetical" inside the post.'
+    : '- PERSONAL SPECIFICITY (non-negotiable): every post MUST include at least one detail only someone with direct experience would know — a real number (with a unit), a named role in a scene (a VP Eng / CIO who told you something), a specific outcome (closed, shipped, paused, expanded to N seats), or a named mistake you made. No generic observations. If you cannot point to a specific moment, anonymize the role (e.g. "a VP of Eng told me last Friday") — never invent customer names or funding figures, and NEVER write the meta-words "composite scene", "composite VP", "anonymized", or "hypothetical" inside the post. The reader should never see those labels.'
+}
 - BANNED VOCABULARY (do not use anywhere): "game-changer", "dive into", "leverage", "unlock", "in today's fast-paced", "it's worth noting", "at the end of the day", "the reality is", "buckle up", "the bottom line", "let that sink in", "here's the thing", "crucial", "vital", "landscape", "ever-evolving", "arc", "thoughts?", "agree?". The post-processor strips these — but if you avoid them, the result reads more like a human first draft.
 - BANNED ONE-LINER EXCLAMATIONS (read as AI tics; never write these as standalone lines): "Wild.", "Brutal.", "Real.", "Truth.", "Facts.", "Same.", "Both.", "This.", "That.", "Right?", "Exactly.", "Yikes.", "Oof.", "Welp.", "Damn.", "Two things can be true at once.", "Both can be true.", "Make it make sense.", "Read that again.", "Let that sink in.", "Big if true.", "Tell me I'm wrong.", "Change my mind.", "I'll wait.", "Just saying.", "Food for thought." A one-word fragment IS allowed inside a sentence, never as its own line.
 - COHERENCE (non-negotiable): Every line in the body must do ONE of two things: (a) name a concrete subject + verb + object (a complete thought), OR (b) directly extend the line immediately above it. NEVER write a line that refers to something the reader has not yet been told. Examples that are BROKEN: "Same complaint both times." when no complaint was stated. "Two Fortune 500 calls, 48 hours apart." followed by "Wild." with no description of what happened on the calls. Each beat must land its own payload — the reader should never have to ask "wait, what?"
@@ -408,6 +427,58 @@ async function loadSharedGenerationContext(topicId, options) {
     structure,
     finalizeOptions,
     avoidBlock,
+    personalAnchor: options.personalAnchor || '',
+  }
+}
+
+/**
+ * Forceful directive appended on a retry when a draft ignored the author's
+ * personal anchor entirely. Used by enforceAnchor() below.
+ */
+const ANCHOR_ENFORCE_SUFFIX = `
+
+ANCHOR ENFORCEMENT (your previous attempt IGNORED the author's real moment — this is a hard failure):
+- Rewrite so the HOOK is built DIRECTLY from the author's ANCHOR MANDATE moment above.
+- The specific situation, the role, and the problem from that moment must be visible in the first two lines.
+- Do NOT open on a news headline or an invented scene. The author's real moment is the opener. The news is at most a supporting second beat.
+- Keep the distinctive nouns from the moment (e.g. the role and the specific problem they raised).`
+
+/**
+ * If the author supplied a personal anchor but the polished draft reflects
+ * none of it, regenerate ONCE with a forceful enforcement directive and keep
+ * whichever result reflects the anchor (falling back to the original).
+ *
+ * @param {{ ctx: object, profile: object, apiKey: string, polished: object,
+ *   report?: (pct:number, stage:string)=>void }} args
+ */
+async function enforceAnchor({ ctx, profile, apiKey, polished, report }) {
+  const anchor = ctx.personalAnchor
+  if (!anchor || !anchor.trim()) return polished
+  const text = `${polished.post?.hook || ''}\n${polished.post?.body || ''}`
+  if (anchorIsReflected(anchor, text)) return polished
+
+  report?.(90, 'Draft skipped your personal anchor — rewriting around it…')
+  try {
+    const retryRaw = await generateRawCompletion(profile, {
+      systemPrompt: ctx.systemPrompt,
+      userPrompt: `${ctx.userPrompt}${ANCHOR_ENFORCE_SUFFIX}`,
+      apiKey,
+    })
+    let retryDraft = parseAIOutput(retryRaw, ctx.finalizeOptions)
+    if (postSectionsHaveReasoningLeakage(retryDraft)) {
+      retryDraft = parseAIOutput(
+        prepareModelTextForParsing(retryRaw, { aggressive: true }),
+        ctx.finalizeOptions,
+      )
+    }
+    if (!retryDraft?.hook?.trim() && !retryDraft?.body?.trim()) return polished
+    const retryPolished = await polishPostForReach(retryDraft, ctx, profile, apiKey, () => {})
+    if (retryPolished.error || !retryPolished.post) return polished
+    const retryText = `${retryPolished.post.hook || ''}\n${retryPolished.post.body || ''}`
+    // Prefer the retry if it now reflects the anchor; otherwise keep original.
+    return anchorIsReflected(anchor, retryText) ? retryPolished : polished
+  } catch {
+    return polished
   }
 }
 
@@ -575,6 +646,10 @@ export async function generateAIPost(topicId, options = {}) {
   polished = escalated.polished
   const novelty = escalated.novelty
 
+  // Personal-anchor safety net: if the author gave an anchor and the draft
+  // ignored it, rewrite once around the anchor.
+  polished = await enforceAnchor({ ctx, profile, apiKey, polished, report })
+
   recordDraft({
     topicId: ctx.topicId,
     modelId: profile.id,
@@ -660,7 +735,7 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
 
   const ctx = await loadSharedGenerationContext(topicId, options)
   const profiles = COMPARE_TEXT_MODEL_IDS.map((id) => getTextModelProfile(id))
-  report(48, 'Running GPT 5.5, Claude Opus 4.8, and Gemini 3 Pro (then Editors 2 & 3)…')
+  report(48, 'Running GPT 5.5, Claude Opus 4.8, and Gemini 3.5 Flash (then Editors 2 & 3)…')
 
   // Rotate the per-run starting offset so we don't always hand "scene" to
   // GPT and "stat" to Claude.
@@ -724,6 +799,15 @@ export async function generateAIPostCompareAll(topicId, options = {}) {
         })
         polished = escalated.polished
         const novelty = escalated.novelty
+
+        // Personal-anchor safety net (per model): rewrite once if ignored.
+        polished = await enforceAnchor({
+          ctx: variantCtx,
+          profile,
+          apiKey,
+          polished,
+          report: noopReport,
+        })
 
         recordDraft({
           topicId: variantCtx.topicId,

@@ -17,7 +17,8 @@
     "test:stale-date": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/stale-date-harness.mjs",
     "test:uniqueness": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/uniqueness-stress-harness.mjs",
     "test:coherence": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/coherence-harness.mjs",
-    "test:human-voice": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/human-voice-harness.mjs"
+    "test:human-voice": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/human-voice-harness.mjs",
+    "test:anchor": "node --import \"data:text/javascript,import{register}from'node:module';import{pathToFileURL}from'node:url';register('./scripts/esm-resolver.mjs',pathToFileURL('./'));\" scripts/anchor-match-harness.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^0.27.3",
